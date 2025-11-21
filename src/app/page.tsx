@@ -1,14 +1,89 @@
+import Link from "next/link";
+
 export default function HomePage() {
   return (
-    <main className="min-h-screen flex items-center justify-center">
-      <div className="text-center space-y-4">
-        <h1 className="text-3xl font-semibold tracking-tight">
-          NRW Web – start
-        </h1>
-        <p className="text-neutral-500">
-          Tohle je homepage. Odsud se později bude vstupovat do všech modulů.
-        </p>
-      </div>
+    <main className="min-h-screen bg-neutral-50">
+      <section className="mx-auto max-w-5xl px-4 py-12 space-y-10">
+        <header className="space-y-2">
+          <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+            NRW · web alpha
+          </p>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Vítej v NRW.
+          </h1>
+          <p className="max-w-xl text-sm text-neutral-600">
+            Tohle je zatím interní web verze NRW. Odsud se dostaneš do chatu,
+            seznamování, příběhů, novinek a správy účtu.
+          </p>
+        </header>
+
+        <section className="grid gap-4 md:grid-cols-3">
+          <Link
+            href="/chat"
+            className="group rounded-xl border border-neutral-200 bg-white p-4 text-sm shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
+              nChat
+            </div>
+            <p className="font-semibold mb-1">Zprávy & hovory</p>
+            <p className="text-xs text-neutral-500">
+              Soukromé zprávy, skupiny a později audio/video hovory.
+            </p>
+          </Link>
+
+          <Link
+            href="/love"
+            className="group rounded-xl border border-neutral-200 bg-white p-4 text-sm shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
+              nLove
+            </div>
+            <p className="font-semibold mb-1">Seznamování</p>
+            <p className="text-xs text-neutral-500">
+              Profily, matchování a bezpečné seznamování v NRW ekosystému.
+            </p>
+          </Link>
+
+          <Link
+            href="/real"
+            className="group rounded-xl border border-neutral-200 bg-white p-4 text-sm shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
+              nReal
+            </div>
+            <p className="font-semibold mb-1">Příběhy & blog</p>
+            <p className="text-xs text-neutral-500">
+              Dlouhé posty, články, deníčky a osobní příběhy.
+            </p>
+          </Link>
+
+          <Link
+            href="/news"
+            className="group rounded-xl border border-neutral-200 bg-white p-4 text-sm shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
+              nNews
+            </div>
+            <p className="font-semibold mb-1">Novinky & přehled</p>
+            <p className="text-xs text-neutral-500">
+              Kurátorovaný feed informací a update z NRW světa.
+            </p>
+          </Link>
+
+          <Link
+            href="/id"
+            className="group rounded-xl border border-neutral-200 bg-white p-4 text-sm shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-500">
+              nID
+            </div>
+            <p className="font-semibold mb-1">Účet & identita</p>
+            <p className="text-xs text-neutral-500">
+              Přihlášení, správa účtu, preference a bezpečnost.
+            </p>
+          </Link>
+        </section>
+      </section>
     </main>
   );
 }
