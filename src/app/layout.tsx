@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import "./globals.css";
-import { MainNav } from "@/components/layout/MainNav";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -10,15 +10,15 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: ReactNode;
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">
-        <div className="min-h-screen flex flex-col">
-          <MainNav />
-          <main className="flex-1">{children}</main>
-        </div>
+      <body
+        className="antialiased bg-white text-neutral-900"
+        suppressHydrationWarning
+      >
+        {children}
       </body>
     </html>
   );
