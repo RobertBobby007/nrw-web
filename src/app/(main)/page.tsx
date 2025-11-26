@@ -1,88 +1,88 @@
-import Link from "next/link";
+type FeedItem = {
+  id: string;
+  type: "nReal" | "nNews";
+  title: string;
+  excerpt: string;
+  meta: string;
+};
+
+const demoItems: FeedItem[] = [
+  {
+    id: "1",
+    type: "nReal",
+    title: "První příběh v NRW",
+    excerpt: "Krátký popis příběhu, který se v budoucnu načte z backendu…",
+    meta: "Autor · datum",
+  },
+  {
+    id: "2",
+    type: "nNews",
+    title: "NRW News: první update",
+    excerpt: "Krátká zpráva z NRW světa, která bude později generovaná dynamicky…",
+    meta: "NRW News · datum",
+  },
+  {
+    id: "3",
+    type: "nReal",
+    title: "Příběh komunity",
+    excerpt: "Další ukázka příběhu, který se později načte z nReal feedu…",
+    meta: "NRW · datum",
+  },
+];
+
+const tabs = ["Mix", "nReal", "nNews"];
 
 export default function HomePage() {
+  const activeTab = "Mix";
+
   return (
-    <main className="min-h-screen bg-white">
-      <section className="mx-auto max-w-5xl px-4 py-12 space-y-10">
+    <main className="min-h-screen bg-neutral-50 pb-24">
+      <section className="mx-auto max-w-5xl px-4 py-8 space-y-8">
         <header className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.2em] text-neutral-700">
-            NRW · web alpha
+          <p className="text-xs uppercase tracking-[0.2em] text-neutral-600">
+            NRW · Home
           </p>
           <h1 className="text-3xl font-semibold tracking-tight text-neutral-900">
-            Vítej v NRW.
+            NRStream – hlavní přehled
           </h1>
-          <p className="max-w-xl text-sm text-neutral-800">
-            Tohle je zatím interní web verze NRW. Odsud se dostaneš do chatu,
-            seznamování, příběhů, novinek a správy účtu.
+          <p className="max-w-2xl text-sm text-neutral-700">
+            Jeden mix z nReal a nNews. Sleduj příběhy, novinky a aktualizace na jednom
+            místě.
           </p>
         </header>
 
-        <section className="grid gap-4 md:grid-cols-3">
-          <Link
-            href="/chat"
-            className="group rounded-xl border border-neutral-200 bg-white p-4 text-sm shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-700">
-              nChat
-            </div>
-            <p className="font-semibold mb-1 text-neutral-900">Zprávy & hovory</p>
-            <p className="text-xs text-neutral-700">
-              Soukromé zprávy, skupiny a později audio/video hovory.
-            </p>
-          </Link>
+        <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-700">
+          {tabs.map((tab) => {
+            const isActive = tab === activeTab;
+            return (
+              <button
+                key={tab}
+                type="button"
+                className={`rounded-full px-3 py-1 font-medium transition ${
+                  isActive ? "bg-neutral-900 text-white" : "text-neutral-700 hover:bg-neutral-100"
+                }`}
+              >
+                {tab}
+              </button>
+            );
+          })}
+        </div>
 
-          <Link
-            href="/love"
-            className="group rounded-xl border border-neutral-200 bg-white p-4 text-sm shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-700">
-              nLove
-            </div>
-            <p className="font-semibold mb-1 text-neutral-900">Seznamování</p>
-            <p className="text-xs text-neutral-700">
-              Profily, matchování a bezpečné seznamování v NRW ekosystému.
-            </p>
-          </Link>
-
-          <Link
-            href="/real"
-            className="group rounded-xl border border-neutral-200 bg-white p-4 text-sm shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-700">
-              nReal
-            </div>
-            <p className="font-semibold mb-1 text-neutral-900">Příběhy & blog</p>
-            <p className="text-xs text-neutral-700">
-              Dlouhé posty, články, deníčky a osobní příběhy.
-            </p>
-          </Link>
-
-          <Link
-            href="/news"
-            className="group rounded-xl border border-neutral-200 bg-white p-4 text-sm shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-700">
-              nNews
-            </div>
-            <p className="font-semibold mb-1 text-neutral-900">Novinky & přehled</p>
-            <p className="text-xs text-neutral-700">
-              Kurátorovaný feed informací a update z NRW světa.
-            </p>
-          </Link>
-
-          <Link
-            href="/id"
-            className="group rounded-xl border border-neutral-200 bg-white p-4 text-sm shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <div className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-700">
-              nID
-            </div>
-            <p className="font-semibold mb-1 text-neutral-900">Účet & identita</p>
-            <p className="text-xs text-neutral-700">
-              Přihlášení, správa účtu, preference a bezpečnost.
-            </p>
-          </Link>
-        </section>
+        <div className="space-y-3">
+          {demoItems.map((item) => (
+            <article
+              key={item.id}
+              className="rounded-xl border border-neutral-200 bg-white p-4 text-sm shadow-sm"
+            >
+              <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                {item.type}
+              </div>
+              <h2 className="text-base font-semibold text-neutral-900">{item.title}</h2>
+              <p className="mt-1 text-xs text-neutral-600">{item.excerpt}</p>
+              <p className="mt-3 text-[11px] text-neutral-400">{item.meta}</p>
+            </article>
+          ))}
+        </div>
       </section>
     </main>
   );
