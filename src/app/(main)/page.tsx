@@ -8,7 +8,7 @@ import {
   Sun,
   Users,
 } from "lucide-react";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 type FeedItem = {
   id: string;
@@ -18,11 +18,9 @@ type FeedItem = {
   meta: string;
 };
 
-type Widget = {
-  id: string;
-  title: string;
-  content: ReactNode;
-};
+type WidgetId = "weather" | "date" | "suggested" | "heatmap";
+
+const WIDGETS_STORAGE_KEY = "nrw.widget.layout";
 
 const demoItems: FeedItem[] = [
   {
@@ -50,23 +48,45 @@ const demoItems: FeedItem[] = [
 
 const tabs = ["Mix", "nReal", "nNews"];
 
+const widgetConfig: Record<
+  WidgetId,
+  {
+    title: string;
+    render: (today?: Date) => ReactNode;
+  }
+> = {
+  weather: { title: "Počasí", render: (today) => <WeatherWidget today={today} /> },
+  date: { title: "Kalendář", render: (today) => <DateWidget today={today} /> },
+  suggested: { title: "Návrhy", render: () => <SuggestionsWidget /> },
+  heatmap: { title: "Heat mapa", render: () => <HeatmapWidget /> },
+};
+
+const defaultWidgetOrder: WidgetId[] = ["weather", "date", "suggested", "heatmap"];
+
 export default function HomePage() {
   const activeTab = "Mix";
-  const today = useMemo(() => new Date(), []);
+  const [today] = useState<Date>(() => new Date());
   const [isEditing, setIsEditing] = useState(false);
-  const [widgets, setWidgets] = useState<Widget[]>(() => [
-    { id: "weather", title: "Počasí", content: <WeatherWidget today={today} /> },
-    { id: "date", title: "Kalendář", content: <DateWidget today={today} /> },
-    { id: "suggested", title: "Návrhy", content: <SuggestionsWidget /> },
-    { id: "heatmap", title: "Heat mapa", content: <HeatmapWidget /> },
-  ]);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(() => {
+    if (typeof window === "undefined") return defaultWidgetOrder;
+    const stored = window.localStorage.getItem(WIDGETS_STORAGE_KEY);
+    const storedOrder = stored ? (JSON.parse(stored) as WidgetId[]) : null;
+    if (!storedOrder?.length) return defaultWidgetOrder;
+    const known = storedOrder.filter((id) => id in widgetConfig) as WidgetId[];
+    const missing = (Object.keys(widgetConfig) as WidgetId[]).filter((id) => !known.includes(id));
+    return [...known, ...missing];
+  });
+  const [draggingId, setDraggingId] = useState<WidgetId | null>(null);
 
-  const reorderWidgets = (dragId: string, overId: string) => {
+  useEffect(() => {
+    window.localStorage.setItem(WIDGETS_STORAGE_KEY, JSON.stringify(widgetOrder));
+  }, [widgetOrder]);
+
+  const reorderWidgets = (dragId: WidgetId, overId: WidgetId) => {
     if (!dragId || dragId === overId) return;
-    setWidgets((current) => {
-      const dragIndex = current.findIndex((w) => w.id === dragId);
-      const overIndex = current.findIndex((w) => w.id === overId);
+    setWidgetOrder((current) => {
+      const dragIndex = current.findIndex((w) => w === dragId);
+      const overIndex = current.findIndex((w) => w === overId);
       if (dragIndex === -1 || overIndex === -1) return current;
       const updated = [...current];
       const [moved] = updated.splice(dragIndex, 1);
@@ -138,20 +158,24 @@ export default function HomePage() {
               </div>
             )}
 
-            {widgets.map((widget) => (
-              <WidgetCard
-                key={widget.id}
-                id={widget.id}
-                title={widget.title}
-                isDragging={draggingId === widget.id}
-                isEditing={isEditing}
-                onDragStart={() => isEditing && setDraggingId(widget.id)}
-                onDragEnter={() => isEditing && draggingId && reorderWidgets(draggingId, widget.id)}
-                onDragEnd={() => setDraggingId(null)}
-              >
-                {widget.content}
-              </WidgetCard>
-            ))}
+            {widgetOrder.map((widgetId) => {
+              const config = widgetConfig[widgetId];
+              if (!config) return null;
+              return (
+                <WidgetCard
+                  key={widgetId}
+                  id={widgetId}
+                  title={config.title}
+                  isDragging={draggingId === widgetId}
+                  isEditing={isEditing}
+                  onDragStart={() => isEditing && setDraggingId(widgetId)}
+                  onDragEnter={() => isEditing && draggingId && reorderWidgets(draggingId, widgetId)}
+                  onDragEnd={() => setDraggingId(null)}
+                >
+                  {config.render(today)}
+                </WidgetCard>
+              );
+            })}
 
             {!isEditing && (
               <button
@@ -179,7 +203,7 @@ function WidgetCard({
   onDragEnter,
   onDragEnd,
 }: {
-  id: string;
+  id: WidgetId;
   title: string;
   children: React.ReactNode;
   isDragging: boolean;
@@ -213,7 +237,14 @@ function WidgetCard({
   );
 }
 
-function WeatherWidget({ today }: { today: Date }) {
+function WeatherWidget({ today }: { today?: Date }) {
+  const lastUpdate =
+    today &&
+    today.toLocaleTimeString("cs-CZ", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
   return (
     <div className="space-y-3 text-sm text-neutral-700">
       <div className="flex items-center gap-2 text-neutral-900">
@@ -238,13 +269,13 @@ function WeatherWidget({ today }: { today: Date }) {
         ))}
       </div>
       <p className="text-[11px] text-neutral-500">
-        Aktualizováno {today.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" })}.
+        Aktualizováno {lastUpdate ?? "—:—"}.
       </p>
     </div>
   );
 }
 
-function DateWidget({ today }: { today: Date }) {
+function DateWidget({ today }: { today?: Date }) {
   const monthFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat("cs-CZ", {
@@ -255,9 +286,10 @@ function DateWidget({ today }: { today: Date }) {
     []
   );
 
+  const baseDate = today ?? new Date("2024-01-01T00:00:00Z");
   const dayNames = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"];
-  const currentWeekday = today.getDay() === 0 ? 7 : today.getDay(); // neděle = 7
-  const startOfWeek = today.getDate() - currentWeekday + 1; // začátek týdne pondělí
+  const currentWeekday = baseDate.getDay() === 0 ? 7 : baseDate.getDay(); // neděle = 7
+  const startOfWeek = baseDate.getDate() - currentWeekday + 1; // začátek týdne pondělí
   const weekDays = Array.from({ length: 7 }).map((_, idx) => startOfWeek + idx);
 
   return (
@@ -266,15 +298,17 @@ function DateWidget({ today }: { today: Date }) {
         <CalendarDays className="h-5 w-5 text-indigo-500" />
         <div className="space-y-0.5">
           <div className="text-xs uppercase tracking-[0.18em] text-neutral-500">Dnes</div>
-          <div className="font-semibold">{monthFormatter.format(today)}</div>
+          <div className="font-semibold">
+            {today ? monthFormatter.format(today) : "Načítám datum…"}
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-7 gap-1 text-center text-xs">
         {weekDays.map((day, idx) => {
-          const date = new Date(today);
+          const date = new Date(baseDate);
           date.setDate(day);
-          const isToday = date.toDateString() === today.toDateString();
+          const isToday = today ? date.toDateString() === today.toDateString() : false;
           return (
             <div
               key={`${dayNames[idx]}-${date.getDate()}`}
