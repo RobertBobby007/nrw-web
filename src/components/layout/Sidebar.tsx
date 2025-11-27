@@ -67,8 +67,8 @@ export function Sidebar() {
         </div>
       </div>
 
-      <aside className="hidden w-full border-b border-neutral-200/70 bg-white md:block md:w-64 md:border-b-0 md:border-r">
-        <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-4 md:max-w-full md:px-5 md:py-6">
+      <aside className="hidden w-full border-b border-neutral-200/70 bg-white md:sticky md:top-0 md:block md:h-screen md:w-64 md:border-b-0 md:border-r md:overflow-y-auto">
+        <div className="relative mx-auto flex h-full w-full max-w-5xl flex-col gap-6 px-4 py-4 md:max-w-full md:px-5 md:py-6">
           <div className="flex items-center justify-between md:justify-start pr-24">
             <Link href="/" className="text-lg font-semibold tracking-tight">
               NRW
