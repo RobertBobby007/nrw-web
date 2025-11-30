@@ -65,18 +65,36 @@ const defaultWidgetOrder: WidgetId[] = ["weather", "date", "suggested", "heatmap
 
 export default function HomePage() {
   const activeTab = "Mix";
-  const [today] = useState<Date>(() => new Date());
+  const [today, setToday] = useState<Date | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(() => {
-    if (typeof window === "undefined") return defaultWidgetOrder;
-    const stored = window.localStorage.getItem(WIDGETS_STORAGE_KEY);
-    const storedOrder = stored ? (JSON.parse(stored) as WidgetId[]) : null;
-    if (!storedOrder?.length) return defaultWidgetOrder;
-    const known = storedOrder.filter((id) => id in widgetConfig) as WidgetId[];
-    const missing = (Object.keys(widgetConfig) as WidgetId[]).filter((id) => !known.includes(id));
-    return [...known, ...missing];
-  });
+  const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(defaultWidgetOrder);
   const [draggingId, setDraggingId] = useState<WidgetId | null>(null);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate safely, actual value only available client-side
+    setToday(new Date());
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(WIDGETS_STORAGE_KEY);
+    if (!stored) return;
+    try {
+      const parsed = JSON.parse(stored) as WidgetId[];
+      if (!Array.isArray(parsed) || !parsed.length) return;
+      const known = parsed.filter((id): id is WidgetId => id in widgetConfig);
+      const missing = (Object.keys(widgetConfig) as WidgetId[]).filter((id) => !known.includes(id));
+      const nextOrder = [...known, ...missing];
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- client-only reordering based on localStorage snapshot
+      setWidgetOrder((current) =>
+        current.length === nextOrder.length && current.every((id, idx) => id === nextOrder[idx])
+          ? current
+          : nextOrder
+      );
+    } catch {
+      // ignore malformed storage
+    }
+  }, []);
 
   useEffect(() => {
     window.localStorage.setItem(WIDGETS_STORAGE_KEY, JSON.stringify(widgetOrder));
@@ -214,6 +232,7 @@ function WidgetCard({
 }) {
   return (
     <div
+      data-widget-id={id}
       draggable={isEditing}
       onDragStart={onDragStart}
       onDragEnter={onDragEnter}
