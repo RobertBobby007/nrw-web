@@ -46,6 +46,7 @@ export default function RegisterPage() {
 
       window.location.href = "/";
     } catch (err) {
+      console.error("Registration failed", err);
       setError("Došlo k chybě připojení. Zkus to prosím znovu.");
     } finally {
       setIsSubmitting(false);

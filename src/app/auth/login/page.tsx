@@ -41,6 +41,7 @@ export default function LoginPage() {
 
       window.location.href = "/";
     } catch (err) {
+      console.error("Login failed", err);
       setError("Došlo k chybě připojení. Zkus to prosím znovu.");
     } finally {
       setIsSubmitting(false);
