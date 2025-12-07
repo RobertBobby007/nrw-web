@@ -11,6 +11,7 @@ import {
   Send,
 } from "lucide-react";
 import { useState } from "react";
+import { RealFeedClient } from "./RealFeedClient";
 
 type Story = { 
   id: string;
@@ -124,7 +125,7 @@ export default function RealPage() {
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-4 lg:space-y-6">
             <StoriesRail stories={storyList} onAddStory={handleAddStory} />
-            <PostsList />
+            <RealFeedClient />
           </div>
 
           <aside className="space-y-3 lg:sticky lg:top-6 lg:max-h-[calc(100vh-96px)] lg:overflow-y-auto lg:pr-1">
