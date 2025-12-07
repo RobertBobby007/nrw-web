@@ -12,7 +12,7 @@ import {
   Camera,
   Mic,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Participant = {
   id: string;
@@ -32,6 +32,7 @@ type Message = {
 
 type Thread = {
   id: string;
+  category: "main" | "other" | "rooms" | "requests";
   participants: Participant[];
   preview: string;
   messages: Message[];
@@ -40,6 +41,7 @@ type Thread = {
 const threads: Thread[] = [
   {
     id: "t1",
+    category: "main",
     participants: [
       { id: "p1", name: "Natka", handle: "@nat", unread: 2, status: "online" },
       { id: "me", name: "Ty", handle: "@you", status: "online" },
@@ -53,6 +55,7 @@ const threads: Thread[] = [
   },
   {
     id: "t2",
+    category: "other",
     participants: [
       { id: "p2", name: "Lukáš", handle: "@lukas", status: "away" },
       { id: "me", name: "Ty", handle: "@you", status: "online" },
@@ -65,6 +68,7 @@ const threads: Thread[] = [
   },
   {
     id: "t3",
+    category: "rooms",
     participants: [
       { id: "p3", name: "NRW crew", handle: "@nrw", status: "online" },
       { id: "me", name: "Ty", handle: "@you", status: "online" },
@@ -75,22 +79,52 @@ const threads: Thread[] = [
       { id: "m7", from: "Me", text: "Chcete shoutouty z komunity?", time: "09:14", isMe: true },
     ],
   },
+  {
+    id: "t4",
+    category: "requests",
+    participants: [
+      { id: "p4", name: "Ema", handle: "@ema", unread: 1, status: "offline" },
+      { id: "me", name: "Ty", handle: "@you", status: "online" },
+    ],
+    preview: "Chce si tě přidat do NRW crew chat",
+    messages: [
+      { id: "m8", from: "Ema", text: "Ahoj, můžu do NRW crew vlákna?", time: "08:12" },
+      { id: "m9", from: "Me", text: "Jasně, přidám tě po schválení.", time: "08:15", isMe: true },
+    ],
+  },
 ];
 
 export default function ChatPage() {
   const [activeThreadId, setActiveThreadId] = useState<string>(threads[0]?.id ?? "");
   const [category, setCategory] = useState<"main" | "other" | "rooms" | "requests">("main");
+  const filteredThreads = useMemo(() => threads.filter((t) => t.category === category), [category]);
   const activeThread = useMemo(
-    () => threads.find((t) => t.id === activeThreadId) ?? threads[0],
-    [activeThreadId]
+    () => filteredThreads.find((t) => t.id === activeThreadId) ?? filteredThreads[0],
+    [activeThreadId, filteredThreads]
   );
+
+  useEffect(() => {
+    const firstInCategory = filteredThreads[0]?.id;
+    if (!firstInCategory) {
+      setActiveThreadId("");
+      return;
+    }
+    if (!filteredThreads.some((thread) => thread.id === activeThreadId)) {
+      setActiveThreadId(firstInCategory);
+    }
+  }, [category, filteredThreads, activeThreadId]);
+
+  const handleSelectCategory = (cat: "main" | "other" | "rooms" | "requests") => {
+    setCategory(cat);
+    const first = threads.find((t) => t.category === cat);
+    setActiveThreadId(first?.id ?? "");
+  };
 
   return (
     <main className="min-h-screen bg-neutral-50 flex">
       <section className="flex w-full flex-1 flex-col gap-4 px-4 py-8 md:px-8">
         <header className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-neutral-500">NRW</p>
             <h1 className="text-3xl font-semibold tracking-tight text-neutral-900">nChat</h1>
             <p className="text-sm text-neutral-600">Rychlé zprávy, rooms i reakce.</p>
           </div>
@@ -99,8 +133,8 @@ export default function ChatPage() {
 
         <div className="grid flex-1 min-h-0 gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
           <aside className="flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-            <SidebarHeader selectedCategory={category} onSelectCategory={setCategory} />
-            <ThreadList activeThreadId={activeThreadId} onSelect={setActiveThreadId} />
+            <SidebarHeader selectedCategory={category} onSelectCategory={handleSelectCategory} />
+            <ThreadList threads={filteredThreads} activeThreadId={activeThreadId} onSelect={setActiveThreadId} />
           </aside>
 
           <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
@@ -174,12 +208,22 @@ function SidebarHeader({
 }
 
 function ThreadList({
+  threads,
   activeThreadId,
   onSelect,
 }: {
+  threads: Thread[];
   activeThreadId: string;
   onSelect: (id: string) => void;
 }) {
+  if (!threads.length) {
+    return (
+      <div className="flex flex-1 items-center justify-center px-4 py-10 text-sm text-neutral-500">
+        Žádné zprávy v této kategorii.
+      </div>
+    );
+  }
+
   return (
     <div className="divide-y divide-neutral-100">
       {threads.map((thread) => {

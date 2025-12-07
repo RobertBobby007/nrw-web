@@ -86,7 +86,7 @@ export default function NewsPage() {
             ))}
           </div>
 
-          <aside className="space-y-3 lg:sticky lg:top-6">
+          <aside className="space-y-3 lg:sticky lg:top-6 lg:max-h-[calc(100vh-96px)] lg:overflow-y-auto lg:pr-1">
             <CategoryWidget />
             <TagWidget />
           </aside>

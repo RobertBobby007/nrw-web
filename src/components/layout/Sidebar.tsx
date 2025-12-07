@@ -14,6 +14,7 @@ import {
   Search,
   PlusCircle,
   LifeBuoy,
+  Clapperboard,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { href: "/news", label: "nNews", icon: Newspaper },
   { href: "/real", label: "nReal", icon: BookOpen },
   { href: "/chat", label: "nChat", icon: MessageCircle },
+  { href: "/clips", label: "nClips", icon: Clapperboard },
   { href: "/love", label: "nLove", icon: Heart },
   { href: "/id", label: "nID", icon: User },
 ];
@@ -124,10 +126,13 @@ export function Sidebar() {
           </nav>
 
           <div className="hidden border-t border-neutral-200/70 pt-4 md:block">
-            <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-neutral-500 transition-colors hover:text-neutral-900">
+            <Link
+              href="/settings"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-neutral-500 transition-colors hover:text-neutral-900"
+            >
               <Settings className="h-5 w-5" />
               <span>Nastavení</span>
-            </button>
+            </Link>
             <Link
               href="/support"
               className="mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-neutral-500 transition-colors hover:text-neutral-900"

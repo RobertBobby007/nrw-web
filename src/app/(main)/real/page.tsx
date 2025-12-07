@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-type Story = {
+type Story = { 
   id: string;
   user: string;
   isLive: boolean;
@@ -127,7 +127,7 @@ export default function RealPage() {
             <PostsList />
           </div>
 
-          <aside className="space-y-3 lg:sticky lg:top-6">
+          <aside className="space-y-3 lg:sticky lg:top-6 lg:max-h-[calc(100vh-96px)] lg:overflow-y-auto lg:pr-1">
             <WidgetCard title="Trendy dnes">
               <TrendingWidget />
             </WidgetCard>

@@ -65,36 +65,18 @@ const defaultWidgetOrder: WidgetId[] = ["weather", "date", "suggested", "heatmap
 
 export default function HomePage() {
   const activeTab = "Mix";
-  const [today, setToday] = useState<Date | null>(null);
+  const [today] = useState<Date>(() => new Date());
   const [isEditing, setIsEditing] = useState(false);
-  const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(defaultWidgetOrder);
-  const [draggingId, setDraggingId] = useState<WidgetId | null>(null);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate safely, actual value only available client-side
-    setToday(new Date());
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(() => {
+    if (typeof window === "undefined") return defaultWidgetOrder;
     const stored = window.localStorage.getItem(WIDGETS_STORAGE_KEY);
-    if (!stored) return;
-    try {
-      const parsed = JSON.parse(stored) as WidgetId[];
-      if (!Array.isArray(parsed) || !parsed.length) return;
-      const known = parsed.filter((id): id is WidgetId => id in widgetConfig);
-      const missing = (Object.keys(widgetConfig) as WidgetId[]).filter((id) => !known.includes(id));
-      const nextOrder = [...known, ...missing];
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- client-only reordering based on localStorage snapshot
-      setWidgetOrder((current) =>
-        current.length === nextOrder.length && current.every((id, idx) => id === nextOrder[idx])
-          ? current
-          : nextOrder
-      );
-    } catch {
-      // ignore malformed storage
-    }
-  }, []);
+    const storedOrder = stored ? (JSON.parse(stored) as WidgetId[]) : null;
+    if (!storedOrder?.length) return defaultWidgetOrder;
+    const known = storedOrder.filter((id) => id in widgetConfig) as WidgetId[];
+    const missing = (Object.keys(widgetConfig) as WidgetId[]).filter((id) => !known.includes(id));
+    return [...known, ...missing];
+  });
+  const [draggingId, setDraggingId] = useState<WidgetId | null>(null);
 
   useEffect(() => {
     window.localStorage.setItem(WIDGETS_STORAGE_KEY, JSON.stringify(widgetOrder));
@@ -160,7 +142,7 @@ export default function HomePage() {
             ))}
           </div>
 
-          <aside className="space-y-3 lg:sticky lg:top-6">
+          <aside className="space-y-3 lg:sticky lg:top-6 lg:max-h-[calc(100vh-96px)] lg:overflow-y-auto lg:pr-1">
             {isEditing && (
               <div className="flex justify-end">
                 <button
@@ -169,7 +151,7 @@ export default function HomePage() {
                     setIsEditing(false);
                     setDraggingId(null);
                   }}
-                  className="flex items-center justify-center gap-2 rounded-lg bg-neutral-800 px-3 py-2 text-sm font-semibold text-white shadow-sm ring-2 ring-neutral-300 transition hover:-translate-y-[1px] hover:bg-neutral-800"
+                  className="flex items-center justify-center gap-2 rounded-lg bg-neutral-800 px-3 py-2 text-sm font-semibold text-white shadow-sm ring-2 ring-neutral-300 transition hover:-translate-y-px hover:bg-neutral-800"
                 >
                   Hotovo
                 </button>
@@ -199,7 +181,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => setIsEditing(true)}
-                className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg bg-neutral-900 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-[1px] hover:bg-neutral-800"
+                className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg bg-neutral-900 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-px hover:bg-neutral-800"
               >
                 Upravit widgety
               </button>
@@ -238,7 +220,7 @@ function WidgetCard({
       onDragEnter={onDragEnter}
       onDragEnd={onDragEnd}
       onDragOver={(e) => e.preventDefault()}
-      className={`rounded-xl border border-neutral-200 bg-white/90 p-4 shadow-sm backdrop-blur transition ${isDragging ? "scale-[1.01] border-neutral-300 shadow-md ring-2 ring-neutral-200" : "hover:-translate-y-[1px] hover:shadow-md"} ${isEditing ? "cursor-grab ring-1 ring-neutral-200 animate-pulse" : ""}`}
+      className={`rounded-xl border border-neutral-200 bg-white/90 p-4 shadow-sm backdrop-blur transition ${isDragging ? "scale-[1.01] border-neutral-300 shadow-md ring-2 ring-neutral-200" : "hover:-translate-y-px hover:shadow-md"} ${isEditing ? "cursor-grab ring-1 ring-neutral-200 animate-pulse" : ""}`}
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-neutral-900">{title}</h3>
@@ -399,11 +381,11 @@ function HeatmapWidget() {
         <span className="font-semibold">Heat mapa příspěvků (live feeling)</span>
       </div>
 
-      <div className="relative overflow-hidden rounded-2xl border border-neutral-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-4 py-4 text-xs text-white shadow-inner">
+      <div className="relative overflow-hidden rounded-2xl border border-neutral-200 bg-linear-to-br from-slate-900 via-slate-800 to-slate-900 px-4 py-4 text-xs text-white shadow-inner">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.06),transparent_45%),radial-gradient(circle_at_70%_80%,rgba(255,255,255,0.05),transparent_40%)]" />
         <div className="absolute inset-4 rounded-xl border border-white/5" />
 
-        <div className="relative aspect-[4/3] w-full">
+        <div className="relative aspect-4/3 w-full">
           {heatData.map((spot) => {
             const intensity = Math.min(1, spot.value / 90);
             const size = 26 + intensity * 24;
