@@ -136,7 +136,7 @@ export default function IdPage() {
       .limit(50)
       .then(({ data, error }) => {
         if (!error && data) {
-          setPosts(data as NrealPost[]);
+          setPosts(data as unknown as NrealPost[]);
         }
       })
       .finally(() => setPostsLoading(false));
