@@ -301,7 +301,6 @@ export default function SettingsPage() {
               profileError,
               setProfileError,
               setProfileMessage,
-              setAvatarPreview,
               cropImageUrl,
               showCropper,
               setShowCropper,
@@ -417,14 +416,14 @@ function renderSection(
     cropImageUrl: string | null;
     showCropper: boolean;
     setShowCropper: (val: boolean) => void;
-    imageRef: React.RefObject<HTMLImageElement>;
-    previewRef: React.RefObject<HTMLDivElement>;
+    imageRef: React.RefObject<HTMLImageElement | null>;
+    previewRef: React.RefObject<HTMLDivElement | null>;
     cropZoom: number;
     setCropZoom: (val: number) => void;
     cropOffsetX: number;
     cropOffsetY: number;
-    setCropOffsetX: (val: number) => void;
-    setCropOffsetY: (val: number) => void;
+    setCropOffsetX: React.Dispatch<React.SetStateAction<number>>;
+    setCropOffsetY: React.Dispatch<React.SetStateAction<number>>;
     clampOffset: (val: number, axis: "x" | "y") => number;
     offsetBounds: { maxX: number; maxY: number };
     setImageSize: (val: { w: number; h: number }) => void;
