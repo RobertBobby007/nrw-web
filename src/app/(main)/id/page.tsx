@@ -112,34 +112,24 @@ export default function IdPage() {
   const verificationLabel = sanitizeVerificationLabel(profile?.verification_label) ?? "Ověřený profil";
 
   useEffect(() => {
-    if (!profile?.id) return;
+    if (!supabase || !profile?.id) return;
+
     setPostsLoading(true);
-    supabase
-      .from("nreal_posts")
-      .select(
-        `
-          id,
-          user_id,
-          content,
-          created_at,
-          profiles (
-            username,
-            display_name,
-            avatar_url,
-            verified,
-            verification_label
-          )
-        `,
-      )
-      .eq("user_id", profile.id)
-      .order("created_at", { ascending: false })
-      .limit(50)
-      .then(({ data, error }) => {
-        if (!error && data) {
-          setPosts(data as unknown as NrealPost[]);
-        }
-      })
-      .finally(() => setPostsLoading(false));
+
+    (async () => {
+      const { data, error } = await supabase
+        .from("nreal_posts")
+        .select(
+          "id, user_id, content, created_at, profiles(username, display_name, avatar_url, verified, verification_label)",
+        )
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
+        setPosts(data as unknown as NrealPost[]);
+      }
+
+      setPostsLoading(false);
+    })();
   }, [profile?.id, supabase]);
 
   const offsetBounds = useMemo(() => {
