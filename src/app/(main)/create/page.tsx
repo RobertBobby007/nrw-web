@@ -1,8 +1,6 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
-import { Image as ImageIcon, Video as VideoIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
@@ -99,7 +97,7 @@ export default function CreatePage() {
   };
 
   return (
-    <main className="min-h-screen bg-white mx-auto max-w-4xl px-4 py-10 space-y-6">
+    <div className="min-h-screen bg-white mx-auto max-w-4xl px-4 py-10 space-y-6">
       <div className="flex items-start justify-between gap-4">
         <header className="space-y-1">
           <p className="text-xs uppercase tracking-[0.2em] text-neutral-600">
@@ -183,11 +181,6 @@ export default function CreatePage() {
               className="hidden"
               onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
             />
-            {mediaType === "video" ? (
-              <VideoIcon className="h-4 w-4 text-neutral-500" />
-            ) : (
-              <ImageIcon className="h-4 w-4 text-neutral-500" />
-            )}
             {mediaPreview ? "Změnit soubor" : "Nahrát fotku/video"}
           </label>
           {mediaPreview && (
@@ -207,14 +200,7 @@ export default function CreatePage() {
             {mediaType === "video" ? (
               <video src={mediaPreview} controls className="w-full max-h-[320px] rounded-lg" />
             ) : (
-              <Image
-                src={mediaPreview}
-                alt="Náhled"
-                width={1200}
-                height={900}
-                className="w-full max-h-[320px] rounded-lg object-cover"
-                unoptimized
-              />
+              <img src={mediaPreview} alt="Náhled" className="w-full max-h-[320px] rounded-lg object-cover" />
             )}
           </div>
         )}
@@ -241,6 +227,6 @@ export default function CreatePage() {
           </button>
         </div>
       </form>
-    </main>
+    </div>
   );
 }
