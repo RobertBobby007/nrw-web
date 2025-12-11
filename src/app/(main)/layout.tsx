@@ -11,7 +11,7 @@ export default function MainLayout({
   return (
     <div className="min-h-screen bg-white text-neutral-900 flex flex-col md:flex-row">
       <Sidebar />
-      <main className="relative flex-1 border-t md:border-t-0 md:border-l border-neutral-200/70 pb-20 md:pb-0">
+      <main className="relative flex-1 overflow-x-hidden border-t md:border-t-0 md:border-l border-neutral-200/70 pb-20 md:pb-0">
         <ProfileBadge />
         <NexaBubble />
         {children}

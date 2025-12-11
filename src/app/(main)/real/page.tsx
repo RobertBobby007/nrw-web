@@ -114,21 +114,21 @@ export default function RealPage() {
 
   return (
     <main className="min-h-screen bg-neutral-50 pb-24">
-      <section className="mx-auto max-w-6xl px-4 py-8 space-y-8">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900">nReal feed</h1>
-          <p className="max-w-2xl text-sm text-neutral-700">
+      <section className="mx-auto w-full max-w-4xl px-4 py-6 space-y-6 sm:space-y-8 sm:py-8 lg:max-w-6xl">
+        <header className="space-y-1 sm:space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">nReal feed</h1>
+          <p className="max-w-2xl text-sm text-neutral-700 sm:text-base">
             NRW příběhy a momenty s rychlými widgety na straně.
           </p>
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-4 lg:space-y-6">
+        <div className="grid grid-cols-1 gap-5 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-4 sm:space-y-6">
             <StoriesRail stories={storyList} onAddStory={handleAddStory} />
             <RealFeedClient />
           </div>
 
-          <aside className="space-y-3 lg:sticky lg:top-6 lg:max-h-[calc(100vh-96px)] lg:overflow-y-auto lg:pr-1">
+          <aside className="hidden space-y-3 lg:sticky lg:top-6 lg:max-h-[calc(100vh-96px)] lg:overflow-y-auto lg:pr-1 lg:block">
             <WidgetCard title="Trendy dnes">
               <TrendingWidget />
             </WidgetCard>
@@ -156,10 +156,10 @@ function StoriesRail({ stories, onAddStory }: { stories: Story[]; onAddStory: ()
     <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
       <button
         onClick={onAddStory}
-        className="group relative flex w-24 shrink-0 flex-col gap-2 rounded-xl border-2 border-dashed border-neutral-300 bg-neutral-50 p-2 text-left text-neutral-600 outline-none transition hover:border-neutral-400 hover:text-neutral-900 focus-visible:outline-none focus:outline-none focus-visible:ring-0 focus-visible:border-neutral-400"
+        className="group relative flex w-24 shrink-0 flex-col gap-2 rounded-xl border-2 border-dashed border-neutral-300 bg-neutral-50 p-2 text-left text-neutral-600 outline-none transition hover:border-neutral-400 hover:text-neutral-900 focus-visible:outline-none focus:outline-none focus-visible:ring-0 focus-visible:border-neutral-400 sm:w-28"
         type="button"
       >
-        <div className="flex h-28 w-full items-center justify-center rounded-lg bg-white">
+        <div className="flex h-24 w-full items-center justify-center rounded-lg bg-white sm:h-28">
           <Plus className="h-6 w-6" />
         </div>
         <span className="text-[11px] font-semibold leading-4">Přidat story</span>
@@ -168,7 +168,7 @@ function StoriesRail({ stories, onAddStory }: { stories: Story[]; onAddStory: ()
       {stories.map((story) => (
         <button
           key={story.id}
-          className={`group relative flex w-24 shrink-0 flex-col gap-2 rounded-xl bg-white p-2 text-left shadow-sm transition ${
+          className={`group relative flex w-24 shrink-0 flex-col gap-2 rounded-xl bg-white p-2 text-left shadow-sm transition sm:w-28 ${
             story.isLive
               ? "border-2 border-red-400 shadow-[0_8px_24px_-12px_rgba(248,113,113,0.7)]"
               : story.isCloseFriends

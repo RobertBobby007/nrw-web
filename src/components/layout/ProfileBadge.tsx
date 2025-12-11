@@ -65,17 +65,23 @@ export function ProfileBadge() {
   if (isHidden) return null;
 
   return (
-    <div className="fixed right-4 top-4 z-50 md:right-6 md:top-6">
+    <div
+      className="fixed right-3 top-3 z-40 hidden sm:block md:right-6 md:top-6"
+      style={{
+        top: "calc(env(safe-area-inset-top, 0px) + 12px)",
+        right: "calc(env(safe-area-inset-right, 0px) + 12px)",
+      }}
+    >
       <div className="relative">
         <button
           type="button"
-        aria-label="Tvůj profil"
-        onClick={() => setOpen((prev) => !prev)}
-        className="relative inline-flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-neutral-900 via-neutral-700 to-neutral-900 text-sm font-semibold text-white shadow-lg shadow-neutral-900/15 ring-2 ring-white transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-neutral-900/20"
-      >
-        <span>{initials}</span>
-        <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-white bg-emerald-400" />
-      </button>
+          aria-label="Tvůj profil"
+          onClick={() => setOpen((prev) => !prev)}
+          className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-neutral-900 via-neutral-700 to-neutral-900 text-sm font-semibold text-white shadow-lg shadow-neutral-900/15 ring-2 ring-white transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-neutral-900/20 md:h-11 md:w-11"
+        >
+          <span>{initials}</span>
+          <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-white bg-emerald-400" />
+        </button>
 
         {open && (
           <div className="absolute right-0 mt-2 w-44 rounded-xl border border-neutral-200 bg-white shadow-lg shadow-neutral-900/10">

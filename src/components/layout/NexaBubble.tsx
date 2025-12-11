@@ -24,9 +24,11 @@ export function NexaBubble() {
   const prompt = context?.prompt ?? "Zeptej se na cokoliv z NRW.";
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 md:bottom-6 md:right-6">
+    <div
+      className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+78px)] right-[calc(env(safe-area-inset-right,0px)+12px)] z-50 md:bottom-6 md:right-6"
+    >
       {isOpen ? (
-        <div className="w-[320px] rounded-2xl border border-neutral-200 bg-white shadow-xl shadow-neutral-900/8">
+        <div className="w-full max-w-[360px] rounded-2xl border border-neutral-200 bg-white shadow-xl shadow-neutral-900/8 sm:w-[320px]">
           <div className="flex items-center justify-between gap-2 rounded-t-2xl bg-neutral-900 px-4 py-3 text-white">
             <div className="flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15">
