@@ -22,8 +22,10 @@ export function RealFeedClient() {
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<"image" | "video" | null>(null);
 
-  const normalizePost = (post: any): NrealPost => {
-    const rawProfiles = post?.profiles as NrealProfile[] | NrealProfile | null | undefined;
+  const normalizePost = (
+    post: NrealPost & { profiles?: NrealProfile | NrealProfile[] | null }
+  ): NrealPost => {
+    const rawProfiles = post?.profiles;
     const profiles = Array.isArray(rawProfiles) ? rawProfiles : rawProfiles ? [rawProfiles] : [];
     return { ...post, profiles };
   };

@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import db from "./db";
 
-type UserRecord = {
+export type UserRecord = {
   id: string;
   name: string;
   email: string;
@@ -18,7 +18,7 @@ function hashPassword(password: string, salt: string) {
   return crypto.createHash("sha256").update(password + salt).digest("hex");
 }
 
-export function createUser(input: { name: string; email: string; password: string }) {
+export function createUser(input: { name: string; email: string; password: string }): UserRecord {
   const email = sanitizeEmail(input.email);
   const salt = crypto.randomBytes(16).toString("hex");
   const passwordHash = hashPassword(input.password, salt);
@@ -46,15 +46,15 @@ export function createUser(input: { name: string; email: string; password: strin
   return user;
 }
 
-export function findUserByEmail(emailRaw: string) {
+export function findUserByEmail(emailRaw: string): UserRecord | null {
   const email = sanitizeEmail(emailRaw);
   const row = db
-    .prepare<UserRecord>(`SELECT * FROM users WHERE email = ? LIMIT 1`)
+    .prepare<[string], UserRecord>(`SELECT * FROM users WHERE email = ? LIMIT 1`)
     .get(email);
   return row ?? null;
 }
 
-export function verifyUser(input: { email: string; password: string }) {
+export function verifyUser(input: { email: string; password: string }): UserRecord | null {
   const user = findUserByEmail(input.email);
   if (!user) return null;
   const candidate = hashPassword(input.password, user.salt);

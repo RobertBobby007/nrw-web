@@ -48,7 +48,7 @@ export default function RegisterPage() {
     setStep(2);
   };
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setInfo(null);
