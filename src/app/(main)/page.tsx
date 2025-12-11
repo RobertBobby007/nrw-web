@@ -67,20 +67,25 @@ export default function HomePage() {
   const activeTab = "Mix";
   const [today] = useState<Date>(() => new Date());
   const [isEditing, setIsEditing] = useState(false);
-  const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(() => {
-    if (typeof window === "undefined") return defaultWidgetOrder;
-    const stored = window.localStorage.getItem(WIDGETS_STORAGE_KEY);
-    const storedOrder = stored ? (JSON.parse(stored) as WidgetId[]) : null;
-    if (!storedOrder?.length) return defaultWidgetOrder;
-    const known = storedOrder.filter((id) => id in widgetConfig) as WidgetId[];
-    const missing = (Object.keys(widgetConfig) as WidgetId[]).filter((id) => !known.includes(id));
-    return [...known, ...missing];
-  });
+  const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(defaultWidgetOrder);
+  const [hasHydrated, setHasHydrated] = useState(false);
   const [draggingId, setDraggingId] = useState<WidgetId | null>(null);
 
   useEffect(() => {
+    const stored = window.localStorage.getItem(WIDGETS_STORAGE_KEY);
+    const storedOrder = stored ? (JSON.parse(stored) as WidgetId[]) : null;
+    if (storedOrder?.length) {
+      const known = storedOrder.filter((id) => id in widgetConfig) as WidgetId[];
+      const missing = (Object.keys(widgetConfig) as WidgetId[]).filter((id) => !known.includes(id));
+      setWidgetOrder([...known, ...missing]);
+    }
+    setHasHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
     window.localStorage.setItem(WIDGETS_STORAGE_KEY, JSON.stringify(widgetOrder));
-  }, [widgetOrder]);
+  }, [widgetOrder, hasHydrated]);
 
   const reorderWidgets = (dragId: WidgetId, overId: WidgetId) => {
     if (!dragId || dragId === overId) return;

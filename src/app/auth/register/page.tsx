@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { upsertProfileFromAuth } from "@/lib/profiles";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -71,7 +72,7 @@ export default function RegisterPage() {
     const displayName = `${firstName.trim()} ${lastName.trim()}`.trim();
 
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -84,6 +85,14 @@ export default function RegisterPage() {
         },
       },
     });
+
+    if (!error && data?.user) {
+      await upsertProfileFromAuth({
+        userId: data.user.id,
+        username: normalizedUsername,
+        displayName,
+      });
+    }
 
     setLoading(false);
 

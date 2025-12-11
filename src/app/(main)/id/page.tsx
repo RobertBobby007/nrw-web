@@ -1,6 +1,17 @@
 "use client";
 
-import { BadgeCheck, Bookmark, Heart, MessageCircle, MoreHorizontal, Share2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { BadgeCheck, Bookmark, Camera, Heart, MessageCircle, MoreHorizontal, Share2, X } from "lucide-react";
+import {
+  fetchCurrentProfile,
+  type Profile,
+  updateCurrentProfile,
+  uploadAvatar,
+  deleteAvatarByUrl,
+} from "@/lib/profiles";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import type { NrealPost } from "@/types/nreal";
 
 const media = [
   { id: "m1", label: "Golden hour crew", gradient: "from-amber-300 via-orange-200 to-rose-200" },
@@ -33,23 +44,265 @@ const tweets = [
 ];
 
 export default function IdPage() {
+  const router = useRouter();
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [bioInput, setBioInput] = useState("");
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarCroppedFile, setAvatarCroppedFile] = useState<File | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [showCropper, setShowCropper] = useState(false);
+  const [cropImageUrl, setCropImageUrl] = useState<string | null>(null);
+  const [cropZoom, setCropZoom] = useState(1);
+  const [cropOffsetX, setCropOffsetX] = useState(0);
+  const [cropOffsetY, setCropOffsetY] = useState(0);
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const [imageSize, setImageSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const panStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const offsetStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [cropSize, setCropSize] = useState(600);
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const [posts, setPosts] = useState<NrealPost[]>([]);
+  const [postsLoading, setPostsLoading] = useState(false);
+  const [showVerificationInfo, setShowVerificationInfo] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadProfile() {
+      setLoading(true);
+      const p = await fetchCurrentProfile();
+      if (isMounted) {
+        setProfile(p);
+        setLoading(false);
+      }
+    }
+
+    loadProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!profile) return;
+    setBioInput(profile.bio ?? "");
+    setAvatarPreview(profile.avatar_url ?? null);
+  }, [profile]);
+
+  const displayName = profile?.display_name ?? "Ty";
+  const username = profile?.username ? `@${profile.username}` : "@ty";
+  const bio = profile?.bio ?? "Ještě sis nenastavil bio.";
+  const bioText = loading ? "Načítám profil…" : bio;
+  const canEdit = Boolean(profile);
+  const isVerified = profile?.verified ?? false;
+  const sanitizeVerificationLabel = (value: string | null | undefined) => {
+    const trimmed = (value ?? "").trim();
+    if (!trimmed) return null;
+    const lower = trimmed.toLowerCase();
+    if (lower === "null" || lower === "undefined") return null;
+    return trimmed;
+  };
+  const verificationLabel = sanitizeVerificationLabel(profile?.verification_label) ?? "Ověřený profil";
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    setPostsLoading(true);
+    supabase
+      .from("nreal_posts")
+      .select(
+        `
+          id,
+          user_id,
+          content,
+          created_at,
+          profiles (
+            username,
+            display_name,
+            avatar_url,
+            verified,
+            verification_label
+          )
+        `,
+      )
+      .eq("user_id", profile.id)
+      .order("created_at", { ascending: false })
+      .limit(50)
+      .then(({ data, error }) => {
+        if (!error && data) {
+          setPosts(data as NrealPost[]);
+        }
+      })
+      .finally(() => setPostsLoading(false));
+  }, [profile?.id, supabase]);
+
+  const offsetBounds = useMemo(() => {
+    const size = cropSize;
+    const { w, h } = imageSize;
+    if (!w || !h) return { maxX: 200, maxY: 200 };
+    const baseScale = size / Math.max(w, h);
+    const drawW = w * baseScale * cropZoom;
+    const drawH = h * baseScale * cropZoom;
+    const maxX = Math.max(0, (drawW - size) / 2);
+    const maxY = Math.max(0, (drawH - size) / 2);
+    return { maxX, maxY };
+  }, [imageSize, cropZoom]);
+
+  const clampOffset = (value: number, axis: "x" | "y") => {
+    const bounds = axis === "x" ? offsetBounds.maxX : offsetBounds.maxY;
+    return Math.min(Math.max(value, -bounds), bounds);
+  };
+
+  const handleAvatarChange = (file?: File | null) => {
+    setProfileMessage(null);
+    setProfileError(null);
+    if (!file) {
+      setAvatarFile(null);
+      setAvatarCroppedFile(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(file);
+    setAvatarFile(file);
+    setAvatarCroppedFile(null);
+    setAvatarPreview(objectUrl);
+    setCropImageUrl(objectUrl);
+    setCropZoom(1);
+    setCropOffsetX(0);
+    setCropOffsetY(0);
+    setImageSize({ w: 0, h: 0 });
+    setShowCropper(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!canEdit || savingProfile) return;
+    setProfileError(null);
+    setProfileMessage(null);
+    setSavingProfile(true);
+
+    const previousAvatar = profile?.avatar_url ?? null;
+    let avatarUrl = profile?.avatar_url ?? null;
+
+    if (avatarCroppedFile || avatarFile) {
+      const fileToUpload = avatarCroppedFile ?? avatarFile;
+      const uploaded = fileToUpload ? await uploadAvatar(fileToUpload) : null;
+      if (uploaded) {
+        avatarUrl = uploaded;
+      } else {
+        setProfileError("Nepodařilo se nahrát fotku.");
+        setSavingProfile(false);
+        return;
+      }
+    }
+
+    const nextBio = bioInput.trim();
+
+    const updated = await updateCurrentProfile({
+      bio: nextBio || null,
+      avatarUrl,
+      displayName: profile?.display_name ?? null,
+      username: profile?.username ?? null,
+    });
+
+    if (!updated) {
+      setProfileError("Profil se nepodařilo uložit.");
+      setSavingProfile(false);
+      return;
+    }
+
+    if (previousAvatar && avatarUrl && previousAvatar !== avatarUrl) {
+      await deleteAvatarByUrl(previousAvatar);
+    }
+
+    setProfile({
+      ...updated,
+      bio: nextBio || null,
+      avatar_url: avatarUrl,
+    });
+
+    setProfileMessage("Profil uložen.");
+    setSavingProfile(false);
+    setIsEditingProfile(false);
+  };
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-neutral-50 to-white">
       <section className="mx-auto max-w-6xl px-4 py-10 lg:py-14">
         <header className="flex flex-wrap items-start justify-between gap-4 rounded-3xl border border-neutral-200 bg-white/90 p-6 shadow-sm backdrop-blur">
           <div className="flex flex-wrap items-center gap-4">
-            <div className="relative h-20 w-20 rounded-full bg-gradient-to-br from-rose-400 via-amber-300 to-orange-300 ring-4 ring-white">
-              <span className="absolute inset-1 rounded-full bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.45),transparent_45%),radial-gradient(circle_at_70%_70%,rgba(255,255,255,0.3),transparent_45%)]" />
-              <span className="absolute inset-0 flex items-center justify-center text-xl font-semibold text-white">
-                NRW
-              </span>
-            </div>
+            <label className="group relative h-20 w-20 cursor-pointer rounded-full bg-gradient-to-br from-rose-400 via-amber-300 to-orange-300 ring-4 ring-white transition hover:scale-[1.02]">
+              {avatarPreview ? (
+                <img
+                  src={avatarPreview}
+                  alt="Avatar"
+                  className="absolute inset-0 h-full w-full rounded-full object-cover"
+                  onError={() => setAvatarPreview(null)}
+                />
+              ) : (
+                <>
+                  <span className="absolute inset-1 rounded-full bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.45),transparent_45%),radial-gradient(circle_at_70%_70%,rgba(255,255,255,0.3),transparent_45%)]" />
+                  <span className="absolute inset-0 flex items-center justify-center text-xl font-semibold text-white">
+                    NRW
+                  </span>
+                </>
+              )}
+              {isEditingProfile && (
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  onChange={(e) => handleAvatarChange(e.target.files?.[0] ?? null)}
+                />
+              )}
+              {isEditingProfile && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-full bg-black/55 text-white opacity-0 transition group-hover:opacity-100">
+                  <Camera className="h-5 w-5" />
+                  <span className="text-[11px] font-semibold tracking-[0.14em] uppercase">Změnit</span>
+                </div>
+              )}
+            </label>
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xl font-semibold text-neutral-900">
-                nrw.id
-                <BadgeCheck className="h-4 w-4 text-sky-500" />
+              <div className="flex flex-wrap items-center gap-2 text-xl font-semibold text-neutral-900">
+                <span>{displayName}</span>
+                <div
+                  className="relative inline-flex"
+                  onMouseEnter={() => setShowVerificationInfo(true)}
+                  onMouseLeave={() => setShowVerificationInfo(false)}
+                  onFocus={() => setShowVerificationInfo(true)}
+                  onBlur={() => setShowVerificationInfo(false)}
+                >
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold ${
+                      isVerified
+                        ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                        : "bg-neutral-100 text-neutral-700 ring-1 ring-neutral-200"
+                    }`}
+                    tabIndex={0}
+                    aria-label={isVerified ? "Ověřený profil" : "Neověřený profil"}
+                  >
+                    <BadgeCheck className="h-4 w-4" />
+                    {isVerified ? verificationLabel : "Neověřeno"}
+                  </span>
+                  {isVerified && showVerificationInfo && (
+                    <div className="absolute left-0 top-full z-20 mt-2 w-64 rounded-xl border border-neutral-200 bg-white p-3 text-[13px] text-neutral-700 shadow-lg">
+                      <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-neutral-900">
+                        <BadgeCheck className="h-4 w-4 text-emerald-600" />
+                        Ověřený profil
+                      </div>
+                      <p>
+                        Identita potvrzená v nID. Dostáváš prioritní ochranu a důvěryhodný štítek u obsahu.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
-              <p className="text-sm text-neutral-600">Creator · NRW / nReal crew · Praha</p>
+              <p className="text-sm text-neutral-600">{username}</p>
               <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-neutral-700">
                 <span>1 024 sledujících</span>
                 <span>·</span>
@@ -57,30 +310,240 @@ export default function IdPage() {
                 <span>·</span>
                 <span>42 momentů</span>
               </div>
+              <p className="text-sm text-neutral-700">{bioText}</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button className="rounded-full border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-100">
+            <button
+              onClick={() => router.push("/settings")}
+              className="rounded-full border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-100"
+            >
               Upravit profil
             </button>
             <button className="rounded-full bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-[1px]">
               Sdílet profil
             </button>
           </div>
-          <div className="w-full text-sm text-neutral-700 lg:w-auto">
-            <p className="leading-relaxed">
-              NRW + nReal cross-posty, backstage a link na rooms. Mix fotogridu a krátkých postů na
-              jednom ID.
-            </p>
-          </div>
         </header>
+
+        {isEditingProfile && (
+          <section className="rounded-2xl border border-neutral-200 bg-white/90 p-5 shadow-sm backdrop-blur">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-neutral-900">Upravit profil</h2>
+                <p className="text-sm text-neutral-600">Bio a fotka profilu</p>
+              </div>
+              <div className="text-xs text-neutral-500">{profile?.username ? `@${profile.username}` : ""}</div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="block space-y-2 text-sm text-neutral-700">
+                <span className="font-semibold text-neutral-900">Bio</span>
+                <textarea
+                  rows={3}
+                  value={bioInput}
+                  onChange={(e) => setBioInput(e.target.value)}
+                  className="w-full resize-none rounded-lg border border-neutral-200 px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-500 outline-none focus:border-neutral-400"
+                  placeholder="Napiš něco o sobě..."
+                />
+              </label>
+
+              <div className="flex items-center gap-3 text-sm text-neutral-700">
+                <div className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold text-neutral-700">
+                  Fotka profilu
+                </div>
+                <span className="text-xs text-neutral-500">Klikni na avatar nahoře pro změnu</span>
+              </div>
+
+              {profileError && (
+                <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{profileError}</div>
+              )}
+              {profileMessage && (
+                <div className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{profileMessage}</div>
+              )}
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsEditingProfile(false)}
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-neutral-700 transition hover:text-neutral-900"
+                >
+                  Zavřít
+                </button>
+                <button
+                  type="button"
+                  disabled={savingProfile}
+                  onClick={handleSaveProfile}
+                  className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-80"
+                >
+                  {savingProfile ? "Ukládám…" : "Uložit profil"}
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {showCropper && cropImageUrl && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+            <div className="w-full max-w-3xl rounded-2xl border border-neutral-200 bg-white p-4 shadow-xl">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-semibold text-neutral-900">Upravit fotku</h3>
+                  <p className="text-sm text-neutral-600">Přibliž, posuň, ulož ořez.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCropper(false)}
+                  className="rounded-full p-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
+                <div
+                  ref={previewRef}
+                  className="relative mx-auto aspect-square w-full max-w-2xl overflow-hidden rounded-full border border-neutral-200 bg-neutral-950 touch-none"
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    panStart.current = { x: e.clientX, y: e.clientY };
+                    offsetStart.current = { x: cropOffsetX, y: cropOffsetY };
+                    setIsPanning(true);
+                  }}
+                  onPointerMove={(e) => {
+                    if (!isPanning) return;
+                    e.preventDefault();
+                    const dx = e.clientX - panStart.current.x;
+                    const dy = e.clientY - panStart.current.y;
+                    setCropOffsetX(clampOffset(offsetStart.current.x + dx, "x"));
+                    setCropOffsetY(clampOffset(offsetStart.current.y + dy, "y"));
+                  }}
+                  onPointerUp={() => setIsPanning(false)}
+                  onPointerLeave={() => setIsPanning(false)}
+                >
+                  <img
+                    ref={imageRef}
+                    src={cropImageUrl}
+                    alt="Crop preview"
+                    className="absolute inset-0 h-full w-full object-contain"
+                    style={{
+                      transform: `translate(${cropOffsetX}px, ${cropOffsetY}px) scale(${cropZoom})`,
+                      transformOrigin: "center",
+                    }}
+                    onLoad={(e) => {
+                    const img = e.currentTarget;
+                    const naturalW = img.naturalWidth || img.width;
+                    const naturalH = img.naturalHeight || img.height;
+                    setImageSize({ w: naturalW, h: naturalH });
+                    const containerSize = previewRef.current?.clientWidth ?? 600;
+                    setCropSize(containerSize);
+                    setCropOffsetX((prev) => clampOffset(prev, "x"));
+                    setCropOffsetY((prev) => clampOffset(prev, "y"));
+                    }}
+                  />
+                  <div className="pointer-events-none absolute inset-0 rounded-full border border-white/40">
+                    <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
+                      {Array.from({ length: 9 }).map((_, idx) => (
+                        <span key={idx} className="border border-white/15" />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block space-y-1 text-sm">
+                    <span className="font-semibold text-neutral-900">Zoom</span>
+                    <input
+                      type="range"
+                      min={1}
+                      max={3}
+                      step={0.01}
+                      value={cropZoom}
+                      onChange={(e) => {
+                        const next = Number(e.target.value);
+                        setCropZoom(next);
+                        setCropOffsetX((prev) => clampOffset(prev, "x"));
+                        setCropOffsetY((prev) => clampOffset(prev, "y"));
+                      }}
+                      className="w-full"
+                    />
+                  </label>
+
+                  <p className="text-xs text-neutral-500">Fotku můžeš chytit a posunout myší/prstem.</p>
+
+                  <div className="flex items-center gap-3 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCropZoom(1);
+                        setCropOffsetX(0);
+                        setCropOffsetY(0);
+                      }}
+                      className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-semibold text-neutral-700 transition hover:bg-neutral-100"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!imageRef.current) return;
+                        const img = imageRef.current;
+                        const canvas = document.createElement("canvas");
+                        const size = cropSize || 600;
+                        canvas.width = size;
+                        canvas.height = size;
+                        const ctx = canvas.getContext("2d");
+                        if (!ctx) return;
+
+                        const naturalW = img.naturalWidth || img.width;
+                        const naturalH = img.naturalHeight || img.height;
+                        const baseScale = size / Math.max(naturalW, naturalH);
+                        const scale = baseScale * cropZoom;
+                        const drawW = naturalW * scale;
+                        const drawH = naturalH * scale;
+                        const drawX = (size - drawW) / 2 + cropOffsetX;
+                        const drawY = (size - drawH) / 2 + cropOffsetY;
+
+                        ctx.clearRect(0, 0, size, size);
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+                        ctx.closePath();
+                        ctx.clip();
+                        ctx.drawImage(img, drawX, drawY, drawW, drawH);
+                        ctx.restore();
+
+                        canvas.toBlob((blob) => {
+                          if (!blob) return;
+                          const file = new File([blob], "avatar-crop.png", { type: "image/png" });
+                          setAvatarCroppedFile(file);
+                          const objectUrl = URL.createObjectURL(file);
+                          setAvatarPreview(objectUrl);
+                          setShowCropper(false);
+                        }, "image/png");
+                      }}
+                      className="rounded-lg bg-neutral-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
+                    >
+                      Uložit ořez
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-6">
             <ProfileStories />
             <ProfileTabs />
             <InstagramGrid />
-            <TwitterFeed />
+            <TwitterFeed
+              displayName={displayName}
+              posts={posts}
+              loading={postsLoading}
+              sanitizeVerificationLabel={sanitizeVerificationLabel}
+            />
           </div>
 
           <aside className="space-y-3 lg:sticky lg:top-10 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto lg:pr-1">
@@ -189,50 +652,148 @@ function InstagramGrid() {
   );
 }
 
-function TwitterFeed() {
+function TwitterFeed({
+  displayName,
+  posts,
+  loading,
+  sanitizeVerificationLabel,
+}: {
+  displayName: string;
+  posts: NrealPost[];
+  loading: boolean;
+  sanitizeVerificationLabel: (value: string | null | undefined) => string | null;
+}) {
+  const [showAll, setShowAll] = useState(false);
+
+  const formatTimeLabel = (createdAt?: string | null) => {
+    if (!createdAt) return "neznámý čas";
+    const date = new Date(createdAt);
+    if (Number.isNaN(date.getTime())) return "neznámý čas";
+    const diffMs = Date.now() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffH = Math.floor(diffMin / 60);
+    if (diffMin < 1) return "před chvílí";
+    if (diffMin < 60) return `před ${diffMin} min`;
+    if (diffH < 24) return `před ${diffH} h`;
+    return date.toLocaleDateString("cs-CZ", { day: "numeric", month: "short" });
+  };
+
+  const hasPosts = posts.length > 0;
+  const visiblePosts = showAll ? posts : posts.slice(0, 3);
+
   return (
     <div className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-neutral-900">Krátké posty</h2>
-        <button className="rounded-full px-3 py-1 text-xs font-semibold text-neutral-600 transition hover:bg-neutral-100">
-          Zobrazit všechno
-        </button>
+        {hasPosts ? (
+          <button
+            className="rounded-full px-3 py-1 text-xs font-semibold text-neutral-600 transition hover:bg-neutral-100"
+            onClick={() => setShowAll((prev) => !prev)}
+          >
+            {showAll ? "Skrýt" : "Zobrazit všechno"}
+          </button>
+        ) : null}
       </div>
       <div className="divide-y divide-neutral-100">
-        {tweets.map((tweet) => (
-          <article key={tweet.id} className="space-y-2 py-3">
-            <div className="flex items-center justify-between text-xs text-neutral-500">
-              <div className="flex items-center gap-2">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-900 text-white text-xs font-semibold">
-                  NRW
-                </span>
-                <div className="text-neutral-800 font-semibold">nrw.id</div>
-                <span>·</span>
-                <span>{tweet.meta}</span>
+        {loading ? (
+          <div className="py-3 text-sm text-neutral-600">Načítám příspěvky…</div>
+        ) : hasPosts ? (
+          visiblePosts.map((post) => {
+            const profile = post.profiles;
+            const name = profile?.display_name || profile?.username || displayName;
+            const username = profile?.username ? `@${profile.username}` : null;
+            const badge = profile?.verified
+              ? sanitizeVerificationLabel(profile.verification_label) || "Ověřený profil"
+              : null;
+            return (
+              <article key={post.id} className="space-y-2 py-3">
+                <div className="flex items-center justify-between text-xs text-neutral-500">
+                  <div className="flex items-center gap-2">
+                    {profile?.avatar_url ? (
+                      <img
+                        src={profile.avatar_url}
+                        alt={name}
+                        className="h-8 w-8 rounded-full object-cover ring-1 ring-neutral-200"
+                        onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
+                      />
+                    ) : (
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-900 text-white text-xs font-semibold">
+                        NRW
+                      </span>
+                    )}
+                    <div className="flex items-center gap-2 text-neutral-800 font-semibold">
+                      <span>{name}</span>
+                      {badge ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                          <BadgeCheck className="h-3.5 w-3.5" />
+                          {badge}
+                        </span>
+                      ) : null}
+                    </div>
+                    <span>·</span>
+                    <span>{formatTimeLabel(post.created_at)}</span>
+                  </div>
+                  <MoreHorizontal className="h-4 w-4 text-neutral-400" />
+                </div>
+                <p className="text-sm leading-relaxed text-neutral-900">{post.content}</p>
+                <div className="flex items-center gap-4 text-xs font-semibold text-neutral-600">
+                  <button className="flex items-center gap-1 transition hover:text-neutral-900">
+                    <MessageCircle className="h-4 w-4" />
+                    0
+                  </button>
+                  <button className="flex items-center gap-1 transition hover:text-neutral-900">
+                    <Share2 className="h-4 w-4" />
+                    0
+                  </button>
+                  <button className="flex items-center gap-1 transition hover:text-rose-500">
+                    <Heart className="h-4 w-4" />
+                    0
+                  </button>
+                  <button className="ml-auto flex items-center gap-1 rounded-full border border-neutral-200 px-3 py-1 text-[11px] font-semibold transition hover:border-neutral-300">
+                    <Bookmark className="h-4 w-4" />
+                    Uložit
+                  </button>
+                </div>
+                {username ? <div className="text-[11px] text-neutral-500">{username}</div> : null}
+              </article>
+            );
+          })
+        ) : (
+          tweets.map((tweet) => (
+            <article key={tweet.id} className="space-y-2 py-3">
+              <div className="flex items-center justify-between text-xs text-neutral-500">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-900 text-white text-xs font-semibold">
+                    NRW
+                  </span>
+                  <div className="text-neutral-800 font-semibold">{displayName}</div>
+                  <span>·</span>
+                  <span>{tweet.meta}</span>
+                </div>
+                <MoreHorizontal className="h-4 w-4 text-neutral-400" />
               </div>
-              <MoreHorizontal className="h-4 w-4 text-neutral-400" />
-            </div>
-            <p className="text-sm leading-relaxed text-neutral-900">{tweet.text}</p>
-            <div className="flex items-center gap-4 text-xs font-semibold text-neutral-600">
-              <button className="flex items-center gap-1 transition hover:text-neutral-900">
-                <MessageCircle className="h-4 w-4" />
-                {tweet.stats.replies}
-              </button>
-              <button className="flex items-center gap-1 transition hover:text-neutral-900">
-                <Share2 className="h-4 w-4" />
-                {tweet.stats.reposts}
-              </button>
-              <button className="flex items-center gap-1 transition hover:text-rose-500">
-                <Heart className="h-4 w-4" />
-                {tweet.stats.likes}
-              </button>
-              <button className="ml-auto flex items-center gap-1 rounded-full border border-neutral-200 px-3 py-1 text-[11px] font-semibold transition hover:border-neutral-300">
-                <Bookmark className="h-4 w-4" />
-                Uložit
-              </button>
-            </div>
-          </article>
-        ))}
+              <p className="text-sm leading-relaxed text-neutral-900">{tweet.text}</p>
+              <div className="flex items-center gap-4 text-xs font-semibold text-neutral-600">
+                <button className="flex items-center gap-1 transition hover:text-neutral-900">
+                  <MessageCircle className="h-4 w-4" />
+                  {tweet.stats.replies}
+                </button>
+                <button className="flex items-center gap-1 transition hover:text-neutral-900">
+                  <Share2 className="h-4 w-4" />
+                  {tweet.stats.reposts}
+                </button>
+                <button className="flex items-center gap-1 transition hover:text-rose-500">
+                  <Heart className="h-4 w-4" />
+                  {tweet.stats.likes}
+                </button>
+                <button className="ml-auto flex items-center gap-1 rounded-full border border-neutral-200 px-3 py-1 text-[11px] font-semibold transition hover:border-neutral-300">
+                  <Bookmark className="h-4 w-4" />
+                  Uložit
+                </button>
+              </div>
+            </article>
+          ))
+        )}
       </div>
     </div>
   );

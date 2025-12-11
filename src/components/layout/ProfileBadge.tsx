@@ -12,7 +12,38 @@ export function ProfileBadge() {
   const isHidden = HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix));
   const [open, setOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [initials, setInitials] = useState<string>("NRW");
   const supabase = getSupabaseBrowserClient();
+
+  const computeInitials = (value: string | null | undefined) => {
+    const name = (value || "").trim();
+    if (!name) return "NRW";
+    const parts = name.split(/\s+/).filter(Boolean).slice(0, 2);
+    const joined =
+      parts
+        .map((p) => p[0]?.toUpperCase?.() || "")
+        .join("") || "NRW";
+    return joined;
+  };
+
+  const fetchInitials = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    setIsAuthenticated(!!user);
+    if (!user?.id) {
+      setInitials("NRW");
+      return;
+    }
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name, username")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const name = profile?.display_name || profile?.username || user.email || "";
+    setInitials(computeInitials(name));
+  };
 
   useEffect(() => {
     setOpen(false);
@@ -20,16 +51,14 @@ export function ProfileBadge() {
 
   useEffect(() => {
     let active = true;
-    const loadUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    fetchInitials();
+    const { data: authSub } = supabase.auth.onAuthStateChange(() => {
       if (!active) return;
-      setIsAuthenticated(!!user);
-    };
-    loadUser();
+      fetchInitials();
+    });
     return () => {
       active = false;
+      authSub.subscription.unsubscribe();
     };
   }, [supabase]);
 
@@ -40,13 +69,13 @@ export function ProfileBadge() {
       <div className="relative">
         <button
           type="button"
-          aria-label="Tvůj profil"
-          onClick={() => setOpen((prev) => !prev)}
-          className="relative inline-flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-neutral-900 via-neutral-700 to-neutral-900 text-sm font-semibold text-white shadow-lg shadow-neutral-900/15 ring-2 ring-white transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-neutral-900/20"
-        >
-          <span>RK</span>
-          <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-white bg-emerald-400" />
-        </button>
+        aria-label="Tvůj profil"
+        onClick={() => setOpen((prev) => !prev)}
+        className="relative inline-flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-neutral-900 via-neutral-700 to-neutral-900 text-sm font-semibold text-white shadow-lg shadow-neutral-900/15 ring-2 ring-white transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-neutral-900/20"
+      >
+        <span>{initials}</span>
+        <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-white bg-emerald-400" />
+      </button>
 
         {open && (
           <div className="absolute right-0 mt-2 w-44 rounded-xl border border-neutral-200 bg-white shadow-lg shadow-neutral-900/10">
