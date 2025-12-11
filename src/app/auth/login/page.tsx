@@ -18,7 +18,7 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -28,6 +28,23 @@ export default function LoginPage() {
     if (error) {
       setError(error.message);
       return;
+    }
+
+    if (data?.user) {
+      try {
+        await fetch("/api/admin/log", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_id: data.user.id,
+            path: "/auth/login",
+          }),
+        });
+      } catch (err) {
+        console.error("Failed to log admin event", err);
+      }
     }
 
     router.push("/");
