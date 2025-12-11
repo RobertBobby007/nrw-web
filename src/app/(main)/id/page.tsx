@@ -699,7 +699,7 @@ function TwitterFeed({
           <div className="py-3 text-sm text-neutral-600">Načítám příspěvky…</div>
         ) : hasPosts ? (
           visiblePosts.map((post) => {
-            const profile = post.profiles;
+            const profile = post.profiles[0];
             const name = profile?.display_name || profile?.username || displayName;
             const username = profile?.username ? `@${profile.username}` : null;
             const badge = profile?.verified

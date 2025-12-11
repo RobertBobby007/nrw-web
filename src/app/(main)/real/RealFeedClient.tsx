@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Image as ImageIcon, Video as VideoIcon } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import type { NrealPost } from "@/types/nreal";
+import type { NrealPost, NrealProfile } from "@/types/nreal";
 import { PostCard } from "./PostCard";
 import type { Profile } from "@/lib/profiles";
 
@@ -21,6 +21,12 @@ export function RealFeedClient() {
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<"image" | "video" | null>(null);
+
+  const normalizePost = (post: any): NrealPost => {
+    const rawProfiles = post?.profiles as NrealProfile[] | NrealProfile | null | undefined;
+    const profiles = Array.isArray(rawProfiles) ? rawProfiles : rawProfiles ? [rawProfiles] : [];
+    return { ...post, profiles };
+  };
 
   useEffect(() => {
     let active = true;
@@ -67,7 +73,7 @@ export function RealFeedClient() {
       if (error) {
         setError(error.message);
       } else if (data) {
-        setPosts(data as NrealPost[]);
+        setPosts((data as NrealPost[]).map((post) => normalizePost(post)));
       }
       setLoading(false);
     }
@@ -138,20 +144,23 @@ export function RealFeedClient() {
       return;
     }
     if (data) {
-      const typed = data as NrealPost;
-      const withProfile: NrealPost = {
-        ...typed,
-        profiles:
-          typed.profiles ||
-          (currentProfile
-            ? {
+      const typed = normalizePost(data as NrealPost);
+      const fallbackProfiles = typed.profiles.length
+        ? typed.profiles
+        : currentProfile
+          ? [
+              {
                 username: currentProfile.username ?? null,
                 display_name: currentProfile.display_name ?? null,
                 avatar_url: currentProfile.avatar_url ?? null,
                 verified: currentProfile.verified ?? null,
                 verification_label: currentProfile.verification_label ?? null,
-              }
-            : null),
+              },
+            ]
+          : [];
+      const withProfile: NrealPost = {
+        ...typed,
+        profiles: fallbackProfiles,
       };
       setPosts((prev) => [withProfile, ...prev]);
       setContent("");
@@ -266,12 +275,12 @@ export function RealFeedClient() {
           <PostCard
             key={post.id}
             author={{
-              displayName: post.profiles?.display_name || post.profiles?.username || "NRW uživatel",
-              username: post.profiles?.username ? `@${post.profiles.username}` : null,
-              avatarUrl: post.profiles?.avatar_url ?? null,
+              displayName: post.profiles?.[0]?.display_name || post.profiles?.[0]?.username || "NRW uživatel",
+              username: post.profiles?.[0]?.username ? `@${post.profiles[0]?.username}` : null,
+              avatarUrl: post.profiles?.[0]?.avatar_url ?? null,
               isCurrentUser: post.user_id === currentUserId,
-              verified: Boolean(post.profiles?.verified),
-              verificationLabel: sanitizeVerificationLabel(post.profiles?.verification_label),
+              verified: Boolean(post.profiles?.[0]?.verified),
+              verificationLabel: sanitizeVerificationLabel(post.profiles?.[0]?.verification_label),
             }}
             content={post.content ?? ""}
             createdAt={post.created_at}
