@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { upsertProfileFromAuth } from "@/lib/profiles";
 
 export default function RegisterPage() {
-  const router = useRouter();
   const supabase = getSupabaseBrowserClient();
 
   const [step, setStep] = useState<1 | 2>(1);

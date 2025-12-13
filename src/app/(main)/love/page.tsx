@@ -85,7 +85,8 @@ export default function LovePage() {
   );
 
   const handleAction = (direction: "left" | "right" | "superlike") => {
-    const nextIndex = currentIndex + 1;
+    const delta = direction === "superlike" ? 1 : 1;
+    const nextIndex = currentIndex + delta;
     setCurrentIndex(nextIndex >= profiles.length ? 0 : nextIndex);
   };
 
@@ -105,7 +106,7 @@ export default function LovePage() {
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-4">
-            <CardStack cards={visibleCards} onAction={handleAction} />
+            <CardStack cards={visibleCards} />
             <SwipeControls onAction={handleAction} />
           </div>
 
@@ -129,13 +130,7 @@ export default function LovePage() {
   );
 }
 
-function CardStack({
-  cards,
-  onAction,
-}: {
-  cards: Profile[];
-  onAction: (dir: "left" | "right" | "superlike") => void;
-}) {
+function CardStack({ cards }: { cards: Profile[] }) {
   return (
     <div className="relative h-[520px] w-full rounded-3xl bg-white/70 p-3 shadow-[0_14px_50px_-24px_rgba(0,0,0,0.4)] ring-1 ring-neutral-200/80">
       {cards.length === 0 && (

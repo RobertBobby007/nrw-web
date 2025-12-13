@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -15,7 +16,6 @@ export function RealFeedClient() {
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
@@ -41,7 +41,6 @@ export function RealFeedClient() {
       if (!active) return;
       setUserId(user?.id ?? null);
       setCurrentUserId(user?.id ?? null);
-      setCurrentUserEmail(user?.email ?? null);
       if (user?.id) {
         const { data: profileData } = await supabase
           .from("profiles")
@@ -177,16 +176,6 @@ export function RealFeedClient() {
       </div>
     );
   }
-
-  const formatDate = (iso?: string | null) => {
-    if (!iso) return "neznámý čas";
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return "neznámý čas";
-    return d.toLocaleString("cs-CZ", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  };
 
   const sanitizeVerificationLabel = (value: string | null | undefined) => {
     const trimmed = (value ?? "").trim();

@@ -79,7 +79,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (err) {
+  } catch (error) {
+    console.error("admin log error", error);
     return NextResponse.json({ success: false }, { status: 500 });
   }
 }

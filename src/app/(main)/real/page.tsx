@@ -1,15 +1,6 @@
 "use client";
 
-import {
-  Bookmark,
-  Flame,
-  Heart,
-  MessageCircle,
-  MoreHorizontal,
-  MapPin,
-  Plus,
-  Send,
-} from "lucide-react";
+import { Flame, MessageCircle, MapPin, Plus } from "lucide-react";
 import { useState } from "react";
 import { RealFeedClient } from "./RealFeedClient";
 
@@ -19,16 +10,6 @@ type Story = {
   isLive: boolean;
   isCloseFriends?: boolean;
   color: string;
-};
-type Post = {
-  id: string;
-  user: string;
-  location: string;
-  timeAgo: string;
-  caption: string;
-  likes: number;
-  comments: { id: string; user: string; text: string }[];
-  mediaColor: string;
 };
 
 const stories: Story[] = [
@@ -46,48 +27,6 @@ const storyPalette = [
   "from-emerald-500 via-teal-500 to-cyan-400",
   "from-fuchsia-500 via-purple-500 to-indigo-500",
   "from-slate-900 via-slate-800 to-slate-900",
-];
-
-const posts: Post[] = [
-  {
-    id: "p1",
-    user: "Natka",
-    location: "Letná · Praha",
-    timeAgo: "před 2 h",
-    caption: "Dneska nejhezčí sunset. NRW viby ✨",
-    likes: 482,
-    comments: [
-      { id: "c1", user: "Mates", text: "🔥🔥" },
-      { id: "c2", user: "Lukáš", text: "Potvrzuju, top nálada." },
-    ],
-    mediaColor: "from-orange-300 via-amber-200 to-pink-200",
-  },
-  {
-    id: "p2",
-    user: "NRW crew",
-    location: "NRW Studio",
-    timeAgo: "před 5 h",
-    caption: "Nahráváme další díl nReal Talks. Kdo chce shoutout?",
-    likes: 1021,
-    comments: [
-      { id: "c3", user: "Eli", text: "Pošli behind the scenes!" },
-      { id: "c4", user: "Natka", text: "Chci slyšet nLove story." },
-    ],
-    mediaColor: "from-slate-900 via-slate-800 to-slate-900",
-  },
-  {
-    id: "p3",
-    user: "Mates",
-    location: "Brno",
-    timeAgo: "včera",
-    caption: "Skate spot, který musíte vidět. NRW meetup příští týden?",
-    likes: 316,
-    comments: [
-      { id: "c5", user: "NRW crew", text: "Přijedeme!" },
-      { id: "c6", user: "Lukáš", text: "Dejte poll v appce." },
-    ],
-    mediaColor: "from-emerald-200 via-teal-200 to-cyan-200",
-  },
 ];
 
 export default function RealPage() {
@@ -196,80 +135,6 @@ function StoriesRail({ stories, onAddStory }: { stories: Story[]; onAddStory: ()
             {story.user}
           </span>
         </button>
-      ))}
-    </div>
-  );
-}
-
-function PostsList() {
-  return (
-    <div className="space-y-4">
-      {posts.map((post) => (
-        <article key={post.id} className="rounded-2xl border border-neutral-200 bg-white shadow-sm">
-          <header className="flex items-center justify-between gap-3 px-4 py-3">
-            <div className="flex items-center gap-3">
-              <div className={`h-10 w-10 rounded-full bg-gradient-to-br ${post.mediaColor} ring-2 ring-neutral-100`} />
-              <div>
-                <div className="text-sm font-semibold text-neutral-900">nReal · {post.user}</div>
-                <div className="text-[11px] text-neutral-500">
-                  {post.location} · {post.timeAgo}
-                </div>
-              </div>
-            </div>
-            <button
-              className="rounded-full p-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800"
-              aria-label="Více"
-            >
-              <MoreHorizontal className="h-5 w-5" />
-            </button>
-          </header>
-
-          <div className={`relative bg-gradient-to-br ${post.mediaColor}`}>
-            <div className="aspect-[4/5] w-full overflow-hidden">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.45),transparent_35%),radial-gradient(circle_at_80%_70%,rgba(255,255,255,0.35),transparent_35%)] mix-blend-screen" />
-              <div className="absolute bottom-4 left-4 rounded-full bg-black/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white">
-                nReal moment
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-3 px-4 py-4">
-            <div className="flex items-center justify-between text-neutral-800">
-              <div className="flex items-center gap-4 text-sm font-semibold">
-                <button className="flex items-center gap-2 transition hover:text-red-500">
-                  <Heart className="h-5 w-5" />
-                  <span>{post.likes.toLocaleString("cs-CZ")} lajků</span>
-                </button>
-                <button className="flex items-center gap-2 transition hover:text-neutral-900">
-                  <MessageCircle className="h-5 w-5" />
-                  <span>Komentáře</span>
-                </button>
-                <button className="flex items-center gap-2 transition hover:text-neutral-900">
-                  <Send className="h-5 w-5" />
-                  <span>Poslat</span>
-                </button>
-              </div>
-              <button className="transition hover:text-neutral-900" aria-label="Uložit">
-                <Bookmark className="h-5 w-5" />
-              </button>
-            </div>
-
-            <p className="text-sm text-neutral-900">
-              <span className="font-semibold">{post.user}</span> {post.caption}
-            </p>
-
-            <div className="space-y-1">
-              {post.comments.map((comment) => (
-                <p key={comment.id} className="text-sm text-neutral-700">
-                  <span className="font-semibold">{comment.user}</span> {comment.text}
-                </p>
-              ))}
-              <button className="text-xs font-medium text-neutral-500 transition hover:text-neutral-900">
-                Zobrazit všechny komentáře
-              </button>
-            </div>
-          </div>
-        </article>
       ))}
     </div>
   );

@@ -48,8 +48,8 @@ function parseOsBrowser(ua: string, deviceType?: string) {
   return { os, browser, device: deviceType ?? "unknown" };
 }
 
-async function safeUpsertOnlineUsers(payload: Record<string, any>) {
-  let currentPayload = { ...payload };
+async function safeUpsertOnlineUsers(payload: Record<string, unknown>) {
+  const currentPayload = { ...payload };
 
   while (true) {
     const { error } = await supabaseAdmin

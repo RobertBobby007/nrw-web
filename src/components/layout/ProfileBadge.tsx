@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 const HIDDEN_PREFIXES = ["/support", "/settings", "/id"];
@@ -26,7 +26,7 @@ export function ProfileBadge() {
     return joined;
   };
 
-  const fetchInitials = async () => {
+  const fetchInitials = useCallback(async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -43,7 +43,7 @@ export function ProfileBadge() {
 
     const name = profile?.display_name || profile?.username || user.email || "";
     setInitials(computeInitials(name));
-  };
+  }, [supabase]);
 
   useEffect(() => {
     setOpen(false);
@@ -60,7 +60,7 @@ export function ProfileBadge() {
       active = false;
       authSub.subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [fetchInitials, supabase]);
 
   if (isHidden) return null;
 

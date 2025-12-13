@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -142,7 +143,7 @@ export default function IdPage() {
     const maxX = Math.max(0, (drawW - size) / 2);
     const maxY = Math.max(0, (drawH - size) / 2);
     return { maxX, maxY };
-  }, [imageSize, cropZoom]);
+  }, [cropSize, imageSize, cropZoom]);
 
   const clampOffset = (value: number, axis: "x" | "y") => {
     const bounds = axis === "x" ? offsetBounds.maxX : offsetBounds.maxY;

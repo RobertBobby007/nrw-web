@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import {
@@ -5,7 +6,6 @@ import {
   BriefcaseBusiness,
   EyeOff,
   Globe2,
-  Link,
   Lock,
   Map,
   MessageCircle,
@@ -105,8 +105,6 @@ export default function SettingsPage() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [web, setWeb] = useState("");
   const [bio, setBio] = useState("🖥️ ajťák & herec 🤘\nPoslouchej: @arvickopodcast");
-  const [showThreads, setShowThreads] = useState(true);
-  const [gender, setGender] = useState("Muž");
   const [activeSection, setActiveSection] = useState<SectionKey>("profile");
   const [showCropper, setShowCropper] = useState(false);
   const [cropImageUrl, setCropImageUrl] = useState<string | null>(null);
@@ -279,12 +277,8 @@ export default function SettingsPage() {
               bio,
               bioCount,
               setBio,
-              gender,
-              setGender,
               web,
               setWeb,
-              showThreads,
-              setShowThreads,
               displayName,
               setDisplayName,
               username,
@@ -313,7 +307,6 @@ export default function SettingsPage() {
               setCropOffsetX,
               setCropOffsetY,
               clampOffset,
-              offsetBounds,
               setImageSize,
               setCropSize,
               cropSize,
@@ -344,12 +337,8 @@ function renderSection(
     bio,
     bioCount,
     setBio,
-    gender,
-    setGender,
     web,
     setWeb,
-    showThreads,
-    setShowThreads,
     displayName,
     setDisplayName,
     username,
@@ -376,7 +365,6 @@ function renderSection(
     setCropOffsetX,
     setCropOffsetY,
     clampOffset,
-    offsetBounds,
     setImageSize,
     setCropSize,
     cropSize,
@@ -391,12 +379,8 @@ function renderSection(
     bio: string;
     bioCount: number;
     setBio: (val: string) => void;
-    gender: string;
-    setGender: (val: string) => void;
     web: string;
     setWeb: (val: string) => void;
-    showThreads: boolean;
-    setShowThreads: (val: boolean) => void;
     displayName: string;
     setDisplayName: (val: string) => void;
     username: string;
@@ -425,7 +409,6 @@ function renderSection(
     setCropOffsetX: React.Dispatch<React.SetStateAction<number>>;
     setCropOffsetY: React.Dispatch<React.SetStateAction<number>>;
     clampOffset: (val: number, axis: "x" | "y") => number;
-    offsetBounds: { maxX: number; maxY: number };
     setImageSize: (val: { w: number; h: number }) => void;
     setCropSize: (val: number) => void;
     cropSize: number;
