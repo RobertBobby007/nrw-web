@@ -32,7 +32,7 @@ export default function LoginPage() {
 
     if (data?.user) {
       try {
-        await fetch("/api/admin/log", {
+        fetch("/api/admin/log", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -41,9 +41,12 @@ export default function LoginPage() {
             user_id: data.user.id,
             path: "/auth/login",
           }),
+        }).catch(() => {
+          // nechci blokovat login, takže chybu jen ignoruj nebo zaloguj do konzole
+          console.warn("Failed to log admin login");
         });
-      } catch (err) {
-        console.error("Failed to log admin event", err);
+      } catch (e) {
+        console.warn("Failed to log admin login", e);
       }
     }
 
