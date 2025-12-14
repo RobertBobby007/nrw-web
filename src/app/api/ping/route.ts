@@ -54,7 +54,7 @@ async function safeUpsertOnlineUsers(payload: Record<string, unknown>) {
   while (true) {
     const { error } = await supabaseAdmin
       .from("online_users")
-      .upsert(currentPayload, { onConflict: "ip" });
+      .upsert(currentPayload, { onConflict: "user_id" });
 
     if (!error) return { error: null };
 
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
   if (userId) {
     const { error: profileError } = await supabaseAdmin
       .from("profiles")
-      .update({ last_seen_at: new Date().toISOString() })
+      .update({ last_seen: new Date().toISOString() })
       .eq("id", userId);
 
     if (profileError) {
