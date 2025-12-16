@@ -13,5 +13,9 @@ export type NrealPost = {
   created_at: string;
   media_url?: string | null;
   media_type?: "image" | "video" | null;
+  is_deleted?: boolean | null;
   profiles: NrealProfile[];
+  likesCount: number;
+  likedByCurrentUser: boolean;
+  commentsCount?: number;
 };

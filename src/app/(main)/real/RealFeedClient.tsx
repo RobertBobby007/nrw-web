@@ -1,12 +1,19 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Image as ImageIcon, Video as VideoIcon } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import type { NrealPost, NrealProfile } from "@/types/nreal";
 import { PostCard } from "./PostCard";
 import type { Profile } from "@/lib/profiles";
+
+type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentUser"> & {
+  profiles?: NrealProfile | NrealProfile[] | null;
+  likesCount?: number;
+  likedByCurrentUser?: boolean;
+  commentsCount?: number;
+};
 
 export function RealFeedClient() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
@@ -21,13 +28,20 @@ export function RealFeedClient() {
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<"image" | "video" | null>(null);
+  const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
+  const deletedPostsRef = useRef<Map<string, NrealPost>>(new Map());
 
-  const normalizePost = (
-    post: NrealPost & { profiles?: NrealProfile | NrealProfile[] | null }
-  ): NrealPost => {
+  const normalizePost = (post: SupabasePost): NrealPost => {
     const rawProfiles = post?.profiles;
     const profiles = Array.isArray(rawProfiles) ? rawProfiles : rawProfiles ? [rawProfiles] : [];
-    return { ...post, profiles };
+    return {
+      ...post,
+      is_deleted: (post as any).is_deleted ?? null,
+      profiles,
+      likesCount: post.likesCount ?? 0,
+      likedByCurrentUser: post.likedByCurrentUser ?? false,
+      commentsCount: post.commentsCount ?? 0,
+    };
   };
 
   useEffect(() => {
@@ -59,6 +73,7 @@ export function RealFeedClient() {
             created_at,
             media_url,
             media_type,
+            is_deleted,
             profiles (
               username,
               display_name,
@@ -68,13 +83,62 @@ export function RealFeedClient() {
             )
           `,
         )
+        .eq("is_deleted", false)
         .order("created_at", { ascending: false });
 
       if (!active) return;
       if (error) {
         setError(error.message);
       } else if (data) {
-        setPosts((data as NrealPost[]).map((post) => normalizePost(post)));
+        const normalized = (data as SupabasePost[]).map((post) => normalizePost(post));
+        const postIds = normalized.map((post) => post.id);
+        const likesCountMap: Record<string, number> = {};
+        const commentsCountMap: Record<string, number> = {};
+        const likedPostIds = new Set<string>();
+
+        if (postIds.length > 0) {
+          const { data: likesData } = await supabase
+            .from("nreal_likes")
+            .select("post_id")
+            .in("post_id", postIds);
+
+          likesData?.forEach((row) => {
+            const pid = (row as { post_id: string }).post_id;
+            likesCountMap[pid] = (likesCountMap[pid] ?? 0) + 1;
+          });
+
+          if (user?.id) {
+            const { data: likedData } = await supabase
+              .from("nreal_likes")
+              .select("post_id")
+              .eq("user_id", user.id)
+              .in("post_id", postIds);
+
+            likedData?.forEach((row) => {
+              const pid = (row as { post_id: string }).post_id;
+              likedPostIds.add(pid);
+            });
+          }
+
+          const { data: commentsData } = await supabase
+            .from("nreal_comments")
+            .select("post_id")
+            .in("post_id", postIds)
+            .eq("is_deleted", false);
+
+          commentsData?.forEach((row) => {
+            const pid = (row as { post_id: string }).post_id;
+            commentsCountMap[pid] = (commentsCountMap[pid] ?? 0) + 1;
+          });
+        }
+
+        const withCounts = normalized.map((post) => ({
+          ...post,
+          likesCount: likesCountMap[post.id] ?? 0,
+          likedByCurrentUser: likedPostIds.has(post.id),
+          commentsCount: commentsCountMap[post.id] ?? 0,
+        }));
+        setPosts(withCounts.filter((post) => !post.is_deleted));
       }
       setLoading(false);
     }
@@ -161,12 +225,66 @@ export function RealFeedClient() {
           : [];
       const withProfile: NrealPost = {
         ...typed,
+        is_deleted: false,
         profiles: fallbackProfiles,
+        likesCount: 0,
+        likedByCurrentUser: false,
+        commentsCount: 0,
       };
       setPosts((prev) => [withProfile, ...prev]);
       setContent("");
       handleFileChange(null);
     }
+  };
+
+  const toggleLike = async (postId: string) => {
+    if (!currentUserId) {
+      setError("Musíš být přihlášený.");
+      return;
+    }
+
+    if (likingPostIds.has(postId)) return;
+
+    const targetPost = posts.find((p) => p.id === postId);
+    if (!targetPost) return;
+
+    const wasLiked = targetPost.likedByCurrentUser;
+    const previousLikes = targetPost.likesCount;
+
+    setLikingPostIds((prev) => {
+      const next = new Set(prev);
+      next.add(postId);
+      return next;
+    });
+
+    setPosts((prev) =>
+      prev.map((post) => {
+        if (post.id !== postId) return post;
+        const nextLiked = !wasLiked;
+        const nextLikes = Math.max(0, previousLikes + (nextLiked ? 1 : -1));
+        return { ...post, likedByCurrentUser: nextLiked, likesCount: nextLikes };
+      }),
+    );
+
+    const { error } = wasLiked
+      ? await supabase.from("nreal_likes").delete().eq("post_id", postId).eq("user_id", currentUserId)
+      : await supabase.from("nreal_likes").insert({ post_id: postId, user_id: currentUserId });
+
+    if (error) {
+      setPosts((prev) =>
+        prev.map((post) => {
+          if (post.id !== postId) return post;
+          return { ...post, likedByCurrentUser: wasLiked, likesCount: previousLikes };
+        }),
+      );
+      setError(error.message);
+    }
+
+    setLikingPostIds((prev) => {
+      const next = new Set(prev);
+      next.delete(postId);
+      return next;
+    });
   };
 
   if (loading) {
@@ -265,6 +383,8 @@ export function RealFeedClient() {
         {posts.map((post) => (
           <PostCard
             key={post.id}
+            postUserId={post.user_id}
+            isDeleted={post.is_deleted ?? false}
             author={{
               displayName: post.profiles?.[0]?.display_name || post.profiles?.[0]?.username || "NRW uživatel",
               username: post.profiles?.[0]?.username ? `@${post.profiles[0]?.username}` : null,
@@ -273,10 +393,34 @@ export function RealFeedClient() {
               verified: Boolean(post.profiles?.[0]?.verified),
               verificationLabel: sanitizeVerificationLabel(post.profiles?.[0]?.verification_label),
             }}
+            postId={post.id}
             content={post.content ?? ""}
             createdAt={post.created_at}
             mediaUrl={post.media_url ?? null}
             mediaType={(post.media_type as "image" | "video" | null) ?? null}
+            likesCount={post.likesCount}
+            likedByCurrentUser={post.likedByCurrentUser}
+            commentsCount={post.commentsCount ?? 0}
+            onToggleLike={toggleLike}
+            likeDisabled={!currentUserId || likingPostIds.has(post.id)}
+            currentUserProfile={currentProfile}
+            onDeletePost={(id) =>
+              setPosts((prev) => {
+                const found = prev.find((p) => p.id === id);
+                if (found) deletedPostsRef.current.set(id, found);
+                return prev.filter((p) => p.id !== id);
+              })
+            }
+            onRestorePost={(id) => {
+              const cached = deletedPostsRef.current.get(id);
+              if (cached) {
+                setPosts((prev) => {
+                  if (prev.some((p) => p.id === id)) return prev;
+                  return [cached, ...prev];
+                });
+                deletedPostsRef.current.delete(id);
+              }
+            }}
           />
         ))}
         {posts.length === 0 && (

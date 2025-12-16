@@ -121,12 +121,14 @@ export default function IdPage() {
       const { data, error } = await supabase
         .from("nreal_posts")
         .select(
-          "id, user_id, content, created_at, profiles(username, display_name, avatar_url, verified, verification_label)",
+          "id, user_id, content, created_at, is_deleted, profiles(username, display_name, avatar_url, verified, verification_label)",
         )
+        .eq("is_deleted", false)
         .order("created_at", { ascending: false });
 
       if (!error && data) {
-        setPosts(data as unknown as NrealPost[]);
+        const safe = (data as any[]).filter((p) => !p.is_deleted);
+        setPosts(safe as unknown as NrealPost[]);
       }
 
       setPostsLoading(false);

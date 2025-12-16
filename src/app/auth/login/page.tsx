@@ -1,57 +1,46 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = getSupabaseBrowserClient();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
+  useEffect(() => {
+    if (searchParams.get("banned")) {
+      setAuthError("Tvůj účet byl zablokován. Pokud si myslíš, že jde o chybu, kontaktuj podporu.");
+    }
+  }, [searchParams]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
+    setAuthError(null);
+    setAuthLoading(true);
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    setLoading(false);
-
-    if (error) {
-      setError(error.message);
-      return;
-    }
-
-    if (data?.user) {
-      try {
-        fetch("/api/admin/log", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            user_id: data.user.id,
-            path: "/auth/login",
-          }),
-        }).catch(() => {
-          // nechci blokovat login, takže chybu jen ignoruj nebo zaloguj do konzole
-          console.warn("Failed to log admin login");
-        });
-      } catch (e) {
-        console.warn("Failed to log admin login", e);
+      if (error) {
+        setAuthError(error.message || "Přihlášení se nepovedlo.");
+        return;
       }
-    }
 
-    router.push("/");
-  }
+      router.push("/");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center">
@@ -83,14 +72,14 @@ export default function LoginPage() {
           />
         </div>
 
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {authError && <p className="text-sm text-red-500">{authError}</p>}
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={authLoading}
           className="w-full rounded-md border px-3 py-2 text-sm font-medium"
         >
-          {loading ? "Přihlašuji…" : "Přihlásit se"}
+          {authLoading ? "Přihlašuji…" : "Přihlásit se"}
         </button>
 
         <p className="text-xs text-center text-neutral-500">
