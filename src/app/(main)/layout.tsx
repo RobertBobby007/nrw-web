@@ -1,49 +1,43 @@
+import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import type { ReactNode } from "react";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { ProfileBadge } from "@/components/layout/ProfileBadge";
 import { NexaBubble } from "@/components/layout/NexaBubble";
 import { OnlineHeartbeat } from "@/components/online-heartbeat";
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+export async function createSupabaseServerClient() {
+  const cookieStore = await cookies();
+
+  return createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        // V server componentu to někdy Next blokne -> necrashnout
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set({ name, value, ...options });
+          });
+        } catch {
+          // ignore (server components)
+        }
+      },
+    },
+  });
+}
+
 export default async function MainLayout({
   children,
 }: {
   children: ReactNode;
 }) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Missing Supabase env vars");
-  }
-
-  const cookieStore = await cookies();
-
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      get(name) {
-        return cookieStore.get(name)?.value;
-      },
-      getAll() {
-        return cookieStore.getAll().map((cookie) => ({
-          name: cookie.name,
-          value: cookie.value,
-        }));
-      },
-      set() {
-        // no-op in layout (Next 15 – cookies lze měnit jen v route handleru nebo server action)
-      },
-      remove() {
-        // no-op
-      },
-      setAll() {
-        // no-op – cookies se nesmí nastavovat v layoutu,
-        // nastavují se jen v API routách / server actions
-      },
-    },
-  });
+  const supabase = await createSupabaseServerClient();
 
   const {
     data: { user },
