@@ -52,11 +52,10 @@ export default async function MainLayout({
     .from("profiles")
     .select("banned")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
   if (profileError) {
     console.error("Failed to fetch profile in layout", profileError);
-    redirect("/auth/login");
   }
 
   if (profile?.banned) {
@@ -68,8 +67,12 @@ export default async function MainLayout({
       <OnlineHeartbeat />
       <Sidebar />
       <main className="relative flex-1 overflow-x-hidden border-t md:border-t-0 md:border-l border-neutral-200/70 pb-20 md:pb-0">
-        <ProfileBadge />
-        <NexaBubble />
+        <div className="hidden md:block">
+          <ProfileBadge />
+        </div>
+        <div className="hidden md:block">
+          <NexaBubble />
+        </div>
         {children}
       </main>
     </div>

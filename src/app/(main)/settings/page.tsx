@@ -6,6 +6,8 @@ import {
   BriefcaseBusiness,
   EyeOff,
   Globe2,
+  ChevronLeft,
+  LifeBuoy,
   Lock,
   Map,
   MessageCircle,
@@ -24,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
+import Link from "next/link";
 import {
   fetchCurrentProfile,
   updateCurrentProfile,
@@ -31,6 +34,7 @@ import {
   deleteAvatarByUrl,
   type Profile,
 } from "@/lib/profiles";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 type SectionKey =
   | "profile"
@@ -93,6 +97,7 @@ const navSections: NavSection[] = [
 const BIO_LIMIT = 150;
 
 export default function SettingsPage() {
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [displayName, setDisplayName] = useState("");
@@ -106,6 +111,7 @@ export default function SettingsPage() {
   const [web, setWeb] = useState("");
   const [bio, setBio] = useState("🖥️ ajťák & herec 🤘\nPoslouchej: @arvickopodcast");
   const [activeSection, setActiveSection] = useState<SectionKey>("profile");
+  const [showMobileSection, setShowMobileSection] = useState(false);
   const [showCropper, setShowCropper] = useState(false);
   const [cropImageUrl, setCropImageUrl] = useState<string | null>(null);
   const [cropZoom, setCropZoom] = useState(1);
@@ -129,6 +135,13 @@ export default function SettingsPage() {
 
   const bioCount = useMemo(() => bio.length, [bio]);
   const initials = displayName?.[0]?.toUpperCase?.() || username?.[0]?.toUpperCase?.() || "N";
+  const activeSectionLabel = useMemo(() => {
+    for (const section of navSections) {
+      const match = section.items.find((item) => item.key === activeSection);
+      if (match) return match.label;
+    }
+    return "Nastavení";
+  }, [activeSection]);
   const offsetBounds = useMemo(() => {
     const size = cropSize || 600;
     const { w, h } = imageSize;
@@ -148,18 +161,27 @@ export default function SettingsPage() {
 
   useEffect(() => {
     let mounted = true;
-    fetchCurrentProfile().then((p) => {
+    const load = async () => {
+      const [{ data: userData }, profileData] = await Promise.all([
+        supabase.auth.getUser(),
+        fetchCurrentProfile(),
+      ]);
       if (!mounted) return;
-      setProfile(p);
-      setDisplayName(p?.display_name ?? "");
-      setUsername(p?.username ?? "");
-      setBio(p?.bio ?? "");
-      setAvatarPreview(p?.avatar_url ?? null);
-    });
+      const user = userData?.user ?? null;
+      const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
+      const metaDisplayName = typeof meta.display_name === "string" ? meta.display_name : "";
+      const metaUsername = typeof meta.username === "string" ? meta.username : "";
+      setProfile(profileData);
+      setDisplayName(profileData?.display_name ?? metaDisplayName ?? "");
+      setUsername(profileData?.username ?? metaUsername ?? "");
+      setBio(profileData?.bio ?? "");
+      setAvatarPreview(profileData?.avatar_url ?? null);
+    };
+    load();
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [supabase]);
 
   const handleAvatarChange = (file?: File | null) => {
     setProfileMessage(null);
@@ -227,8 +249,8 @@ export default function SettingsPage() {
 
   return (
     <main className="min-h-screen bg-neutral-50">
-      <div className="mx-auto max-w-6xl px-4 py-10 lg:py-12">
-        <div className="flex items-start justify-between gap-4">
+      <div className="mx-auto max-w-6xl px-4 py-6 md:py-10 lg:py-12">
+        <div className="hidden items-start justify-between gap-4 md:flex">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-neutral-600">Nastavení</p>
             <h1 className="text-3xl font-semibold text-neutral-900">Upravit profil</h1>
@@ -238,9 +260,38 @@ export default function SettingsPage() {
             </p>
           </div>
         </div>
+        <div className="md:hidden">
+          {showMobileSection ? (
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => setShowMobileSection(false)}
+                className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-sm"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Zpět
+              </button>
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-neutral-600">Nastavení</p>
+                <h1 className="text-2xl font-semibold text-neutral-900">
+                  {activeSectionLabel}
+                </h1>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-neutral-600">Nastavení</p>
+              <h1 className="text-2xl font-semibold text-neutral-900">Nastavení</h1>
+              <p className="text-sm text-neutral-700">
+                Přepínej sekce a uprav svůj NRW účet. Vše zatím staticky, ale navržené
+                pro snadné napojení na backend.
+              </p>
+            </div>
+          )}
+        </div>
 
-        <div className="mt-8 grid gap-8 lg:grid-cols-[280px_1fr]">
-          <aside className="space-y-4">
+        <div className="mt-6 grid gap-8 md:mt-8 lg:grid-cols-[280px_1fr]">
+          <aside className={`space-y-4 ${showMobileSection ? "hidden" : "block"} md:block`}>
             <div className="rounded-2xl border border-neutral-200/70 bg-white p-4 shadow-sm">
               {navSections.map((section) => (
                 <div key={section.title} className="space-y-2">
@@ -254,7 +305,10 @@ export default function SettingsPage() {
                       return (
                         <button
                           key={item.label}
-                          onClick={() => setActiveSection(item.key)}
+                          onClick={() => {
+                            setActiveSection(item.key);
+                            setShowMobileSection(true);
+                          }}
                           className={`flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm transition ${
                             active
                               ? "bg-neutral-900 text-white shadow-sm"
@@ -269,10 +323,19 @@ export default function SettingsPage() {
                   </div>
                 </div>
               ))}
+              <div className="mt-4 border-t border-neutral-200/70 pt-3 md:hidden">
+                <Link
+                  href="/support"
+                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm text-neutral-700 transition hover:bg-neutral-100"
+                >
+                  <LifeBuoy className="h-5 w-5" />
+                  <span className="flex-1 text-left">Podpora</span>
+                </Link>
+              </div>
             </div>
           </aside>
 
-          <section className="space-y-6">
+          <section className={`space-y-6 ${showMobileSection ? "block" : "hidden"} md:block`}>
             {renderSection(activeSection, {
               bio,
               bioCount,
