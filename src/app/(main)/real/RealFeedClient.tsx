@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Image as ImageIcon, Video as VideoIcon } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { containsBlockedContent } from "@/lib/content-filter";
 import type { NrealPost, NrealProfile } from "@/types/nreal";
 import { PostCard } from "./PostCard";
 import type { Profile } from "@/lib/profiles";
@@ -36,7 +37,7 @@ export function RealFeedClient() {
     const profiles = Array.isArray(rawProfiles) ? rawProfiles : rawProfiles ? [rawProfiles] : [];
     return {
       ...post,
-      is_deleted: (post as any).is_deleted ?? null,
+      is_deleted: (post as SupabasePost).is_deleted ?? null,
       profiles,
       likesCount: post.likesCount ?? 0,
       likedByCurrentUser: post.likedByCurrentUser ?? false,
@@ -185,6 +186,13 @@ export function RealFeedClient() {
     }
     const trimmed = content.trim();
     if (!trimmed && !mediaFile) return;
+    if (trimmed) {
+      const { hit } = containsBlockedContent(trimmed);
+      if (hit) {
+        setError("Uprav text – obsahuje zakázané výrazy.");
+        return;
+      }
+    }
 
     setPosting(true);
     setError(null);
@@ -196,20 +204,32 @@ export function RealFeedClient() {
         return;
       }
     }
-    const { data, error } = await supabase
-      .from("nreal_posts")
-      .insert({ content: trimmed || null, user_id: userId, media_url: mediaUrl, media_type: mediaType })
-      .select()
-      .single();
+    const response = await fetch("/api/nreal/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content: trimmed || null,
+        media_url: mediaUrl,
+        media_type: mediaType,
+      }),
+    });
+    const payload = await response.json().catch(() => null);
 
     setPosting(false);
 
-    if (error) {
-      setError(error.message);
+    if (!response.ok) {
+      if (payload?.error === "blocked_content") {
+        setError("Uprav text – obsahuje zakázané výrazy.");
+      } else if (payload?.error === "unauthorized") {
+        setError("Musíš být přihlášený.");
+      } else {
+        setError(payload?.message ?? "Publikace selhala.");
+      }
       return;
     }
+    const data = payload?.data as SupabasePost | undefined;
     if (data) {
-      const typed = normalizePost(data as NrealPost);
+      const typed = normalizePost(data as SupabasePost);
       const fallbackProfiles = typed.profiles.length
         ? typed.profiles
         : currentProfile

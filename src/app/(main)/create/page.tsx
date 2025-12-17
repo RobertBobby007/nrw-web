@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { containsBlockedContent } from "@/lib/content-filter";
 
 export default function CreatePage() {
   const router = useRouter();
@@ -56,6 +57,13 @@ export default function CreatePage() {
       setError("Přidej text nebo soubor.");
       return;
     }
+    if (content) {
+      const { hit } = containsBlockedContent(content);
+      if (hit) {
+        setError("Uprav text – obsahuje zakázané výrazy.");
+        return;
+      }
+    }
 
     setLoading(true);
     const {
@@ -78,19 +86,27 @@ export default function CreatePage() {
       }
     }
 
-    const { error: insertError } = await supabase
-      .from("nreal_posts")
-      .insert({
+    const response = await fetch("/api/nreal/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         content,
-        user_id: user.id,
         media_url: mediaUrl,
         media_type: mediaType,
-      });
+      }),
+    });
+    const payload = await response.json().catch(() => null);
 
     setLoading(false);
 
-    if (insertError) {
-      setError(insertError.message);
+    if (!response.ok) {
+      if (payload?.error === "blocked_content") {
+        setError("Uprav text – obsahuje zakázané výrazy.");
+      } else if (payload?.error === "unauthorized") {
+        setError("Musíš být přihlášený, abys publikoval.");
+      } else {
+        setError(payload?.message ?? "Publikace selhala.");
+      }
       return;
     }
 
