@@ -42,34 +42,7 @@ export async function fetchCurrentProfile(): Promise<Profile | null> {
   }
 
   if (data) return data;
-
-  // Pokud profil neexistuje, zkusíme ho vytvořit z metadata uživatele (po 1. přihlášení)
-  const meta = (user.user_metadata || {}) as Record<string, unknown>;
-  const username = typeof meta.username === "string" ? meta.username.replace(/^@+/, "") : null;
-  const displayName = typeof meta.display_name === "string" ? meta.display_name : null;
-  const avatarUrl = typeof meta.avatar_url === "string" ? meta.avatar_url : null;
-  const bio = typeof meta.bio === "string" ? meta.bio : null;
-
-  await upsertProfileFromAuth({
-    userId: user.id,
-    username,
-    displayName,
-    avatarUrl,
-    bio,
-  });
-
-  const { data: created, error: refetchError } = await supabase
-    .from(TABLE)
-    .select("*")
-    .eq("id", user.id)
-    .maybeSingle<Profile>();
-
-  if (refetchError) {
-    console.error("fetchCurrentProfile refetch error", refetchError);
-    return null;
-  }
-
-  return created;
+  return null;
 }
 
 // Vytvoří / aktualizuje profil pro daného usera

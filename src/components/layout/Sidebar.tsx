@@ -66,6 +66,13 @@ export function Sidebar() {
               •
             </span>
           </Link>
+          <Link
+            href="/settings"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200/70 bg-white text-neutral-600 shadow-sm transition hover:text-neutral-900"
+            aria-label="Nastavení"
+          >
+            <Settings className="h-5 w-5" />
+          </Link>
         </div>
       </div>
 

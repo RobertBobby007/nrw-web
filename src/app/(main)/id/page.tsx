@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BadgeCheck, Bookmark, Camera, Heart, MessageCircle, MoreHorizontal, Share2, X } from "lucide-react";
+import type { User } from "@supabase/supabase-js";
 import {
   fetchCurrentProfile,
   type Profile,
@@ -48,6 +49,7 @@ export default function IdPage() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [bioInput, setBioInput] = useState("");
@@ -92,13 +94,28 @@ export default function IdPage() {
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (!isMounted) return;
+      setUser(data.user ?? null);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [supabase]);
+
+  useEffect(() => {
     if (!profile) return;
     setBioInput(profile.bio ?? "");
     setAvatarPreview(profile.avatar_url ?? null);
   }, [profile]);
 
-  const displayName = profile?.display_name ?? "Ty";
-  const username = profile?.username ? `@${profile.username}` : "@ty";
+  const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
+  const metaDisplayName = typeof meta.display_name === "string" ? meta.display_name : null;
+  const metaUsername = typeof meta.username === "string" ? meta.username : null;
+  const displayName = profile?.display_name ?? metaDisplayName ?? "Uživatel";
+  const resolvedUsername = profile?.username ?? metaUsername ?? "";
+  const username = resolvedUsername ? `@${resolvedUsername}` : "";
   const bio = profile?.bio ?? "Ještě sis nenastavil bio.";
   const bioText = loading ? "Načítám profil…" : bio;
   const canEdit = Boolean(profile);
@@ -321,13 +338,13 @@ export default function IdPage() {
 
         {isEditingProfile && (
           <section className="rounded-2xl border border-neutral-200 bg-white/90 p-5 shadow-sm backdrop-blur">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-semibold text-neutral-900">Upravit profil</h2>
-                <p className="text-sm text-neutral-600">Bio a fotka profilu</p>
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-neutral-900">Upravit profil</h2>
+                  <p className="text-sm text-neutral-600">Bio a fotka profilu</p>
+                </div>
+                <div className="text-xs text-neutral-500">{username}</div>
               </div>
-              <div className="text-xs text-neutral-500">{profile?.username ? `@${profile.username}` : ""}</div>
-            </div>
 
             <div className="space-y-3">
               <label className="block space-y-2 text-sm text-neutral-700">

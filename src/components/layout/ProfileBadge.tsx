@@ -41,7 +41,12 @@ export function ProfileBadge() {
       .eq("id", user.id)
       .maybeSingle();
 
-    const name = profile?.display_name || profile?.username || user.email || "";
+    const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+    const metaDisplayName = typeof meta.display_name === "string" ? meta.display_name : null;
+    const metaUsername = typeof meta.username === "string" ? meta.username : null;
+    const displayName = profile?.display_name ?? metaDisplayName ?? null;
+    const username = profile?.username ?? metaUsername ?? "";
+    const name = displayName || username || "Uživatel";
     setInitials(computeInitials(name));
   }, [supabase]);
 
