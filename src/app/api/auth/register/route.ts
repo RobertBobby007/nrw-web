@@ -24,6 +24,12 @@ export async function POST(req: Request) {
     try {
       user = createUser({ name, email, password });
     } catch (err) {
+      if (err instanceof Error && err.message === "BlockedContent") {
+        return NextResponse.json(
+          { message: "Jméno nebo e-mail obsahuje nevhodný text." },
+          { status: 400 },
+        );
+      }
       if (err instanceof Error && err.message === "UserAlreadyExists") {
         return NextResponse.json({ message: "Účet s tímto e-mailem už existuje." }, { status: 409 });
       }

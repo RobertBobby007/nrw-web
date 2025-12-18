@@ -1,6 +1,7 @@
 "use client";
 
 import { getSupabaseBrowserClient } from "./supabase-browser";
+import { containsBlockedContent } from "./content-filter";
 
 export type Profile = {
   id: string;
@@ -104,6 +105,11 @@ export async function updateCurrentProfile(options: {
   }
 
   const { username, displayName, avatarUrl, bio } = options;
+  const normalizedBio = (bio ?? "").trim();
+  if (normalizedBio && containsBlockedContent(normalizedBio).hit) {
+    console.error("updateCurrentProfile blocked bio");
+    return null;
+  }
 
   const { error } = await supabase.from(TABLE).upsert(
     {
@@ -111,7 +117,7 @@ export async function updateCurrentProfile(options: {
       username: username ?? null,
       display_name: displayName ?? null,
       avatar_url: avatarUrl ?? null,
-      bio: bio ?? null,
+      bio: normalizedBio || null,
     },
     { onConflict: "id" },
   );

@@ -1,17 +1,81 @@
-import { BLOCKED_TERMS } from "./blocked-terms";
+import { BLOCKED_TERMS, type BlockedTerm } from "./blocked-terms";
 
-const normalizeText = (text: string) =>
+const normalizeBase = (text: string) =>
   text
     .toLowerCase()
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "");
 
-export function containsBlockedContent(text: string): { hit: boolean; reason?: string } {
-  const normalized = normalizeText(text);
-  for (const term of BLOCKED_TERMS) {
-    if (term.pattern.test(normalized)) {
-      return { hit: true, reason: term.reason };
+const applyLeetspeak = (text: string) =>
+  text.replace(/[0-9@$€!|]/g, (ch) => {
+    switch (ch) {
+      case "0":
+        return "o";
+      case "1":
+        return "i";
+      case "3":
+        return "e";
+      case "4":
+        return "a";
+      case "5":
+        return "s";
+      case "7":
+        return "t";
+      case "8":
+        return "b";
+      case "9":
+        return "g";
+      case "@":
+        return "a";
+      case "$":
+        return "s";
+      case "€":
+        return "e";
+      case "!":
+        return "i";
+      case "|":
+        return "i";
+      default:
+        return ch;
+    }
+  });
+
+const collapseWhitespace = (text: string) => text.replace(/\s+/g, " ").trim();
+
+const toLettersAndSpaces = (text: string) => collapseWhitespace(text.replace(/[^\p{L}]+/gu, " "));
+
+function normalizeVariants(text: string): string[] {
+  const base = normalizeBase(text);
+  const leet = applyLeetspeak(base);
+
+  const variants = new Set<string>([
+    base,
+    collapseWhitespace(base),
+    toLettersAndSpaces(base),
+    leet,
+    collapseWhitespace(leet),
+    toLettersAndSpaces(leet),
+  ]);
+
+  return [...variants].filter(Boolean);
+}
+
+function containsBlocked(text: string, terms: BlockedTerm[]): { hit: boolean; reason?: string } {
+  const variants = normalizeVariants(text);
+  for (const term of terms) {
+    for (const normalized of variants) {
+      if (term.pattern.test(normalized)) {
+        return { hit: true, reason: term.reason };
+      }
     }
   }
   return { hit: false };
+}
+
+export function containsBlockedContent(text: string): { hit: boolean; reason?: string } {
+  return containsBlocked(text, BLOCKED_TERMS);
+}
+
+export function containsBlockedIdentityContent(text: string): { hit: boolean; reason?: string } {
+  return containsBlocked(text, BLOCKED_TERMS);
 }

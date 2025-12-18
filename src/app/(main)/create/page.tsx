@@ -60,7 +60,7 @@ export default function CreatePage() {
     if (content) {
       const { hit } = containsBlockedContent(content);
       if (hit) {
-        setError("Uprav text – obsahuje zakázané výrazy.");
+        setError("Uprav text – obsahuje zakázané výrazy, které mohou být urážlivé. Pokud si myslíš, že jde o omyl, kontaktuj podporu.");
         return;
       }
     }

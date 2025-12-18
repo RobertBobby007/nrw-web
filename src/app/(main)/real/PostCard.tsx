@@ -2,7 +2,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { BadgeCheck, Heart, MessageCircle, MoreHorizontal, Send, X } from "lucide-react";
+import Link from "next/link";
+import { BadgeCheck, Heart, MessageCircle, MoreHorizontal, Plus, Send, X } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import type { Profile } from "@/lib/profiles";
@@ -56,6 +57,55 @@ type PostCardProps = {
   currentUserProfile?: Profile | null;
 };
 
+const MENTION_START_RE = /^\s*@\S+/;
+
+function toMentionHandle(value: string | null | undefined): string | null {
+  const raw = (value ?? "").trim();
+  if (!raw) return null;
+  const withoutAt = raw.replace(/^@+/, "");
+  if (!withoutAt) return null;
+  return withoutAt.replace(/\s+/g, "_");
+}
+
+function mentionPrefix(author: CommentAuthor | null | undefined): string | null {
+  const handle = toMentionHandle(author?.username) ?? toMentionHandle(author?.display_name);
+  if (!handle) return null;
+  return `@${handle} `;
+}
+
+function contentWithMentionPrefix(
+  content: string,
+  replyToUserId: string | null,
+  replyToUserAuthor: CommentAuthor | null,
+): string {
+  const trimmed = content.trim();
+  if (!trimmed) return "";
+  if (!replyToUserId) return trimmed;
+  if (MENTION_START_RE.test(trimmed)) return trimmed;
+  const prefix = mentionPrefix(replyToUserAuthor);
+  return prefix ? `${prefix}${trimmed}` : trimmed;
+}
+
+function renderContentWithMention(content: string) {
+  const raw = content ?? "";
+  const match = raw.match(/^\s*(@\S+)(?:\s+([\s\S]*))?$/);
+  if (!match) return <>{raw}</>;
+  const mention = match[1];
+  const rest = (match[2] ?? "").trimStart();
+  return (
+    <>
+      <span className="font-semibold text-sky-600">{mention}</span>
+      {rest ? <span>{` ${rest}`}</span> : null}
+    </>
+  );
+}
+
+function profileHrefFromUsername(username: string | null | undefined): string | null {
+  const raw = (username ?? "").trim().replace(/^@+/, "");
+  if (!raw) return null;
+  return `/id/${encodeURIComponent(raw)}`;
+}
+
 function formatTimeLabel(createdAt?: string | null) {
   if (!createdAt) return "neznámý čas";
 
@@ -108,18 +158,23 @@ export function PostCard({
   const [showFullMedia, setShowFullMedia] = useState(false);
   // reply state
   const [replyToCommentId, setReplyToCommentId] = useState<string | null>(null);
+  const [replyToUserId, setReplyToUserId] = useState<string | null>(null);
+  const [replyToUserAuthor, setReplyToUserAuthor] = useState<CommentAuthor | null>(null);
   const [isDeletingPost, setIsDeletingPost] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportTarget, setReportTarget] = useState<{ type: "post" | "comment"; id: string } | null>(null);
   const [deleteToast, setDeleteToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [isFollowingAuthor, setIsFollowingAuthor] = useState<boolean | null>(null);
+  const [followBusy, setFollowBusy] = useState(false);
   const name = author.displayName || (author.isCurrentUser ? "Ty" : "NRW uživatel");
   const initial = name.charAt(0).toUpperCase() || "N";
   const badgeLabel = author.verified ? author.verificationLabel || "Ověřený profil" : null;
   const hasContent = Boolean(content);
   const hasMedia = Boolean(mediaUrl);
   const likeActionDisabled = likeDisabled || !onToggleLike;
+  const authorProfileHref = profileHrefFromUsername(author.username);
 
   const currentUserAuthor = useMemo<CommentAuthor | null>(() => {
     if (currentUserProfile) {
@@ -281,10 +336,6 @@ export function PostCard({
       return;
     }
 
-    const parentComment = comments.find((c) => c.id === replyToCommentId);
-    const replyToUserId = parentComment?.user_id ?? null;
-    const replyToUserAuthor = parentComment?.author ?? null;
-
     let tempId: string | null = null;
     setIsSending(true);
     try {
@@ -395,27 +446,41 @@ export function PostCard({
   };
 
   const handleReplySelect = (commentId: string) => {
-    setReplyToCommentId(commentId);
-    setReplyText("");
+    const target = comments.find((c) => c.id === commentId) ?? null;
+    const rootId = target?.parent_id ?? target?.id ?? commentId;
+    const targetAuthor = target?.author ?? null;
+    const targetUserId = target?.user_id ?? null;
+
+    setReplyToCommentId(rootId);
+    setReplyToUserId(targetUserId);
+    setReplyToUserAuthor(targetAuthor);
+
+    setReplyText((prev) => {
+      const prefix = mentionPrefix(targetAuthor);
+      const current = prev ?? "";
+      if (!prefix) return current.trim() ? current : "";
+      if (MENTION_START_RE.test(current.trimStart())) return current;
+      const next = current.trim() ? `${prefix}${current.trimStart()}` : prefix;
+      return next;
+    });
   };
 
   const handleCancelReply = () => {
     setReplyToCommentId(null);
     setReplyText("");
+    setReplyToUserId(null);
+    setReplyToUserAuthor(null);
   };
 
   const handleSubmitReply = async () => {
-    const content = replyText.trim();
-    if (!content || isSending || !replyToCommentId) return;
+    if (isSending || !replyToCommentId) return;
+    const content = contentWithMentionPrefix(replyText, replyToUserId, replyToUserAuthor);
+    if (!content) return;
 
     if (!postId) {
       console.error("Cannot post reply: missing postId");
       return;
     }
-
-    const parentComment = comments.find((c) => c.id === replyToCommentId);
-    const replyToUserId = parentComment?.user_id ?? null;
-    const replyToUserAuthor = parentComment?.author ?? null;
 
     let tempId: string | null = null;
     setIsSending(true);
@@ -519,6 +584,8 @@ export function PostCard({
 
       setReplyToCommentId(null);
       setReplyText("");
+      setReplyToUserId(null);
+      setReplyToUserAuthor(null);
     } catch (err) {
       console.error("Failed to insert reply (exception)", err);
       if (tempId) {
@@ -555,6 +622,76 @@ export function PostCard({
   }, [comments]);
 
   const currentUserId = session?.user?.id ?? null;
+  const canReportPost = !(currentUserId && currentUserId === postUserId);
+  const showFollowButton = !(currentUserId && currentUserId === postUserId);
+
+  useEffect(() => {
+    let active = true;
+    const loadFollowState = async () => {
+      if (!currentUserId || currentUserId === postUserId) {
+        setIsFollowingAuthor(null);
+        return;
+      }
+      const { count, error } = await supabase
+        .from("follows")
+        .select("*", { count: "exact", head: true })
+        .eq("follower_id", currentUserId)
+        .eq("following_id", postUserId);
+
+      if (!active) return;
+
+      if (error) {
+        console.error("isFollowingAuthor error", error);
+        setIsFollowingAuthor(false);
+        return;
+      }
+      setIsFollowingAuthor((count ?? 0) > 0);
+    };
+
+    void loadFollowState();
+    return () => {
+      active = false;
+    };
+  }, [currentUserId, postUserId, supabase]);
+
+  const toggleFollowAuthor = async () => {
+    if (followBusy) return;
+    if (!currentUserId) {
+      window.location.href = "/auth/login";
+      return;
+    }
+    if (currentUserId === postUserId) return;
+
+    const prev = Boolean(isFollowingAuthor);
+    const next = !prev;
+    setFollowBusy(true);
+    setIsFollowingAuthor(next);
+
+    try {
+      if (next) {
+        const { error } = await supabase.from("follows").insert({
+          follower_id: currentUserId,
+          following_id: postUserId,
+        });
+        if (error && !/duplicate key|already exists/i.test(error.message)) throw error;
+        setDeleteToast({ type: "success", message: "Sleduješ uživatele." });
+      } else {
+        const { error } = await supabase
+          .from("follows")
+          .delete()
+          .eq("follower_id", currentUserId)
+          .eq("following_id", postUserId);
+        if (error) throw error;
+        setDeleteToast({ type: "success", message: "Přestal(a) jsi sledovat." });
+      }
+    } catch (e: any) {
+      console.error("toggleFollowAuthor failed", e);
+      setIsFollowingAuthor(prev);
+      setDeleteToast({ type: "error", message: e?.message ?? "Akce se nepovedla." });
+    } finally {
+      setFollowBusy(false);
+    }
+  };
 
   const handleDeletePost = async () => {
     if (isDeletingPost) return;
@@ -624,38 +761,99 @@ export function PostCard({
     <article className="mb-4 rounded-3xl border border-neutral-200 bg-white shadow-sm">
       {/* header */}
       <header className="flex items-center gap-3 px-4 pt-4">
-        {author.avatarUrl ? (
-          <div className="h-9 w-9 overflow-hidden rounded-full ring-2 ring-neutral-200">
-            <img
-              src={author.avatarUrl}
-              alt={name}
-              className="h-full w-full object-cover"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-              }}
-            />
-          </div>
+        {authorProfileHref ? (
+          <Link href={authorProfileHref} className="flex items-center gap-3">
+            {author.avatarUrl ? (
+              <div className="h-9 w-9 overflow-hidden rounded-full ring-2 ring-neutral-200">
+                <img
+                  src={author.avatarUrl}
+                  alt={name}
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-tr from-pink-400 via-amber-300 to-yellow-300 text-xs font-semibold text-white">
+                {initial}
+              </div>
+            )}
+            <div className="flex flex-col">
+              <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                <span className="font-medium text-neutral-900">{name}</span>
+                {badgeLabel ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                    <BadgeCheck className="h-3.5 w-3.5" />
+                    {badgeLabel}
+                  </span>
+                ) : null}
+                {showFollowButton ? (
+                  isFollowingAuthor === null && currentUserId ? (
+                    <div className="h-6 w-16 animate-pulse rounded-full bg-neutral-100" />
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={followBusy}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void toggleFollowAuthor();
+                      }}
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-70 ${
+                        isFollowingAuthor
+                          ? "border border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-50"
+                          : "bg-neutral-900 text-white hover:bg-neutral-800"
+                      }`}
+                    >
+                      {!isFollowingAuthor ? <Plus className="h-3.5 w-3.5" /> : null}
+                      <span>{isFollowingAuthor ? "Sleduji" : "Sledovat"}</span>
+                    </button>
+                  )
+                ) : null}
+              </div>
+              <div className="flex items-center gap-2 text-xs text-neutral-500">
+                {author.username ? <span>{author.username}</span> : null}
+                <span>{formatTimeLabel(createdAt)}</span>
+              </div>
+            </div>
+          </Link>
         ) : (
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-tr from-pink-400 via-amber-300 to-yellow-300 text-xs font-semibold text-white">
-            {initial}
-          </div>
+          <>
+            {author.avatarUrl ? (
+              <div className="h-9 w-9 overflow-hidden rounded-full ring-2 ring-neutral-200">
+                <img
+                  src={author.avatarUrl}
+                  alt={name}
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-tr from-pink-400 via-amber-300 to-yellow-300 text-xs font-semibold text-white">
+                {initial}
+              </div>
+            )}
+            <div className="flex flex-col">
+              <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                <span className="font-medium text-neutral-900">{name}</span>
+                {badgeLabel ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                    <BadgeCheck className="h-3.5 w-3.5" />
+                    {badgeLabel}
+                  </span>
+                ) : null}
+              </div>
+              <div className="flex items-center gap-2 text-xs text-neutral-500">
+                {author.username ? <span>{author.username}</span> : null}
+                <span>{formatTimeLabel(createdAt)}</span>
+              </div>
+            </div>
+          </>
         )}
-        <div className="flex flex-col">
-          <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-            <span className="font-medium text-neutral-900">{name}</span>
-            {badgeLabel ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                <BadgeCheck className="h-3.5 w-3.5" />
-                {badgeLabel}
-              </span>
-            ) : null}
-          </div>
-          <div className="flex items-center gap-2 text-xs text-neutral-500">
-            {author.username ? <span>{author.username}</span> : null}
-            <span>{formatTimeLabel(createdAt)}</span>
-          </div>
-        </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
           <div className="relative">
             <button
               type="button"
@@ -683,21 +881,23 @@ export function PostCard({
                     Smazat
                   </button>
                 ) : null}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!currentUserId) {
-                      window.location.href = "/auth/login";
-                      return;
-                    }
-                    setReportTarget({ type: "post", id: postId });
-                    setReportDialogOpen(true);
-                    setMenuOpen(false);
-                  }}
-                  className="block w-full px-4 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-100"
-                >
-                  Nahlásit
-                </button>
+                {canReportPost ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!currentUserId) {
+                        window.location.href = "/auth/login";
+                        return;
+                      }
+                      setReportTarget({ type: "post", id: postId });
+                      setReportDialogOpen(true);
+                      setMenuOpen(false);
+                    }}
+                    className="block w-full px-4 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-100"
+                  >
+                    Nahlásit
+                  </button>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -709,19 +909,16 @@ export function PostCard({
         {hasContent && <div className="text-sm leading-relaxed text-neutral-900 whitespace-pre-line">{content}</div>}
         {hasMedia ? (
           mediaType === "video" ? (
-            <div className="mx-auto w-[398px] max-w-full overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50">
+            <div className="mx-auto aspect-square w-[280px] max-w-full overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50">
               <video
                 src={mediaUrl ?? undefined}
                 controls
-                className="h-[418px] w-full object-cover bg-black"
+                className="h-full w-full object-cover bg-black"
                 onClick={() => setShowFullMedia(true)}
               />
             </div>
           ) : (
-            <div
-              className="mx-auto w-[398px] max-w-full overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-100"
-              style={{ height: "418px" }}
-            >
+            <div className="mx-auto aspect-square w-[280px] max-w-full overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-100">
               <img
                 src={mediaUrl ?? undefined}
                 alt="Příloha"
@@ -840,11 +1037,32 @@ export function PostCard({
                   const createdLabel = formatTimeLabel(comment.created_at);
                   const commentInitial = authorName.charAt(0).toUpperCase() || "N";
                   const canDeleteComment = currentUserId && comment.user_id === currentUserId;
+                  const canReportComment = !canDeleteComment;
+                  const commentProfileHref = profileHrefFromUsername(author?.username);
 
                   return (
                     <div key={comment.id} className="flex flex-col gap-2 rounded-2xl bg-neutral-50 px-3 py-2 text-sm">
                       <div className="flex gap-3">
-                        {author?.avatar_url ? (
+                        {commentProfileHref ? (
+                          <Link href={commentProfileHref} className="mt-1">
+                            {author?.avatar_url ? (
+                              <div className="h-8 w-8 overflow-hidden rounded-full ring-2 ring-neutral-200">
+                                <img
+                                  src={author.avatar_url}
+                                  alt={authorName}
+                                  className="h-full w-full object-cover"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-tr from-pink-400 via-amber-300 to-yellow-300 text-[11px] font-semibold text-white">
+                                {commentInitial}
+                              </div>
+                            )}
+                          </Link>
+                        ) : author?.avatar_url ? (
                           <div className="mt-1 h-8 w-8 overflow-hidden rounded-full ring-2 ring-neutral-200">
                             <img
                               src={author.avatar_url}
@@ -862,7 +1080,13 @@ export function PostCard({
                         )}
                         <div className="flex-1 space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-semibold text-neutral-900">{authorName}</span>
+                            {commentProfileHref ? (
+                              <Link href={commentProfileHref} className="font-semibold text-neutral-900 hover:underline">
+                                {authorName}
+                              </Link>
+                            ) : (
+                              <span className="font-semibold text-neutral-900">{authorName}</span>
+                            )}
                             {author?.verified ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
                                 <BadgeCheck className="h-3.5 w-3.5" />
@@ -872,7 +1096,11 @@ export function PostCard({
                             <span className="text-xs font-normal text-neutral-500">{createdLabel}</span>
                           </div>
                           <div className="text-sm text-gray-900">
-                            {comment.is_deleted ? <span className="text-neutral-400">Komentář byl smazán</span> : comment.content}
+                            {comment.is_deleted ? (
+                              <span className="text-neutral-400">Komentář byl smazán</span>
+                            ) : (
+                              renderContentWithMention(comment.content)
+                            )}
                           </div>
                           {!comment.is_deleted ? (
                             <div className="flex items-center gap-3 text-xs text-neutral-500">
@@ -883,20 +1111,22 @@ export function PostCard({
                               >
                                 Odpovědět
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (!currentUserId) {
-                                    window.location.href = "/auth/login";
-                                    return;
-                                  }
-                                  setReportTarget({ type: "comment", id: comment.id });
-                                  setReportDialogOpen(true);
-                                }}
-                                className="font-semibold text-neutral-600 transition hover:text-neutral-900"
-                              >
-                                Nahlásit
-                              </button>
+                              {canReportComment ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!currentUserId) {
+                                      window.location.href = "/auth/login";
+                                      return;
+                                    }
+                                    setReportTarget({ type: "comment", id: comment.id });
+                                    setReportDialogOpen(true);
+                                  }}
+                                  className="font-semibold text-neutral-600 transition hover:text-neutral-900"
+                                >
+                                  Nahlásit
+                                </button>
+                              ) : null}
                               {canDeleteComment ? (
                                 <button
                                   type="button"
@@ -951,12 +1181,33 @@ export function PostCard({
                         const replyCreatedLabel = formatTimeLabel(reply.created_at);
                         const replyInitial = replyAuthorName.charAt(0).toUpperCase() || "N";
                         const canDeleteReply = currentUserId && reply.user_id === currentUserId;
+                        const canReportReply = !canDeleteReply;
+                        const replyProfileHref = profileHrefFromUsername(replyAuthor?.username);
                         return (
                           <div
                             key={reply.id}
                             className="ml-11 flex gap-3 rounded-2xl bg-white px-3 py-2 text-sm ring-1 ring-neutral-100"
                           >
-                            {replyAuthor?.avatar_url ? (
+                            {replyProfileHref ? (
+                              <Link href={replyProfileHref} className="mt-1">
+                                {replyAuthor?.avatar_url ? (
+                                  <div className="h-7 w-7 overflow-hidden rounded-full ring-2 ring-neutral-200">
+                                    <img
+                                      src={replyAuthor.avatar_url}
+                                      alt={replyAuthorName}
+                                      className="h-full w-full object-cover"
+                                      onError={(e) => {
+                                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                                      }}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-tr from-pink-400 via-amber-300 to-yellow-300 text-[10px] font-semibold text-white">
+                                    {replyInitial}
+                                  </div>
+                                )}
+                              </Link>
+                            ) : replyAuthor?.avatar_url ? (
                               <div className="mt-1 h-7 w-7 overflow-hidden rounded-full ring-2 ring-neutral-200">
                                 <img
                                   src={replyAuthor.avatar_url}
@@ -974,7 +1225,16 @@ export function PostCard({
                             )}
                             <div className="flex-1 space-y-1">
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-semibold text-neutral-900">{replyAuthorName}</span>
+                                {replyProfileHref ? (
+                                  <Link
+                                    href={replyProfileHref}
+                                    className="font-semibold text-neutral-900 hover:underline"
+                                  >
+                                    {replyAuthorName}
+                                  </Link>
+                                ) : (
+                                  <span className="font-semibold text-neutral-900">{replyAuthorName}</span>
+                                )}
                                 {replyAuthor?.verified ? (
                                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
                                     <BadgeCheck className="h-3.5 w-3.5" />
@@ -984,7 +1244,11 @@ export function PostCard({
                                 <span className="text-xs font-normal text-neutral-500">{replyCreatedLabel}</span>
                               </div>
                               <div className="text-sm text-gray-900">
-                                {reply.is_deleted ? <span className="text-neutral-400">Komentář byl smazán</span> : reply.content}
+                                {reply.is_deleted ? (
+                                  <span className="text-neutral-400">Komentář byl smazán</span>
+                                ) : (
+                                  renderContentWithMention(reply.content)
+                                )}
                               </div>
                               {!reply.is_deleted ? (
                                 <div className="flex items-center gap-3 text-xs text-neutral-500">
@@ -995,20 +1259,22 @@ export function PostCard({
                                   >
                                     Odpovědět
                                   </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (!currentUserId) {
-                                        window.location.href = "/auth/login";
-                                        return;
-                                      }
-                                      setReportTarget({ type: "comment", id: reply.id });
-                                      setReportDialogOpen(true);
-                                    }}
-                                    className="font-semibold text-neutral-600 transition hover:text-neutral-900"
-                                  >
-                                    Nahlásit
-                                  </button>
+                                  {canReportReply ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (!currentUserId) {
+                                          window.location.href = "/auth/login";
+                                          return;
+                                        }
+                                        setReportTarget({ type: "comment", id: reply.id });
+                                        setReportDialogOpen(true);
+                                      }}
+                                      className="font-semibold text-neutral-600 transition hover:text-neutral-900"
+                                    >
+                                      Nahlásit
+                                    </button>
+                                  ) : null}
                                   {canDeleteReply ? (
                                     <button
                                       type="button"

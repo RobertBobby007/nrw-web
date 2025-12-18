@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BadgeCheck, Bookmark, Camera, Heart, MessageCircle, MoreHorizontal, Share2, X } from "lucide-react";
+import { BadgeCheck, Camera, X } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import {
   fetchCurrentProfile,
@@ -13,7 +13,10 @@ import {
   deleteAvatarByUrl,
 } from "@/lib/profiles";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import type { NrealPost } from "@/types/nreal";
+import type { NrealPost, NrealProfile } from "@/types/nreal";
+import { PostCard } from "../real/PostCard";
+import { getFollowCounts, getPostsCount } from "@/lib/follows";
+import { containsBlockedContent } from "@/lib/content-filter";
 
 const media = [
   { id: "m1", label: "Golden hour crew", gradient: "from-amber-300 via-orange-200 to-rose-200" },
@@ -22,27 +25,6 @@ const media = [
   { id: "m4", label: "City run", gradient: "from-emerald-200 via-teal-200 to-cyan-200" },
   { id: "m5", label: "Afterparty", gradient: "from-rose-200 via-fuchsia-200 to-purple-200" },
   { id: "m6", label: "nReal live", gradient: "from-amber-200 via-yellow-200 to-lime-200" },
-];
-
-const tweets = [
-  {
-    id: "t1",
-    text: "NRW 0.3.0 drop: nové nLove swipy, rooms a cross-post na profil. Let’s go.",
-    meta: "2 h",
-    stats: { replies: 24, likes: 210, reposts: 32 },
-  },
-  {
-    id: "t2",
-    text: "Dnes na Letný s crew. Přinesu filmovej foťák, kdo chce portrait?",
-    meta: "včera",
-    stats: { replies: 8, likes: 112, reposts: 9 },
-  },
-  {
-    id: "t3",
-    text: "RT @nrw: nReal Talks #12 je venku. Přineste si názory, chceme je slyšet.",
-    meta: "2 dny",
-    stats: { replies: 5, likes: 76, reposts: 18 },
-  },
 ];
 
 export default function IdPage() {
@@ -74,6 +56,13 @@ export default function IdPage() {
   const [posts, setPosts] = useState<NrealPost[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
   const [showVerificationInfo, setShowVerificationInfo] = useState(false);
+  const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
+  const [stats, setStats] = useState<{ followers: number; following: number; posts: number }>({
+    followers: 0,
+    following: 0,
+    posts: 0,
+  });
+  const [statsLoading, setStatsLoading] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -129,28 +118,170 @@ export default function IdPage() {
   };
   const verificationLabel = sanitizeVerificationLabel(profile?.verification_label) ?? "Ověřený profil";
 
+  type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentUser"> & {
+    profiles?: NrealProfile | NrealProfile[] | null;
+    likesCount?: number;
+    likedByCurrentUser?: boolean;
+    commentsCount?: number;
+  };
+
+  const normalizePost = (post: SupabasePost): NrealPost => {
+    const rawProfiles = post?.profiles;
+    const profiles = Array.isArray(rawProfiles) ? rawProfiles : rawProfiles ? [rawProfiles] : [];
+    return {
+      ...post,
+      is_deleted: (post as SupabasePost).is_deleted ?? null,
+      profiles,
+      likesCount: post.likesCount ?? 0,
+      likedByCurrentUser: post.likedByCurrentUser ?? false,
+      commentsCount: post.commentsCount ?? 0,
+    };
+  };
+
   useEffect(() => {
     if (!supabase || !profile?.id) return;
 
     setPostsLoading(true);
 
     (async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      const currentUserId = userData?.user?.id ?? null;
+
       const { data, error } = await supabase
         .from("nreal_posts")
         .select(
-          "id, user_id, content, created_at, is_deleted, profiles(username, display_name, avatar_url, verified, verification_label)",
+          `
+          id,
+          user_id,
+          content,
+          created_at,
+          media_url,
+          media_type,
+          is_deleted,
+          profiles(username, display_name, avatar_url, verified, verification_label)
+        `,
         )
+        .eq("user_id", profile.id)
         .eq("is_deleted", false)
         .order("created_at", { ascending: false });
 
       if (!error && data) {
-        const safe = (data as any[]).filter((p) => !p.is_deleted);
-        setPosts(safe as unknown as NrealPost[]);
+        const normalized = ((data as SupabasePost[] | null) ?? []).map((p) => normalizePost(p));
+        const postIds = normalized.map((post) => post.id);
+        const likesCountMap: Record<string, number> = {};
+        const commentsCountMap: Record<string, number> = {};
+        const likedPostIds = new Set<string>();
+
+        if (postIds.length > 0) {
+          const { data: likesData } = await supabase.from("nreal_likes").select("post_id").in("post_id", postIds);
+          likesData?.forEach((row) => {
+            const pid = (row as { post_id: string }).post_id;
+            likesCountMap[pid] = (likesCountMap[pid] ?? 0) + 1;
+          });
+
+          if (currentUserId) {
+            const { data: likedData } = await supabase
+              .from("nreal_likes")
+              .select("post_id")
+              .eq("user_id", currentUserId)
+              .in("post_id", postIds);
+            likedData?.forEach((row) => {
+              const pid = (row as { post_id: string }).post_id;
+              likedPostIds.add(pid);
+            });
+          }
+
+          const { data: commentsData } = await supabase
+            .from("nreal_comments")
+            .select("post_id")
+            .in("post_id", postIds)
+            .eq("is_deleted", false);
+          commentsData?.forEach((row) => {
+            const pid = (row as { post_id: string }).post_id;
+            commentsCountMap[pid] = (commentsCountMap[pid] ?? 0) + 1;
+          });
+        }
+
+        const withCounts = normalized.map((post) => ({
+          ...post,
+          likesCount: likesCountMap[post.id] ?? 0,
+          likedByCurrentUser: likedPostIds.has(post.id),
+          commentsCount: commentsCountMap[post.id] ?? 0,
+        }));
+
+        setPosts(withCounts.filter((p) => !p.is_deleted));
+      } else {
+        setPosts([]);
       }
 
       setPostsLoading(false);
     })();
   }, [profile?.id, supabase]);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    let active = true;
+    setStatsLoading(true);
+    Promise.all([getFollowCounts(profile.id), getPostsCount(profile.id)])
+      .then(([followCounts, postsCount]) => {
+        if (!active) return;
+        setStats({ followers: followCounts.followers, following: followCounts.following, posts: postsCount });
+      })
+      .finally(() => {
+        if (active) setStatsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [profile?.id]);
+
+  const toggleLike = async (postId: string) => {
+    const currentUserId = profile?.id ?? null;
+    if (!currentUserId) {
+      router.push("/auth/login");
+      return;
+    }
+    if (likingPostIds.has(postId)) return;
+
+    const targetPost = posts.find((p) => p.id === postId);
+    if (!targetPost) return;
+
+    const wasLiked = targetPost.likedByCurrentUser;
+    const previousLikes = targetPost.likesCount;
+
+    setLikingPostIds((prev) => new Set(prev).add(postId));
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              likedByCurrentUser: !wasLiked,
+              likesCount: Math.max(0, previousLikes + (wasLiked ? -1 : 1)),
+            }
+          : p,
+      ),
+    );
+
+    try {
+      const { error } = wasLiked
+        ? await supabase.from("nreal_likes").delete().eq("post_id", postId).eq("user_id", currentUserId)
+        : await supabase.from("nreal_likes").insert({ post_id: postId, user_id: currentUserId });
+      if (error) throw error;
+    } catch (err) {
+      console.error("Toggle like failed", err);
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId ? { ...p, likedByCurrentUser: wasLiked, likesCount: previousLikes } : p,
+        ),
+      );
+    } finally {
+      setLikingPostIds((prev) => {
+        const next = new Set(prev);
+        next.delete(postId);
+        return next;
+      });
+    }
+  };
 
   const offsetBounds = useMemo(() => {
     const size = cropSize;
@@ -211,6 +342,11 @@ export default function IdPage() {
     }
 
     const nextBio = bioInput.trim();
+    if (nextBio && containsBlockedContent(nextBio).hit) {
+      setProfileError("Životopis obsahuje nevhodný text.");
+      setSavingProfile(false);
+      return;
+    }
 
     const updated = await updateCurrentProfile({
       bio: nextBio || null,
@@ -314,11 +450,11 @@ export default function IdPage() {
               </div>
               <p className="text-sm text-neutral-600">{username}</p>
               <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-neutral-700">
-                <span>1 024 sledujících</span>
+                <span>{statsLoading ? "—" : stats.followers.toLocaleString("cs-CZ")} sledujících</span>
                 <span>·</span>
-                <span>689 sleduje</span>
+                <span>{statsLoading ? "—" : stats.following.toLocaleString("cs-CZ")} sleduje</span>
                 <span>·</span>
-                <span>42 momentů</span>
+                <span>{statsLoading ? "—" : stats.posts.toLocaleString("cs-CZ")} postů</span>
               </div>
               <p className="text-sm text-neutral-700">{bioText}</p>
             </div>
@@ -553,6 +689,10 @@ export default function IdPage() {
               posts={posts}
               loading={postsLoading}
               sanitizeVerificationLabel={sanitizeVerificationLabel}
+              currentUserId={profile?.id ?? null}
+              currentUserProfile={profile}
+              onToggleLike={toggleLike}
+              likeDisabled={likingPostIds}
             />
           </div>
 
@@ -660,26 +800,21 @@ function TwitterFeed({
   posts,
   loading,
   sanitizeVerificationLabel,
+  currentUserId,
+  currentUserProfile,
+  onToggleLike,
+  likeDisabled,
 }: {
   displayName: string;
   posts: NrealPost[];
   loading: boolean;
   sanitizeVerificationLabel: (value: string | null | undefined) => string | null;
+  currentUserId: string | null;
+  currentUserProfile: Profile | null;
+  onToggleLike: (postId: string) => void;
+  likeDisabled: Set<string>;
 }) {
   const [showAll, setShowAll] = useState(false);
-
-  const formatTimeLabel = (createdAt?: string | null) => {
-    if (!createdAt) return "neznámý čas";
-    const date = new Date(createdAt);
-    if (Number.isNaN(date.getTime())) return "neznámý čas";
-    const diffMs = Date.now() - date.getTime();
-    const diffMin = Math.floor(diffMs / 60000);
-    const diffH = Math.floor(diffMin / 60);
-    if (diffMin < 1) return "před chvílí";
-    if (diffMin < 60) return `před ${diffMin} min`;
-    if (diffH < 24) return `před ${diffH} h`;
-    return date.toLocaleDateString("cs-CZ", { day: "numeric", month: "short" });
-  };
 
   const hasPosts = posts.length > 0;
   const visiblePosts = showAll ? posts : posts.slice(0, 3);
@@ -697,106 +832,47 @@ function TwitterFeed({
           </button>
         ) : null}
       </div>
-      <div className="divide-y divide-neutral-100">
+      <div className="space-y-4">
         {loading ? (
           <div className="py-3 text-sm text-neutral-600">Načítám příspěvky…</div>
         ) : hasPosts ? (
           visiblePosts.map((post) => {
-            const profile = post.profiles[0];
-            const name = profile?.display_name || profile?.username || displayName;
-            const username = profile?.username ? `@${profile.username}` : null;
-            const badge = profile?.verified
-              ? sanitizeVerificationLabel(profile.verification_label) || "Ověřený profil"
-              : null;
+            const author = post.profiles?.[0] ?? null;
+            const authorName = author?.display_name || author?.username || displayName;
+            const authorUsername = author?.username ? `@${author.username}` : null;
+            const verificationLabel =
+              author?.verified ? sanitizeVerificationLabel(author.verification_label) || "Ověřený profil" : null;
+
             return (
-              <article key={post.id} className="space-y-2 py-3">
-                <div className="flex items-center justify-between text-xs text-neutral-500">
-                  <div className="flex items-center gap-2">
-                    {profile?.avatar_url ? (
-                      <img
-                        src={profile.avatar_url}
-                        alt={name}
-                        className="h-8 w-8 rounded-full object-cover ring-1 ring-neutral-200"
-                        onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
-                      />
-                    ) : (
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-900 text-white text-xs font-semibold">
-                        NRW
-                      </span>
-                    )}
-                    <div className="flex items-center gap-2 text-neutral-800 font-semibold">
-                      <span>{name}</span>
-                      {badge ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                          <BadgeCheck className="h-3.5 w-3.5" />
-                          {badge}
-                        </span>
-                      ) : null}
-                    </div>
-                    <span>·</span>
-                    <span>{formatTimeLabel(post.created_at)}</span>
-                  </div>
-                  <MoreHorizontal className="h-4 w-4 text-neutral-400" />
-                </div>
-                <p className="text-sm leading-relaxed text-neutral-900">{post.content}</p>
-                <div className="flex items-center gap-4 text-xs font-semibold text-neutral-600">
-                  <button className="flex items-center gap-1 transition hover:text-neutral-900">
-                    <MessageCircle className="h-4 w-4" />
-                    0
-                  </button>
-                  <button className="flex items-center gap-1 transition hover:text-neutral-900">
-                    <Share2 className="h-4 w-4" />
-                    0
-                  </button>
-                  <button className="flex items-center gap-1 transition hover:text-rose-500">
-                    <Heart className="h-4 w-4" />
-                    0
-                  </button>
-                  <button className="ml-auto flex items-center gap-1 rounded-full border border-neutral-200 px-3 py-1 text-[11px] font-semibold transition hover:border-neutral-300">
-                    <Bookmark className="h-4 w-4" />
-                    Uložit
-                  </button>
-                </div>
-                {username ? <div className="text-[11px] text-neutral-500">{username}</div> : null}
-              </article>
+              <PostCard
+                key={post.id}
+                postId={post.id}
+                postUserId={post.user_id}
+                isDeleted={post.is_deleted ?? null}
+                author={{
+                  displayName: authorName,
+                  username: authorUsername,
+                  avatarUrl: author?.avatar_url ?? null,
+                  isCurrentUser: Boolean(currentUserId && post.user_id === currentUserId),
+                  verified: Boolean(author?.verified),
+                  verificationLabel,
+                }}
+                content={post.content ?? ""}
+                createdAt={post.created_at}
+                mediaUrl={post.media_url ?? null}
+                mediaType={post.media_type ?? null}
+                likesCount={post.likesCount ?? 0}
+                likedByCurrentUser={post.likedByCurrentUser ?? false}
+                commentsCount={post.commentsCount ?? 0}
+                onToggleLike={onToggleLike}
+                likeDisabled={likeDisabled.has(post.id)}
+                currentUserProfile={currentUserProfile}
+              />
             );
           })
         ) : (
-          tweets.map((tweet) => (
-            <article key={tweet.id} className="space-y-2 py-3">
-              <div className="flex items-center justify-between text-xs text-neutral-500">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-900 text-white text-xs font-semibold">
-                    NRW
-                  </span>
-                  <div className="text-neutral-800 font-semibold">{displayName}</div>
-                  <span>·</span>
-                  <span>{tweet.meta}</span>
-                </div>
-                <MoreHorizontal className="h-4 w-4 text-neutral-400" />
-              </div>
-              <p className="text-sm leading-relaxed text-neutral-900">{tweet.text}</p>
-              <div className="flex items-center gap-4 text-xs font-semibold text-neutral-600">
-                <button className="flex items-center gap-1 transition hover:text-neutral-900">
-                  <MessageCircle className="h-4 w-4" />
-                  {tweet.stats.replies}
-                </button>
-                <button className="flex items-center gap-1 transition hover:text-neutral-900">
-                  <Share2 className="h-4 w-4" />
-                  {tweet.stats.reposts}
-                </button>
-                <button className="flex items-center gap-1 transition hover:text-rose-500">
-                  <Heart className="h-4 w-4" />
-                  {tweet.stats.likes}
-                </button>
-                <button className="ml-auto flex items-center gap-1 rounded-full border border-neutral-200 px-3 py-1 text-[11px] font-semibold transition hover:border-neutral-300">
-                  <Bookmark className="h-4 w-4" />
-                  Uložit
-                </button>
-              </div>
-            </article>
-          ))
-        )}
+          <div className="py-3 text-sm text-neutral-600">Zatím nemáš žádné příspěvky.</div>
+        )}        
       </div>
     </div>
   );

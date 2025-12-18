@@ -9,6 +9,10 @@ import {
   Users,
 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { PostCard } from "./real/PostCard";
+import type { Profile } from "@/lib/profiles";
+import type { NrealPost, NrealProfile } from "@/types/nreal";
 
 type FeedItem = {
   id: string;
@@ -16,37 +20,53 @@ type FeedItem = {
   title: string;
   excerpt: string;
   meta: string;
+  createdAt: string;
 };
 
 type WidgetId = "weather" | "date" | "suggested" | "heatmap";
 
 const WIDGETS_STORAGE_KEY = "nrw.widget.layout";
 
-const demoItems: FeedItem[] = [
+const demoNewsItems: FeedItem[] = [
   {
-    id: "1",
-    type: "nReal",
-    title: "První příběh v NRW",
-    excerpt: "Krátký popis příběhu, který se v budoucnu načte z backendu…",
-    meta: "Autor · datum",
-  },
-  {
-    id: "2",
+    id: "news-1",
     type: "nNews",
-    title: "NRW News: první update",
-    excerpt: "Krátká zpráva z NRW světa, která bude později generovaná dynamicky…",
-    meta: "NRW News · datum",
+    title: "NRW 0.2.0: první veřejná alpha",
+    excerpt: "Přinášíme nový sidebar, NRStream feed a základní přihlášení uživatelů...",
+    meta: "NRW Team · dnes",
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
   },
   {
-    id: "3",
-    type: "nReal",
-    title: "Příběh komunity",
-    excerpt: "Další ukázka příběhu, který se později načte z nReal feedu…",
-    meta: "NRW · datum",
+    type: "nNews",
+    id: "news-2",
+    title: "Změny v ochraně soukromí",
+    excerpt: "Upravili jsme, jak pracujeme s daty a jak si můžeš nastavit viditelnost profilu...",
+    meta: "NRW Trust & Safety · před 2 dny",
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+  },
+  {
+    id: "news-3",
+    type: "nNews",
+    title: "NRW Community event #1",
+    excerpt: "První setkání uživatelů NRW – online i offline, společně o budoucnosti platformy...",
+    meta: "NRW Community · minulý týden",
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
   },
 ];
 
-const tabs = ["Mix", "nReal", "nNews"];
+const tabs = ["Mix", "nReal", "nNews"] as const;
+type StreamTab = (typeof tabs)[number];
+
+type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentUser"> & {
+  profiles?: NrealProfile | NrealProfile[] | null;
+  likesCount?: number;
+  likedByCurrentUser?: boolean;
+  commentsCount?: number;
+};
+
+type StreamItem =
+  | { kind: "nReal"; createdAt: string; post: NrealPost }
+  | { kind: "nNews"; createdAt: string; item: FeedItem };
 
 const widgetConfig: Record<
   WidgetId,
@@ -63,13 +83,39 @@ const widgetConfig: Record<
 
 const defaultWidgetOrder: WidgetId[] = ["weather", "date", "suggested", "heatmap"];
 
+function formatStreamDate(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "neznámé datum";
+  return date.toLocaleDateString("cs-CZ", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+const normalizePost = (post: SupabasePost): NrealPost => {
+  const rawProfiles = post?.profiles;
+  const profiles = Array.isArray(rawProfiles) ? rawProfiles : rawProfiles ? [rawProfiles] : [];
+  return {
+    ...post,
+    is_deleted: (post as SupabasePost).is_deleted ?? null,
+    profiles,
+    likesCount: post.likesCount ?? 0,
+    likedByCurrentUser: post.likedByCurrentUser ?? false,
+    commentsCount: post.commentsCount ?? 0,
+  };
+};
+
 export default function HomePage() {
-  const activeTab = "Mix";
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const [activeTab, setActiveTab] = useState<StreamTab>("Mix");
   const [today] = useState<Date>(() => new Date());
   const [isEditing, setIsEditing] = useState(false);
   const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(defaultWidgetOrder);
   const [hasHydrated, setHasHydrated] = useState(false);
   const [draggingId, setDraggingId] = useState<WidgetId | null>(null);
+  const [nrealPosts, setNrealPosts] = useState<NrealPost[]>([]);
+  const [nrealLoading, setNrealLoading] = useState(true);
+  const [nrealError, setNrealError] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
+  const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const stored = window.localStorage.getItem(WIDGETS_STORAGE_KEY);
@@ -86,6 +132,177 @@ export default function HomePage() {
     if (!hasHydrated) return;
     window.localStorage.setItem(WIDGETS_STORAGE_KEY, JSON.stringify(widgetOrder));
   }, [widgetOrder, hasHydrated]);
+
+  useEffect(() => {
+    let active = true;
+    const loadNreal = async () => {
+      setNrealLoading(true);
+      setNrealError(null);
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData?.user ?? null;
+      setCurrentUserId(user?.id ?? null);
+      if (user?.id) {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .maybeSingle<Profile>();
+        if (active && profileData) setCurrentProfile(profileData);
+      }
+
+      const { data, error } = await supabase
+        .from("nreal_posts")
+        .select(
+          `
+          id,
+          user_id,
+          content,
+          created_at,
+          media_url,
+          media_type,
+          is_deleted,
+          profiles (
+            username,
+            display_name,
+            avatar_url,
+            verified,
+            verification_label
+          )
+        `,
+        )
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (!active) return;
+      if (error) {
+        setNrealError(error.message);
+        setNrealPosts([]);
+      } else {
+        const normalized = ((data as SupabasePost[] | null) ?? []).map((post) => normalizePost(post));
+        const postIds = normalized.map((post) => post.id);
+        const likesCountMap: Record<string, number> = {};
+        const commentsCountMap: Record<string, number> = {};
+        const likedPostIds = new Set<string>();
+
+        if (postIds.length > 0) {
+          const { data: likesData } = await supabase.from("nreal_likes").select("post_id").in("post_id", postIds);
+          likesData?.forEach((row) => {
+            const pid = (row as { post_id: string }).post_id;
+            likesCountMap[pid] = (likesCountMap[pid] ?? 0) + 1;
+          });
+
+          if (user?.id) {
+            const { data: likedData } = await supabase
+              .from("nreal_likes")
+              .select("post_id")
+              .eq("user_id", user.id)
+              .in("post_id", postIds);
+            likedData?.forEach((row) => {
+              const pid = (row as { post_id: string }).post_id;
+              likedPostIds.add(pid);
+            });
+          }
+
+          const { data: commentsData } = await supabase
+            .from("nreal_comments")
+            .select("post_id")
+            .in("post_id", postIds)
+            .eq("is_deleted", false);
+          commentsData?.forEach((row) => {
+            const pid = (row as { post_id: string }).post_id;
+            commentsCountMap[pid] = (commentsCountMap[pid] ?? 0) + 1;
+          });
+        }
+
+        const withCounts = normalized.map((post) => ({
+          ...post,
+          likesCount: likesCountMap[post.id] ?? 0,
+          likedByCurrentUser: likedPostIds.has(post.id),
+          commentsCount: commentsCountMap[post.id] ?? 0,
+        }));
+        setNrealPosts(withCounts.filter((post) => !post.is_deleted));
+      }
+      setNrealLoading(false);
+    };
+    void loadNreal();
+    return () => {
+      active = false;
+    };
+  }, [supabase]);
+
+  const visibleItems = useMemo<StreamItem[]>(() => {
+    if (activeTab === "nReal") {
+      return nrealPosts.map((post) => ({ kind: "nReal", createdAt: post.created_at, post }));
+    }
+    if (activeTab === "nNews") {
+      return demoNewsItems.map((item) => ({ kind: "nNews", createdAt: item.createdAt, item }));
+    }
+    const mixed: StreamItem[] = [
+      ...nrealPosts.map((post) => ({ kind: "nReal" as const, createdAt: post.created_at, post })),
+      ...demoNewsItems.map((item) => ({ kind: "nNews" as const, createdAt: item.createdAt, item })),
+    ];
+    return mixed
+      .slice()
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 30);
+  }, [activeTab, nrealPosts]);
+
+  const toggleLike = async (postId: string) => {
+    if (!currentUserId) {
+      window.location.href = "/auth/login";
+      return;
+    }
+    if (likingPostIds.has(postId)) return;
+
+    setLikingPostIds((prev) => new Set(prev).add(postId));
+    const post = nrealPosts.find((p) => p.id === postId);
+    const currentlyLiked = Boolean(post?.likedByCurrentUser);
+    setNrealPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId
+          ? {
+              ...p,
+              likedByCurrentUser: !currentlyLiked,
+              likesCount: Math.max(0, (p.likesCount ?? 0) + (currentlyLiked ? -1 : 1)),
+            }
+          : p,
+      ),
+    );
+
+    try {
+      if (currentlyLiked) {
+        const { error } = await supabase
+          .from("nreal_likes")
+          .delete()
+          .eq("post_id", postId)
+          .eq("user_id", currentUserId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("nreal_likes").insert({ post_id: postId, user_id: currentUserId });
+        if (error) throw error;
+      }
+    } catch (err) {
+      console.error("Toggle like failed", err);
+      setNrealPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? {
+                ...p,
+                likedByCurrentUser: currentlyLiked,
+                likesCount: Math.max(0, (p.likesCount ?? 0) + (currentlyLiked ? 1 : -1)),
+              }
+            : p,
+        ),
+      );
+    } finally {
+      setLikingPostIds((prev) => {
+        const next = new Set(prev);
+        next.delete(postId);
+        return next;
+      });
+    }
+  };
 
   const reorderWidgets = (dragId: WidgetId, overId: WidgetId) => {
     if (!dragId || dragId === overId) return;
@@ -120,6 +337,7 @@ export default function HomePage() {
               <button
                 key={tab}
                 type="button"
+                onClick={() => setActiveTab(tab)}
                 className={`rounded-full px-3 py-1 font-medium transition ${
                   isActive ? "bg-neutral-900 text-white" : "text-neutral-700 hover:bg-neutral-100"
                 }`}
@@ -132,19 +350,70 @@ export default function HomePage() {
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-3">
-            {demoItems.map((item) => (
-              <article
-                key={item.id}
-                className="rounded-xl border border-neutral-200 bg-white p-4 text-sm shadow-sm"
-              >
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                  {item.type}
-                </div>
-                <h2 className="text-base font-semibold text-neutral-900">{item.title}</h2>
-                <p className="mt-1 text-xs text-neutral-600">{item.excerpt}</p>
-                <p className="mt-3 text-[11px] text-neutral-400">{item.meta}</p>
-              </article>
-            ))}
+            {nrealError && (activeTab === "Mix" || activeTab === "nReal") ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                Nepodařilo se načíst nReal příspěvky: {nrealError}
+              </div>
+            ) : null}
+            {nrealLoading && (activeTab === "Mix" || activeTab === "nReal") ? (
+              <div className="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
+                Načítám nReal feed…
+              </div>
+            ) : null}
+            {!nrealLoading && !nrealError && visibleItems.length === 0 ? (
+              <div className="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
+                Zatím tu nic není.
+              </div>
+            ) : null}
+            {visibleItems.map((streamItem) => {
+              if (streamItem.kind === "nReal") {
+                const post = streamItem.post;
+                const author = post.profiles?.[0] ?? null;
+                const authorName = author?.display_name || author?.username || "NRW uživatel";
+                const authorIsCurrentUser = Boolean(currentUserId && post.user_id === currentUserId);
+                return (
+                  <PostCard
+                    key={`nreal-${post.id}`}
+                    postId={post.id}
+                    postUserId={post.user_id}
+                    isDeleted={post.is_deleted ?? null}
+                    author={{
+                      displayName: authorName,
+                      username: author?.username ?? null,
+                      avatarUrl: author?.avatar_url ?? null,
+                      isCurrentUser: authorIsCurrentUser,
+                      verified: Boolean(author?.verified),
+                      verificationLabel: author?.verification_label ?? null,
+                    }}
+                    content={post.content ?? ""}
+                    createdAt={post.created_at}
+                    mediaUrl={post.media_url ?? null}
+                    mediaType={post.media_type ?? null}
+                    likesCount={post.likesCount ?? 0}
+                    likedByCurrentUser={post.likedByCurrentUser ?? false}
+                    commentsCount={post.commentsCount ?? 0}
+                    onToggleLike={toggleLike}
+                    likeDisabled={likingPostIds.has(post.id)}
+                    currentUserProfile={currentProfile}
+                  />
+                );
+              }
+
+              const item = streamItem.item;
+              return (
+                <article
+                  key={`nnews-${item.id}`}
+                  className="rounded-xl border border-neutral-200 bg-white p-4 text-sm shadow-sm"
+                >
+                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                    NNEWS
+                  </div>
+                  <h2 className="text-base font-semibold text-neutral-900">{item.title}</h2>
+                  {item.excerpt ? <p className="mt-1 text-xs text-neutral-600">{item.excerpt}</p> : null}
+                  <p className="mt-3 text-[11px] text-neutral-400">{item.meta}</p>
+                </article>
+              );
+            })}
           </div>
 
           <aside className="space-y-3 lg:sticky lg:top-6 lg:max-h-[calc(100vh-96px)] lg:overflow-y-auto lg:pr-1">

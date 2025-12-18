@@ -6,6 +6,8 @@ export type BlockedTerm = {
 // TODO: move to DB later.
 export const BLOCKED_TERMS: BlockedTerm[] = [
   { pattern: /\bnigg(?:er|a)s?\b/i, reason: "hate_speech" },
+  { pattern: /\bneggr\b/i, reason: "hate_speech" },
+  { pattern: /\bne3g\b/i, reason: "hate_speech" },
   { pattern: /\bspic(?:s)?\b/i, reason: "hate_speech" },
   { pattern: /\bkike(?:s)?\b/i, reason: "hate_speech" },
   { pattern: /\bchink(?:s)?\b/i, reason: "hate_speech" },
@@ -44,8 +46,8 @@ export const BLOCKED_TERMS: BlockedTerm[] = [
   { pattern: /\bhang\s+them\b/i, reason: "violence" },
   { pattern: /\bshoot\s+up\b/i, reason: "violence" },
   { pattern: /\bslaughter\b/i, reason: "violence" },
-  { pattern: /\bheil\s+hitler\b/i, reason: "extremism" },
-  { pattern: /\bsieg\s+heil\b/i, reason: "extremism" },
+  { pattern: /\bheil\s*hitler\b/i, reason: "extremism" },
+  { pattern: /\bsieg\s*heil\b/i, reason: "extremism" },
   { pattern: /\bwhite\s+power\b/i, reason: "extremism" },
   { pattern: /\bblood\s+and\s+soil\b/i, reason: "extremism" },
   { pattern: /\b14\s*88\b/i, reason: "extremism" },
@@ -65,4 +67,11 @@ export const BLOCKED_TERMS: BlockedTerm[] = [
       /(?:https?:\/\/)?(?:bit\.ly|t\.co|tinyurl\.com|goo\.gl|ow\.ly|cutt\.ly|is\.gd|buff\.ly|rebrand\.ly|shorturl\.at)\b/i,
     reason: "spam",
   },
+];
+
+// Přísnější blacklist pro identifikační údaje (username/jméno/e-mail),
+// aby se neomezoval běžný textový obsah (posty, komentáře, ...).
+export const IDENTITY_BLOCKED_TERMS: BlockedTerm[] = [
+  { pattern: /\badolf\s*hitler\b/i, reason: "extremism" },
+  { pattern: /\bhitler\w*\b/i, reason: "extremism" },
 ];

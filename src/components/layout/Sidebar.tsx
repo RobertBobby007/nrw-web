@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import {
   Home,
   MessageCircle,
@@ -16,6 +17,7 @@ import {
   LifeBuoy,
   Clapperboard,
 } from "lucide-react";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 const NAV_ITEMS = [
   { href: "/", label: "Home", icon: Home },
@@ -29,11 +31,57 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
 
   const mobileNavItems = NAV_ITEMS.filter((item) => item.href !== "/chat");
+
+  useEffect(() => {
+    let active = true;
+    const loadUnread = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!active) return;
+      if (!user?.id) {
+        setUnreadCount(0);
+        return;
+      }
+      const { count, error } = await supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .is("read_at", null);
+      if (!active) return;
+      if (error) {
+        console.error("Sidebar unread notifications error", error);
+        setUnreadCount(0);
+        return;
+      }
+      setUnreadCount(count ?? 0);
+    };
+
+    void loadUnread();
+    const onUpdated = () => void loadUnread();
+    window.addEventListener("nrw:notifications_updated", onUpdated);
+    window.addEventListener("focus", onUpdated);
+    document.addEventListener("visibilitychange", onUpdated);
+    const { data: authSub } = supabase.auth.onAuthStateChange(() => {
+      if (!active) return;
+      void loadUnread();
+    });
+
+    return () => {
+      active = false;
+      window.removeEventListener("nrw:notifications_updated", onUpdated);
+      window.removeEventListener("focus", onUpdated);
+      document.removeEventListener("visibilitychange", onUpdated);
+      authSub.subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   return (
     <>
@@ -62,9 +110,11 @@ export function Sidebar() {
             aria-label="Oznámení"
           >
             <Bell className="h-5 w-5" />
-            <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-semibold text-white">
-              •
-            </span>
+            {unreadCount > 0 ? (
+              <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            ) : null}
           </Link>
           <Link
             href="/settings"
@@ -98,9 +148,11 @@ export function Sidebar() {
               aria-label="Oznámení"
             >
               <Bell className="h-5 w-5" />
-              <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-semibold text-white">
-                •
-              </span>
+              {unreadCount > 0 ? (
+                <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              ) : null}
             </Link>
             <Link
               href="/create"

@@ -189,7 +189,7 @@ export function RealFeedClient() {
     if (trimmed) {
       const { hit } = containsBlockedContent(trimmed);
       if (hit) {
-        setError("Uprav text – obsahuje zakázané výrazy.");
+        setError("Uprav text – obsahuje zakázané výrazy, které mohou být urážlivé. Pokud si myslíš, že jde o omyl, kontaktuj podporu.");
         return;
       }
     }

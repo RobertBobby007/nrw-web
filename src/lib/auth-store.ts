@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import db from "./db";
+import { containsBlockedIdentityContent } from "./content-filter";
 
 export type UserRecord = {
   id: string;
@@ -20,11 +21,17 @@ function hashPassword(password: string, salt: string) {
 
 export function createUser(input: { name: string; email: string; password: string }): UserRecord {
   const email = sanitizeEmail(input.email);
+  const name = input.name.trim();
+
+  if (containsBlockedIdentityContent(name).hit || containsBlockedIdentityContent(email).hit) {
+    throw new Error("BlockedContent");
+  }
+
   const salt = crypto.randomBytes(16).toString("hex");
   const passwordHash = hashPassword(input.password, salt);
   const user = {
     id: crypto.randomUUID(),
-    name: input.name.trim(),
+    name,
     email,
     salt,
     password_hash: passwordHash,

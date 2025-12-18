@@ -34,6 +34,7 @@ import {
   deleteAvatarByUrl,
   type Profile,
 } from "@/lib/profiles";
+import { containsBlockedContent, containsBlockedIdentityContent } from "@/lib/content-filter";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 type SectionKey =
@@ -205,6 +206,24 @@ export default function SettingsPage() {
 
   const handleSaveProfile = async () => {
     if (!profile || savingProfile) return;
+
+    const normalizedUsername = username.trim().replace(/^@+/, "");
+    const normalizedDisplayName = displayName.trim();
+    const normalizedBio = bio.trim();
+
+    if (normalizedUsername && containsBlockedIdentityContent(normalizedUsername).hit) {
+      setProfileError("Uživatelské jméno obsahuje nevhodný text.");
+      return;
+    }
+    if (normalizedDisplayName && containsBlockedIdentityContent(normalizedDisplayName).hit) {
+      setProfileError("Jméno obsahuje nevhodný text.");
+      return;
+    }
+    if (normalizedBio && containsBlockedContent(normalizedBio).hit) {
+      setProfileError("Bio obsahuje nevhodný text.");
+      return;
+    }
+
     setProfileError(null);
     setProfileMessage(null);
     setSavingProfile(true);
@@ -224,9 +243,9 @@ export default function SettingsPage() {
     }
 
     const updated = await updateCurrentProfile({
-      bio: bio.trim() || null,
-      displayName: displayName.trim() || null,
-      username: username.trim().replace(/^@+/, "") || null,
+      bio: normalizedBio || null,
+      displayName: normalizedDisplayName || null,
+      username: normalizedUsername || null,
       avatarUrl,
     });
 

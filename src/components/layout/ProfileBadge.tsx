@@ -13,6 +13,7 @@ export function ProfileBadge() {
   const [open, setOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [initials, setInitials] = useState<string>("NRW");
+  const [profileUsername, setProfileUsername] = useState<string | null>(null);
   const supabase = getSupabaseBrowserClient();
 
   const computeInitials = (value: string | null | undefined) => {
@@ -33,6 +34,7 @@ export function ProfileBadge() {
     setIsAuthenticated(!!user);
     if (!user?.id) {
       setInitials("NRW");
+      setProfileUsername(null);
       return;
     }
     const { data: profile } = await supabase
@@ -45,9 +47,10 @@ export function ProfileBadge() {
     const metaDisplayName = typeof meta.display_name === "string" ? meta.display_name : null;
     const metaUsername = typeof meta.username === "string" ? meta.username : null;
     const displayName = profile?.display_name ?? metaDisplayName ?? null;
-    const username = profile?.username ?? metaUsername ?? "";
+    const username = profile?.username ?? metaUsername ?? null;
     const name = displayName || username || "Uživatel";
     setInitials(computeInitials(name));
+    setProfileUsername(username ? username.trim().replace(/^@+/, "") : null);
   }, [supabase]);
 
   useEffect(() => {
@@ -93,7 +96,7 @@ export function ProfileBadge() {
             {isAuthenticated ? (
               <>
                 <Link
-                  href="/id"
+                  href={profileUsername ? `/id/${encodeURIComponent(profileUsername)}` : "/id"}
                   className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-50"
                 >
                   Zobrazit profil

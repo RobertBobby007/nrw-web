@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { containsBlockedIdentityContent } from "@/lib/content-filter";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 export default function RegisterPage() {
@@ -27,8 +28,15 @@ export default function RegisterPage() {
     setError(null);
     setInfo(null);
 
-    if (!email) {
+    const emailTrimmed = email.trim();
+
+    if (!emailTrimmed) {
       setError("Zadej e-mail.");
+      return;
+    }
+
+    if (containsBlockedIdentityContent(emailTrimmed).hit) {
+      setError("E-mail obsahuje nevhodný text.");
       return;
     }
 
@@ -65,18 +73,38 @@ export default function RegisterPage() {
       return;
     }
 
+    const firstNameTrimmed = firstName.trim();
+    const lastNameTrimmed = lastName.trim();
     const normalizedUsername = username.trim().replace(/^@+/, "");
-    const displayName = `${firstName.trim()} ${lastName.trim()}`.trim();
+    const displayName = `${firstNameTrimmed} ${lastNameTrimmed}`.trim();
+    const emailTrimmed = email.trim();
+
+    if (containsBlockedIdentityContent(firstNameTrimmed).hit) {
+      setError("Jméno obsahuje nevhodný text.");
+      return;
+    }
+    if (containsBlockedIdentityContent(lastNameTrimmed).hit) {
+      setError("Příjmení obsahuje nevhodný text.");
+      return;
+    }
+    if (containsBlockedIdentityContent(normalizedUsername).hit) {
+      setError("Uživatelské jméno obsahuje nevhodný text.");
+      return;
+    }
+    if (containsBlockedIdentityContent(emailTrimmed).hit) {
+      setError("E-mail obsahuje nevhodný text.");
+      return;
+    }
 
     setLoading(true);
     const { error } = await supabase.auth.signUp({
-      email,
+      email: emailTrimmed,
       password,
       options: {
         data: {
           display_name: displayName || null,
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
+          first_name: firstNameTrimmed,
+          last_name: lastNameTrimmed,
           username: normalizedUsername || null,
           birthdate,
         },
