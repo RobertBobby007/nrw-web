@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { BadgeCheck } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { safeIdentityLabel } from "@/lib/content-filter";
 import { follow, getFollowCounts, getPostsCount, isFollowing, unfollow } from "@/lib/follows";
 import type { Profile } from "@/lib/profiles";
 import type { NrealPost, NrealProfile } from "@/types/nreal";
@@ -331,7 +332,12 @@ export default function PublicProfilePage() {
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-neutral-200 to-neutral-100 text-lg font-semibold text-neutral-700">
-                      {(profile.display_name || profile.username || "NRW").slice(0, 2).toUpperCase()}
+                      {safeIdentityLabel(
+                        profile.display_name,
+                        safeIdentityLabel(profile.username, "NRW"),
+                      )
+                        .slice(0, 2)
+                        .toUpperCase()}
                     </div>
                   )}
                 </div>
@@ -339,7 +345,10 @@ export default function PublicProfilePage() {
                 <div className="min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="truncate text-2xl font-semibold tracking-tight text-neutral-900">
-                      {profile.display_name || "Uživatel"}
+                      {safeIdentityLabel(
+                        profile.display_name,
+                        safeIdentityLabel(profile.username, "Uživatel"),
+                      )}
                     </h1>
                     {profile.verified ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
@@ -349,7 +358,9 @@ export default function PublicProfilePage() {
                     ) : null}
                   </div>
 
-                  <div className="truncate text-sm text-neutral-600">@{profile.username || usernameParam}</div>
+                  <div className="truncate text-sm text-neutral-600">
+                    @{safeIdentityLabel(profile.username, usernameParam)}
+                  </div>
 
                   <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-neutral-700">
                     <span className="whitespace-nowrap">{formatCount(counts.followers)} sledujících</span>
@@ -445,9 +456,12 @@ export default function PublicProfilePage() {
                   ) : (
                     (showAllPosts ? posts : posts.slice(0, 3)).map((post) => {
                       const author = post.profiles?.[0] ?? null;
-                      const authorName =
-                        author?.display_name || author?.username || profile?.display_name || "NRW uživatel";
-                      const authorUsername = author?.username ? `@${author.username}` : null;
+                      const safeUsername = safeIdentityLabel(author?.username ?? null, "");
+                      const authorName = safeIdentityLabel(
+                        author?.display_name ?? null,
+                        safeUsername || safeIdentityLabel(profile?.display_name ?? null, "NRW uživatel"),
+                      );
+                      const authorUsername = safeUsername ? `@${safeUsername}` : null;
                       const verificationLabel = author?.verified
                         ? author?.verification_label || "NRW Verified"
                         : null;

@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Image as ImageIcon, Video as VideoIcon } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { containsBlockedContent } from "@/lib/content-filter";
+import { containsBlockedContent, safeIdentityLabel } from "@/lib/content-filter";
 import type { NrealPost, NrealProfile } from "@/types/nreal";
 import { PostCard } from "./PostCard";
 import type { Profile } from "@/lib/profiles";
@@ -15,6 +15,8 @@ type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentU
   likedByCurrentUser?: boolean;
   commentsCount?: number;
 };
+
+const MAX_POST_CHARS = 3000;
 
 export function RealFeedClient() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
@@ -186,6 +188,10 @@ export function RealFeedClient() {
     }
     const trimmed = content.trim();
     if (!trimmed && !mediaFile) return;
+    if (trimmed.length > MAX_POST_CHARS) {
+      setError(`Text je moc dlouhý (max ${MAX_POST_CHARS} znaků).`);
+      return;
+    }
     if (trimmed) {
       const { hit } = containsBlockedContent(trimmed);
       if (hit) {
@@ -220,6 +226,8 @@ export function RealFeedClient() {
     if (!response.ok) {
       if (payload?.error === "blocked_content") {
         setError("Uprav text – obsahuje zakázané výrazy.");
+      } else if (payload?.error === "content_too_long") {
+        setError(`Text je moc dlouhý (max ${payload?.max ?? MAX_POST_CHARS} znaků).`);
       } else if (payload?.error === "unauthorized") {
         setError("Musíš být přihlášený.");
       } else {
@@ -329,10 +337,17 @@ export function RealFeedClient() {
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-6 py-5">
           <textarea
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            maxLength={MAX_POST_CHARS}
+            onChange={(e) => setContent(e.target.value.slice(0, MAX_POST_CHARS))}
             placeholder="Co se děje v NRW?"
             className="min-h-[120px] w-full resize-none border-none bg-transparent text-sm outline-none placeholder:text-neutral-400"
           />
+          <div className="flex items-center justify-between text-xs text-neutral-500">
+            <span>{content.length}/{MAX_POST_CHARS}</span>
+            {content.length >= MAX_POST_CHARS ? (
+              <span className="font-semibold text-red-600">Limit dosažen</span>
+            ) : null}
+          </div>
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:border-neutral-500">
               <input
@@ -406,8 +421,14 @@ export function RealFeedClient() {
             postUserId={post.user_id}
             isDeleted={post.is_deleted ?? false}
             author={{
-              displayName: post.profiles?.[0]?.display_name || post.profiles?.[0]?.username || "NRW uživatel",
-              username: post.profiles?.[0]?.username ? `@${post.profiles[0]?.username}` : null,
+              displayName: safeIdentityLabel(
+                post.profiles?.[0]?.display_name ?? null,
+                safeIdentityLabel(post.profiles?.[0]?.username ?? null, "") || "NRW uživatel",
+              ),
+              username: (() => {
+                const safeUsername = safeIdentityLabel(post.profiles?.[0]?.username ?? null, "");
+                return safeUsername ? `@${safeUsername}` : null;
+              })(),
               avatarUrl: post.profiles?.[0]?.avatar_url ?? null,
               isCurrentUser: post.user_id === currentUserId,
               verified: Boolean(post.profiles?.[0]?.verified),

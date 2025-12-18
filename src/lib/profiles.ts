@@ -1,7 +1,7 @@
 "use client";
 
 import { getSupabaseBrowserClient } from "./supabase-browser";
-import { containsBlockedContent } from "./content-filter";
+import { containsBlockedContent, containsBlockedIdentityContent } from "./content-filter";
 
 export type Profile = {
   id: string;
@@ -57,14 +57,30 @@ export async function upsertProfileFromAuth(options: {
   const supabase = getSupabaseBrowserClient();
 
   const { userId, username, displayName, avatarUrl, bio } = options;
+  const normalizedUsername = (username ?? "").trim().replace(/^@+/, "");
+  const normalizedDisplayName = (displayName ?? "").trim();
+  const normalizedBio = (bio ?? "").trim();
+
+  if (normalizedUsername && containsBlockedIdentityContent(normalizedUsername).hit) {
+    console.error("upsertProfileFromAuth blocked username");
+    return;
+  }
+  if (normalizedDisplayName && containsBlockedIdentityContent(normalizedDisplayName).hit) {
+    console.error("upsertProfileFromAuth blocked display name");
+    return;
+  }
+  if (normalizedBio && containsBlockedContent(normalizedBio).hit) {
+    console.error("upsertProfileFromAuth blocked bio");
+    return;
+  }
 
   const { error } = await supabase.from(TABLE).upsert(
     {
       id: userId,
-      username: username ?? null,
-      display_name: displayName ?? null,
+      username: normalizedUsername || null,
+      display_name: normalizedDisplayName || null,
       avatar_url: avatarUrl ?? null,
-      bio: bio ?? null,
+      bio: normalizedBio || null,
     },
     { onConflict: "id" },
   );
@@ -105,7 +121,17 @@ export async function updateCurrentProfile(options: {
   }
 
   const { username, displayName, avatarUrl, bio } = options;
+  const normalizedUsername = (username ?? "").trim().replace(/^@+/, "");
+  const normalizedDisplayName = (displayName ?? "").trim();
   const normalizedBio = (bio ?? "").trim();
+  if (normalizedUsername && containsBlockedIdentityContent(normalizedUsername).hit) {
+    console.error("updateCurrentProfile blocked username");
+    return null;
+  }
+  if (normalizedDisplayName && containsBlockedIdentityContent(normalizedDisplayName).hit) {
+    console.error("updateCurrentProfile blocked display name");
+    return null;
+  }
   if (normalizedBio && containsBlockedContent(normalizedBio).hit) {
     console.error("updateCurrentProfile blocked bio");
     return null;
@@ -114,8 +140,8 @@ export async function updateCurrentProfile(options: {
   const { error } = await supabase.from(TABLE).upsert(
     {
       id: user.id,
-      username: username ?? null,
-      display_name: displayName ?? null,
+      username: normalizedUsername || null,
+      display_name: normalizedDisplayName || null,
       avatar_url: avatarUrl ?? null,
       bio: normalizedBio || null,
     },

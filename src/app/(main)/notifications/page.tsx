@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Megaphone } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { safeIdentityLabel } from "@/lib/content-filter";
 
 type ActorProfile = {
   id: string;
@@ -22,6 +23,12 @@ type NotificationRow = {
   severity?: "info" | "warn" | "urgent" | string | null;
   url?: string | null;
 };
+
+function errorMessage(err: unknown) {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  return null;
+}
 
 function formatTimeLabel(createdAt?: string | null) {
   if (!createdAt) return "neznámý čas";
@@ -154,9 +161,9 @@ export default function NotificationsPage() {
       if (error) throw error;
       setItems((prev) => prev.map((n) => (n.read_at ? n : { ...n, read_at: now })));
       window.dispatchEvent(new CustomEvent("nrw:notifications_updated"));
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("markAllAsRead failed", e);
-      setError(e?.message ?? "Akce se nepovedla.");
+      setError(errorMessage(e) ?? "Akce se nepovedla.");
     } finally {
       setBusy(false);
     }
@@ -194,8 +201,9 @@ export default function NotificationsPage() {
           <div className="divide-y divide-neutral-100">
             {items.map((n) => {
               const actor = n.actor_id ? actorsById[n.actor_id] : null;
-              const name = actor?.display_name || actor?.username || "NRW uživatel";
-              const username = actor?.username ? `@${actor.username}` : null;
+              const safeUsername = safeIdentityLabel(actor?.username ?? null, "");
+              const name = safeIdentityLabel(actor?.display_name ?? null, safeUsername || "NRW uživatel");
+              const username = safeUsername ? `@${safeUsername}` : null;
               const unread = !n.read_at;
               const isAnnouncement = (n.type ?? "").toLowerCase() === "announcement";
               const annTitle = (n.title ?? "").trim() || "Oznámení";

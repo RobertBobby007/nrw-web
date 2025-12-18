@@ -87,6 +87,10 @@ export default function RegisterPage() {
       setError("Příjmení obsahuje nevhodný text.");
       return;
     }
+    if (displayName && containsBlockedIdentityContent(displayName).hit) {
+      setError("Jméno obsahuje nevhodný text.");
+      return;
+    }
     if (containsBlockedIdentityContent(normalizedUsername).hit) {
       setError("Uživatelské jméno obsahuje nevhodný text.");
       return;

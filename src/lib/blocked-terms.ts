@@ -5,7 +5,7 @@ export type BlockedTerm = {
 
 // TODO: move to DB later.
 export const BLOCKED_TERMS: BlockedTerm[] = [
-  { pattern: /\bnigg(?:er|a)s?\b/i, reason: "hate_speech" },
+  { pattern: /\bnigg(?:er|a)s?\w*\b/i, reason: "hate_speech" },
   { pattern: /\bspic(?:s)?\b/i, reason: "hate_speech" },
   { pattern: /\bkike(?:s)?\b/i, reason: "hate_speech" },
   { pattern: /\bchink(?:s)?\b/i, reason: "hate_speech" },

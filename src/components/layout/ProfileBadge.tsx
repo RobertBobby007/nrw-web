@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { safeIdentityLabel } from "@/lib/content-filter";
 
 const HIDDEN_PREFIXES = ["/support", "/settings", "/id"];
 
@@ -48,9 +49,10 @@ export function ProfileBadge() {
     const metaUsername = typeof meta.username === "string" ? meta.username : null;
     const displayName = profile?.display_name ?? metaDisplayName ?? null;
     const username = profile?.username ?? metaUsername ?? null;
-    const name = displayName || username || "Uživatel";
+    const safeUsername = safeIdentityLabel(username, "");
+    const name = safeIdentityLabel(displayName, safeUsername || "Uživatel");
     setInitials(computeInitials(name));
-    setProfileUsername(username ? username.trim().replace(/^@+/, "") : null);
+    setProfileUsername(safeUsername ? safeUsername.trim().replace(/^@+/, "") : null);
   }, [supabase]);
 
   useEffect(() => {

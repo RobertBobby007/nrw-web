@@ -8,6 +8,8 @@ type CreatePostPayload = {
   media_type?: "image" | "video" | null;
 };
 
+const MAX_POST_CHARS = 3000;
+
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -36,6 +38,13 @@ export async function POST(request: Request) {
 
   if (!content && !mediaUrl) {
     return NextResponse.json({ error: "missing_content" }, { status: 400 });
+  }
+
+  if (content.length > MAX_POST_CHARS) {
+    return NextResponse.json(
+      { error: "content_too_long", max: MAX_POST_CHARS },
+      { status: 400 },
+    );
   }
 
   if (content) {

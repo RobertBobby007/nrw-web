@@ -3,7 +3,7 @@ import { BLOCKED_TERMS, type BlockedTerm } from "./blocked-terms";
 const normalizeBase = (text: string) =>
   text
     .toLowerCase()
-    .normalize("NFD")
+    .normalize("NFKD")
     .replace(/\p{Diacritic}/gu, "");
 
 const applyLeetspeak = (text: string) =>
@@ -44,17 +44,23 @@ const collapseWhitespace = (text: string) => text.replace(/\s+/g, " ").trim();
 
 const toLettersAndSpaces = (text: string) => collapseWhitespace(text.replace(/[^\p{L}]+/gu, " "));
 
+const stripFormatCharacters = (text: string) => text.replace(/\p{Cf}/gu, "");
+
+const toLettersOnly = (text: string) => text.replace(/[^\p{L}]+/gu, "");
+
 function normalizeVariants(text: string): string[] {
-  const base = normalizeBase(text);
+  const base = stripFormatCharacters(normalizeBase(text));
   const leet = applyLeetspeak(base);
 
   const variants = new Set<string>([
     base,
     collapseWhitespace(base),
     toLettersAndSpaces(base),
+    toLettersOnly(base),
     leet,
     collapseWhitespace(leet),
     toLettersAndSpaces(leet),
+    toLettersOnly(leet),
   ]);
 
   return [...variants].filter(Boolean);
@@ -78,4 +84,13 @@ export function containsBlockedContent(text: string): { hit: boolean; reason?: s
 
 export function containsBlockedIdentityContent(text: string): { hit: boolean; reason?: string } {
   return containsBlocked(text, BLOCKED_TERMS);
+}
+
+export function safeIdentityLabel(
+  value: string | null | undefined,
+  fallback: string,
+): string {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return fallback;
+  return containsBlockedIdentityContent(trimmed).hit ? fallback : trimmed;
 }

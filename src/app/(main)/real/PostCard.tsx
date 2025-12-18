@@ -7,6 +7,7 @@ import { BadgeCheck, Heart, MessageCircle, MoreHorizontal, Plus, Send, X } from 
 import type { Session } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import type { Profile } from "@/lib/profiles";
+import { safeIdentityLabel } from "@/lib/content-filter";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ReportDialog } from "@/components/ui/ReportDialog";
 
@@ -30,6 +31,25 @@ type RealComment = {
   reply_to_user?: CommentAuthor | null;
   is_deleted?: boolean | null;
 };
+
+type CommentRow = {
+  id: string;
+  content: string;
+  created_at: string;
+  user_id: string | null;
+  reply_to_comment_id?: string | null;
+  parent_id?: string | null;
+  reply_to_user_id?: string | null;
+  is_deleted?: boolean | null;
+  author?: CommentAuthor | null;
+  reply_to_user?: CommentAuthor | null;
+};
+
+function errorMessage(err: unknown) {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  return null;
+}
 
 type PostCardProps = {
   postId: string;
@@ -128,6 +148,7 @@ function formatTimeLabel(createdAt?: string | null) {
 }
 
 const COMMENTS_SORT: "asc" | "desc" = "asc";
+const CONTENT_PREVIEW_CHARS = 650;
 
 export function PostCard({
   postId,
@@ -168,13 +189,20 @@ export function PostCard({
   const [deleteToast, setDeleteToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isFollowingAuthor, setIsFollowingAuthor] = useState<boolean | null>(null);
   const [followBusy, setFollowBusy] = useState(false);
-  const name = author.displayName || (author.isCurrentUser ? "Ty" : "NRW uživatel");
+  const [isContentExpanded, setIsContentExpanded] = useState(false);
+  const name = safeIdentityLabel(author.displayName, author.isCurrentUser ? "Ty" : "NRW uživatel");
   const initial = name.charAt(0).toUpperCase() || "N";
   const badgeLabel = author.verified ? author.verificationLabel || "Ověřený profil" : null;
-  const hasContent = Boolean(content);
+  const contentTrimmed = content.trim();
+  const hasContent = Boolean(contentTrimmed);
   const hasMedia = Boolean(mediaUrl);
   const likeActionDisabled = likeDisabled || !onToggleLike;
   const authorProfileHref = profileHrefFromUsername(author.username);
+  const shouldTruncateContent = contentTrimmed.length > CONTENT_PREVIEW_CHARS;
+  const visibleContent =
+    shouldTruncateContent && !isContentExpanded
+      ? `${contentTrimmed.slice(0, CONTENT_PREVIEW_CHARS)}…`
+      : contentTrimmed;
 
   const currentUserAuthor = useMemo<CommentAuthor | null>(() => {
     if (currentUserProfile) {
@@ -221,7 +249,7 @@ export function PostCard({
     return () => clearTimeout(timer);
   }, [deleteToast]);
 
-  const mapCommentRow = useCallback((c: any, postIdParam: string): RealComment => {
+  const mapCommentRow = useCallback((c: CommentRow, postIdParam: string): RealComment => {
     return {
       id: c.id,
       content: c.content,
@@ -299,7 +327,7 @@ export function PostCard({
         return;
       }
 
-      const mapped: RealComment[] = data.map((c: any) => mapCommentRow(c, postIdParam));
+      const mapped: RealComment[] = ((data ?? []) as CommentRow[]).map((c) => mapCommentRow(c, postIdParam));
 
       setComments(mapped);
       setCommentCount(mapped.length);
@@ -684,10 +712,10 @@ export function PostCard({
         if (error) throw error;
         setDeleteToast({ type: "success", message: "Přestal(a) jsi sledovat." });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("toggleFollowAuthor failed", e);
       setIsFollowingAuthor(prev);
-      setDeleteToast({ type: "error", message: e?.message ?? "Akce se nepovedla." });
+      setDeleteToast({ type: "error", message: errorMessage(e) ?? "Akce se nepovedla." });
     } finally {
       setFollowBusy(false);
     }
@@ -722,9 +750,9 @@ export function PostCard({
 
       onDeletePost?.(postId);
       setDeleteToast({ type: "success", message: "Příspěvek smazán." });
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Delete post failed:", JSON.stringify(e, null, 2));
-      setDeleteToast({ type: "error", message: e?.message ?? "Smazání příspěvku selhalo." });
+      setDeleteToast({ type: "error", message: errorMessage(e) ?? "Smazání příspěvku selhalo." });
     } finally {
       setIsDeletingPost(false);
     }
@@ -906,7 +934,20 @@ export function PostCard({
 
       {/* obsah postu */}
       <div className="space-y-3 px-4 pb-4 pt-3">
-        {hasContent && <div className="text-sm leading-relaxed text-neutral-900 whitespace-pre-line">{content}</div>}
+        {hasContent ? (
+          <div className="space-y-2">
+            <div className="text-sm leading-relaxed text-neutral-900 whitespace-pre-line">{visibleContent}</div>
+            {shouldTruncateContent ? (
+              <button
+                type="button"
+                onClick={() => setIsContentExpanded((prev) => !prev)}
+                className="text-xs font-semibold text-neutral-700 underline underline-offset-4"
+              >
+                {isContentExpanded ? "Skrýt" : "Zobrazit celé"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         {hasMedia ? (
           mediaType === "video" ? (
             <div className="mx-auto aspect-square w-[280px] max-w-full overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50">
