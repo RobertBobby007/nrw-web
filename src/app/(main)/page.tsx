@@ -177,7 +177,7 @@ export default function HomePage() {
 
       setNrealLoading(!cacheValid);
 
-      if (cacheValid && active) {
+      if (cacheValid && active && nrealFeedCache) {
         setNrealPosts(nrealFeedCache.posts);
       }
 
