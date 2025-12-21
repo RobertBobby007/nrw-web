@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     if (retry.error) {
       console.error("Failed to fetch profile in create post", retry.error);
     } else {
-      profile = retry.data;
+      profile = { banned_at: retry.data?.banned_at, can_post_without_review: null };
       profileError = null;
     }
   } else if (profileError) {

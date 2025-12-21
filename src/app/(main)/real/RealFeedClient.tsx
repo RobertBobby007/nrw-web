@@ -106,7 +106,7 @@ export function RealFeedClient() {
 
       setLoading(!cacheValid);
 
-      if (cacheValid) {
+      if (cacheValid && nrealPostsCache) {
         setPosts(nrealPostsCache.posts);
       }
 
@@ -297,7 +297,7 @@ export function RealFeedClient() {
     setPostsWithCache((prev) => [optimisticPost, ...prev], userId);
 
     let response: Response;
-    let payload: { error?: string; message?: string; data?: unknown } | null = null;
+    let payload: { error?: string; message?: string; data?: unknown; max?: number } | null = null;
     try {
       response = await fetch("/api/nreal/create", {
         method: "POST",
