@@ -7,6 +7,7 @@ import { BadgeCheck, Camera, X } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import {
   fetchCurrentProfile,
+  getCachedProfile,
   type Profile,
   updateCurrentProfile,
   uploadAvatar,
@@ -15,7 +16,7 @@ import {
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import type { NrealPost, NrealProfile } from "@/types/nreal";
 import { PostCard } from "../real/PostCard";
-import { getFollowCounts, getPostsCount } from "@/lib/follows";
+import { getFollowCounts, getPostsCount, peekFollowCounts, peekPostsCount } from "@/lib/follows";
 import { containsBlockedContent } from "@/lib/content-filter";
 
 const media = [
@@ -30,9 +31,9 @@ const media = [
 export default function IdPage() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(() => getCachedProfile());
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !getCachedProfile());
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [bioInput, setBioInput] = useState("");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -57,10 +58,15 @@ export default function IdPage() {
   const [postsLoading, setPostsLoading] = useState(false);
   const [showVerificationInfo, setShowVerificationInfo] = useState(false);
   const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
-  const [stats, setStats] = useState<{ followers: number; following: number; posts: number }>({
-    followers: 0,
-    following: 0,
-    posts: 0,
+  const [stats, setStats] = useState<{ followers: number; following: number; posts: number }>(() => {
+    const cached = getCachedProfile();
+    const cachedFollow = cached ? peekFollowCounts(cached.id) : null;
+    const cachedPosts = cached ? peekPostsCount(cached.id) : null;
+    return {
+      followers: cachedFollow?.followers ?? 0,
+      following: cachedFollow?.following ?? 0,
+      posts: cachedPosts ?? 0,
+    };
   });
   const [statsLoading, setStatsLoading] = useState(false);
 
@@ -68,10 +74,13 @@ export default function IdPage() {
     let isMounted = true;
 
     async function loadProfile() {
-      setLoading(true);
+      const cached = getCachedProfile();
+      if (!cached) {
+        setLoading(true);
+      }
       const p = await fetchCurrentProfile();
       if (isMounted) {
-        setProfile(p);
+        setProfile(p ?? cached ?? null);
         setLoading(false);
       }
     }
@@ -118,7 +127,8 @@ export default function IdPage() {
   };
   const verificationLabel = sanitizeVerificationLabel(profile?.verification_label) ?? "Ověřený profil";
 
-  type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentUser"> & {
+  type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentUser" | "status"> & {
+    status?: NrealPost["status"] | null;
     profiles?: NrealProfile | NrealProfile[] | null;
     likesCount?: number;
     likedByCurrentUser?: boolean;
@@ -130,6 +140,7 @@ export default function IdPage() {
     const profiles = Array.isArray(rawProfiles) ? rawProfiles : rawProfiles ? [rawProfiles] : [];
     return {
       ...post,
+      status: post.status ?? "approved",
       is_deleted: (post as SupabasePost).is_deleted ?? null,
       profiles,
       likesCount: post.likesCount ?? 0,
@@ -155,6 +166,7 @@ export default function IdPage() {
           user_id,
           content,
           created_at,
+          status,
           media_url,
           media_type,
           is_deleted,
@@ -221,7 +233,16 @@ export default function IdPage() {
   useEffect(() => {
     if (!profile?.id) return;
     let active = true;
-    setStatsLoading(true);
+    const cachedFollow = peekFollowCounts(profile.id);
+    const cachedPosts = peekPostsCount(profile.id);
+    if (cachedFollow || cachedPosts !== null) {
+      setStats((prev) => ({
+        followers: cachedFollow?.followers ?? prev.followers,
+        following: cachedFollow?.following ?? prev.following,
+        posts: cachedPosts ?? prev.posts,
+      }));
+    }
+    setStatsLoading(!(cachedFollow || cachedPosts !== null));
     Promise.all([getFollowCounts(profile.id), getPostsCount(profile.id)])
       .then(([followCounts, postsCount]) => {
         if (!active) return;
@@ -859,6 +880,7 @@ function TwitterFeed({
                 }}
                 content={post.content ?? ""}
                 createdAt={post.created_at}
+                status={post.status}
                 mediaUrl={post.media_url ?? null}
                 mediaType={post.media_type ?? null}
                 likesCount={post.likesCount ?? 0}

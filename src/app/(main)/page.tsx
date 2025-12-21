@@ -11,7 +11,7 @@ import {
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { PostCard } from "./real/PostCard";
-import type { Profile } from "@/lib/profiles";
+import { fetchCurrentProfile, type Profile } from "@/lib/profiles";
 import type { NrealPost, NrealProfile } from "@/types/nreal";
 
 type FeedItem = {
@@ -57,12 +57,17 @@ const demoNewsItems: FeedItem[] = [
 const tabs = ["Mix", "nReal", "nNews"] as const;
 type StreamTab = (typeof tabs)[number];
 
-type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentUser"> & {
+type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentUser" | "status"> & {
+  status?: NrealPost["status"] | null;
   profiles?: NrealProfile | NrealProfile[] | null;
   likesCount?: number;
   likedByCurrentUser?: boolean;
   commentsCount?: number;
 };
+
+const MAIN_FEED_CACHE_TTL_MS = 30000;
+const MAIN_FEED_CACHE_LIMIT = 30;
+let nrealFeedCache: { userId: string | null; posts: NrealPost[]; fetchedAt: number } | null = null;
 
 type StreamItem =
   | { kind: "nReal"; createdAt: string; post: NrealPost }
@@ -94,6 +99,7 @@ const normalizePost = (post: SupabasePost): NrealPost => {
   const profiles = Array.isArray(rawProfiles) ? rawProfiles : rawProfiles ? [rawProfiles] : [];
   return {
     ...post,
+    status: post.status ?? "approved",
     is_deleted: (post as SupabasePost).is_deleted ?? null,
     profiles,
     likesCount: post.likesCount ?? 0,
@@ -117,6 +123,22 @@ export default function HomePage() {
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
 
+  const cacheNrealPosts = (nextPosts: NrealPost[], cacheUserId: string | null) => {
+    nrealFeedCache = {
+      userId: cacheUserId,
+      posts: nextPosts.slice(0, MAIN_FEED_CACHE_LIMIT),
+      fetchedAt: Date.now(),
+    };
+  };
+
+  const setNrealPostsWithCache = (updater: (prev: NrealPost[]) => NrealPost[], cacheUserId: string | null) => {
+    setNrealPosts((prev) => {
+      const next = updater(prev);
+      cacheNrealPosts(next, cacheUserId);
+      return next;
+    });
+  };
+
   useEffect(() => {
     const stored = window.localStorage.getItem(WIDGETS_STORAGE_KEY);
     const storedOrder = stored ? (JSON.parse(stored) as WidgetId[]) : null;
@@ -136,21 +158,30 @@ export default function HomePage() {
   useEffect(() => {
     let active = true;
     const loadNreal = async () => {
-      setNrealLoading(true);
       setNrealError(null);
       const { data: userData } = await supabase.auth.getUser();
       const user = userData?.user ?? null;
       setCurrentUserId(user?.id ?? null);
       if (user?.id) {
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id)
-          .maybeSingle<Profile>();
-        if (active && profileData) setCurrentProfile(profileData);
+        const profileData = await fetchCurrentProfile();
+        if (active) setCurrentProfile(profileData);
+      } else if (active) {
+        setCurrentProfile(null);
       }
 
-      const { data, error } = await supabase
+      const cacheKey = user?.id ?? null;
+      const cacheValid =
+        nrealFeedCache &&
+        nrealFeedCache.userId === cacheKey &&
+        Date.now() - nrealFeedCache.fetchedAt < MAIN_FEED_CACHE_TTL_MS;
+
+      setNrealLoading(!cacheValid);
+
+      if (cacheValid && active) {
+        setNrealPosts(nrealFeedCache.posts);
+      }
+
+      let query = supabase
         .from("nreal_posts")
         .select(
           `
@@ -158,6 +189,7 @@ export default function HomePage() {
           user_id,
           content,
           created_at,
+          status,
           media_url,
           media_type,
           is_deleted,
@@ -170,14 +202,22 @@ export default function HomePage() {
           )
         `,
         )
-        .eq("is_deleted", false)
-        .order("created_at", { ascending: false })
-        .limit(20);
+        .eq("is_deleted", false);
+
+      if (user?.id) {
+        query = query.or(`status.eq.approved,status.is.null,user_id.eq.${user.id}`);
+      } else {
+        query = query.or("status.eq.approved,status.is.null");
+      }
+
+      const { data, error } = await query.order("created_at", { ascending: false }).limit(20);
 
       if (!active) return;
       if (error) {
         setNrealError(error.message);
-        setNrealPosts([]);
+        if (!cacheValid) {
+          setNrealPosts([]);
+        }
       } else {
         const normalized = ((data as SupabasePost[] | null) ?? []).map((post) => normalizePost(post));
         const postIds = normalized.map((post) => post.id);
@@ -221,7 +261,9 @@ export default function HomePage() {
           likedByCurrentUser: likedPostIds.has(post.id),
           commentsCount: commentsCountMap[post.id] ?? 0,
         }));
-        setNrealPosts(withCounts.filter((post) => !post.is_deleted));
+        const nextPosts = withCounts.filter((post) => !post.is_deleted);
+        setNrealPosts(nextPosts);
+        cacheNrealPosts(nextPosts, cacheKey);
       }
       setNrealLoading(false);
     };
@@ -258,16 +300,18 @@ export default function HomePage() {
     setLikingPostIds((prev) => new Set(prev).add(postId));
     const post = nrealPosts.find((p) => p.id === postId);
     const currentlyLiked = Boolean(post?.likedByCurrentUser);
-    setNrealPosts((prev) =>
-      prev.map((p) =>
-        p.id === postId
-          ? {
-              ...p,
-              likedByCurrentUser: !currentlyLiked,
-              likesCount: Math.max(0, (p.likesCount ?? 0) + (currentlyLiked ? -1 : 1)),
-            }
-          : p,
-      ),
+    setNrealPostsWithCache(
+      (prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? {
+                ...p,
+                likedByCurrentUser: !currentlyLiked,
+                likesCount: Math.max(0, (p.likesCount ?? 0) + (currentlyLiked ? -1 : 1)),
+              }
+            : p,
+        ),
+      currentUserId,
     );
 
     try {
@@ -284,16 +328,18 @@ export default function HomePage() {
       }
     } catch (err) {
       console.error("Toggle like failed", err);
-      setNrealPosts((prev) =>
-        prev.map((p) =>
-          p.id === postId
-            ? {
-                ...p,
-                likedByCurrentUser: currentlyLiked,
-                likesCount: Math.max(0, (p.likesCount ?? 0) + (currentlyLiked ? 1 : -1)),
-              }
-            : p,
-        ),
+      setNrealPostsWithCache(
+        (prev) =>
+          prev.map((p) =>
+            p.id === postId
+              ? {
+                  ...p,
+                  likedByCurrentUser: currentlyLiked,
+                  likesCount: Math.max(0, (p.likesCount ?? 0) + (currentlyLiked ? 1 : -1)),
+                }
+              : p,
+          ),
+        currentUserId,
       );
     } finally {
       setLikingPostIds((prev) => {
@@ -387,6 +433,7 @@ export default function HomePage() {
                     }}
                     content={post.content ?? ""}
                     createdAt={post.created_at}
+                    status={post.status}
                     mediaUrl={post.media_url ?? null}
                     mediaType={post.media_type ?? null}
                     likesCount={post.likesCount ?? 0}

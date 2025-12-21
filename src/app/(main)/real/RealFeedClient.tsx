@@ -7,14 +7,19 @@ import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { containsBlockedContent } from "@/lib/content-filter";
 import type { NrealPost, NrealProfile } from "@/types/nreal";
 import { PostCard } from "./PostCard";
-import type { Profile } from "@/lib/profiles";
+import { fetchCurrentProfile, type Profile } from "@/lib/profiles";
 
-type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentUser"> & {
+type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentUser" | "status"> & {
+  status?: NrealPost["status"] | null;
   profiles?: NrealProfile | NrealProfile[] | null;
   likesCount?: number;
   likedByCurrentUser?: boolean;
   commentsCount?: number;
 };
+
+const POST_CACHE_TTL_MS = 30000;
+const POST_CACHE_LIMIT = 60;
+let nrealPostsCache: { userId: string | null; posts: NrealPost[]; fetchedAt: number } | null = null;
 
 export function RealFeedClient() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
@@ -26,17 +31,35 @@ export function RealFeedClient() {
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
+  const [currentUserMetaProfile, setCurrentUserMetaProfile] = useState<NrealProfile | null>(null);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<"image" | "video" | null>(null);
   const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
   const deletedPostsRef = useRef<Map<string, NrealPost>>(new Map());
 
+  const cachePosts = (nextPosts: NrealPost[], cacheUserId: string | null) => {
+    nrealPostsCache = {
+      userId: cacheUserId,
+      posts: nextPosts.slice(0, POST_CACHE_LIMIT),
+      fetchedAt: Date.now(),
+    };
+  };
+
+  const setPostsWithCache = (updater: (prev: NrealPost[]) => NrealPost[], cacheUserId: string | null) => {
+    setPosts((prev) => {
+      const next = updater(prev);
+      cachePosts(next, cacheUserId);
+      return next;
+    });
+  };
+
   const normalizePost = (post: SupabasePost): NrealPost => {
     const rawProfiles = post?.profiles;
     const profiles = Array.isArray(rawProfiles) ? rawProfiles : rawProfiles ? [rawProfiles] : [];
     return {
       ...post,
+      status: post.status ?? "approved",
       is_deleted: (post as SupabasePost).is_deleted ?? null,
       profiles,
       likesCount: post.likesCount ?? 0,
@@ -48,7 +71,6 @@ export function RealFeedClient() {
   useEffect(() => {
     let active = true;
     async function load() {
-      setLoading(true);
       setError(null);
       const { data: userData } = await supabase.auth.getUser();
       const user = userData?.user ?? null;
@@ -56,15 +78,38 @@ export function RealFeedClient() {
       if (!active) return;
       setUserId(user?.id ?? null);
       setCurrentUserId(user?.id ?? null);
-      if (user?.id) {
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id)
-          .maybeSingle<Profile>();
-        if (active && profileData) setCurrentProfile(profileData);
+      if (user) {
+        const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+        setCurrentUserMetaProfile({
+          username: typeof meta.username === "string" ? meta.username : null,
+          display_name: typeof meta.display_name === "string" ? meta.display_name : null,
+          avatar_url: typeof meta.avatar_url === "string" ? meta.avatar_url : null,
+          verified: typeof meta.verified === "boolean" ? meta.verified : null,
+          verification_label: typeof meta.verification_label === "string" ? meta.verification_label : null,
+        });
+      } else if (active) {
+        setCurrentUserMetaProfile(null);
       }
-      const { data, error } = await supabase
+      if (user?.id) {
+        const profileData = await fetchCurrentProfile();
+        if (active) setCurrentProfile(profileData);
+      } else if (active) {
+        setCurrentProfile(null);
+      }
+
+      const cacheKey = user?.id ?? null;
+      const cacheValid =
+        nrealPostsCache &&
+        nrealPostsCache.userId === cacheKey &&
+        Date.now() - nrealPostsCache.fetchedAt < POST_CACHE_TTL_MS;
+
+      setLoading(!cacheValid);
+
+      if (cacheValid) {
+        setPosts(nrealPostsCache.posts);
+      }
+
+      let query = supabase
         .from("nreal_posts")
         .select(
           `
@@ -72,6 +117,7 @@ export function RealFeedClient() {
             user_id,
             content,
             created_at,
+            status,
             media_url,
             media_type,
             is_deleted,
@@ -84,8 +130,15 @@ export function RealFeedClient() {
             )
           `,
         )
-        .eq("is_deleted", false)
-        .order("created_at", { ascending: false });
+        .eq("is_deleted", false);
+
+      if (user?.id) {
+        query = query.or(`status.eq.approved,status.is.null,user_id.eq.${user.id}`);
+      } else {
+        query = query.or("status.eq.approved,status.is.null");
+      }
+
+      const { data, error } = await query.order("created_at", { ascending: false });
 
       if (!active) return;
       if (error) {
@@ -139,7 +192,9 @@ export function RealFeedClient() {
           likedByCurrentUser: likedPostIds.has(post.id),
           commentsCount: commentsCountMap[post.id] ?? 0,
         }));
-        setPosts(withCounts.filter((post) => !post.is_deleted));
+        const nextPosts = withCounts.filter((post) => !post.is_deleted);
+        setPosts(nextPosts);
+        cachePosts(nextPosts, cacheKey);
       }
       setLoading(false);
     }
@@ -180,6 +235,7 @@ export function RealFeedClient() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (posting) return;
     if (!userId) {
       setError("Musíš být přihlášený.");
       return;
@@ -204,20 +260,61 @@ export function RealFeedClient() {
         return;
       }
     }
-    const response = await fetch("/api/nreal/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        content: trimmed || null,
-        media_url: mediaUrl,
-        media_type: mediaType,
-      }),
-    });
-    const payload = await response.json().catch(() => null);
+    const optimisticId = `temp-${Date.now()}`;
+    const optimisticStatus = currentProfile?.can_post_without_review ? "approved" : "pending";
+    const optimisticProfiles = currentProfile
+      ? [
+          {
+            username: currentProfile.username ?? null,
+            display_name: currentProfile.display_name ?? null,
+            avatar_url: currentProfile.avatar_url ?? null,
+            verified: currentProfile.verified ?? null,
+            verification_label: currentProfile.verification_label ?? null,
+          },
+        ]
+      : currentUserMetaProfile
+        ? [currentUserMetaProfile]
+        : [];
+    const optimisticPost: NrealPost = {
+      id: optimisticId,
+      user_id: userId,
+      content: trimmed || null,
+      created_at: new Date().toISOString(),
+      status: optimisticStatus,
+      media_url: mediaUrl,
+      media_type: mediaType,
+      is_deleted: false,
+      profiles: optimisticProfiles,
+      likesCount: 0,
+      likedByCurrentUser: false,
+      commentsCount: 0,
+    };
+    setPostsWithCache((prev) => [optimisticPost, ...prev], userId);
+
+    let response: Response;
+    let payload: { error?: string; message?: string; data?: unknown } | null = null;
+    try {
+      response = await fetch("/api/nreal/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: trimmed || null,
+          media_url: mediaUrl,
+          media_type: mediaType,
+        }),
+      });
+      payload = await response.json().catch(() => null);
+    } catch (err) {
+      setPosting(false);
+      setPostsWithCache((prev) => prev.filter((post) => post.id !== optimisticId), userId);
+      setError(err instanceof Error ? err.message : "Publikace selhala.");
+      return;
+    }
 
     setPosting(false);
 
     if (!response.ok) {
+      setPosts((prev) => prev.filter((post) => post.id !== optimisticId));
       if (payload?.error === "blocked_content") {
         setError("Uprav text – obsahuje zakázané výrazy.");
       } else if (payload?.error === "unauthorized") {
@@ -230,6 +327,7 @@ export function RealFeedClient() {
     const data = payload?.data as SupabasePost | undefined;
     if (data) {
       const typed = normalizePost(data as SupabasePost);
+      const resolvedStatus = data.status ?? optimisticStatus;
       const fallbackProfiles = typed.profiles.length
         ? typed.profiles
         : currentProfile
@@ -242,18 +340,23 @@ export function RealFeedClient() {
                 verification_label: currentProfile.verification_label ?? null,
               },
             ]
-          : [];
+          : currentUserMetaProfile
+            ? [currentUserMetaProfile]
+            : [];
       const withProfile: NrealPost = {
         ...typed,
+        status: resolvedStatus,
         is_deleted: false,
         profiles: fallbackProfiles,
         likesCount: 0,
         likedByCurrentUser: false,
         commentsCount: 0,
       };
-      setPosts((prev) => [withProfile, ...prev]);
+      setPostsWithCache((prev) => prev.map((post) => (post.id === optimisticId ? withProfile : post)), userId);
       setContent("");
       handleFileChange(null);
+    } else {
+      setPostsWithCache((prev) => prev.filter((post) => post.id !== optimisticId), userId);
     }
   };
 
@@ -277,13 +380,15 @@ export function RealFeedClient() {
       return next;
     });
 
-    setPosts((prev) =>
-      prev.map((post) => {
-        if (post.id !== postId) return post;
-        const nextLiked = !wasLiked;
-        const nextLikes = Math.max(0, previousLikes + (nextLiked ? 1 : -1));
-        return { ...post, likedByCurrentUser: nextLiked, likesCount: nextLikes };
-      }),
+    setPostsWithCache(
+      (prev) =>
+        prev.map((post) => {
+          if (post.id !== postId) return post;
+          const nextLiked = !wasLiked;
+          const nextLikes = Math.max(0, previousLikes + (nextLiked ? 1 : -1));
+          return { ...post, likedByCurrentUser: nextLiked, likesCount: nextLikes };
+        }),
+      currentUserId,
     );
 
     const { error } = wasLiked
@@ -291,11 +396,13 @@ export function RealFeedClient() {
       : await supabase.from("nreal_likes").insert({ post_id: postId, user_id: currentUserId });
 
     if (error) {
-      setPosts((prev) =>
-        prev.map((post) => {
-          if (post.id !== postId) return post;
-          return { ...post, likedByCurrentUser: wasLiked, likesCount: previousLikes };
-        }),
+      setPostsWithCache(
+        (prev) =>
+          prev.map((post) => {
+            if (post.id !== postId) return post;
+            return { ...post, likedByCurrentUser: wasLiked, likesCount: previousLikes };
+          }),
+        currentUserId,
       );
       setError(error.message);
     }
@@ -416,6 +523,7 @@ export function RealFeedClient() {
             postId={post.id}
             content={post.content ?? ""}
             createdAt={post.created_at}
+            status={post.status}
             mediaUrl={post.media_url ?? null}
             mediaType={(post.media_type as "image" | "video" | null) ?? null}
             likesCount={post.likesCount}
@@ -425,30 +533,30 @@ export function RealFeedClient() {
             likeDisabled={!currentUserId || likingPostIds.has(post.id)}
             currentUserProfile={currentProfile}
             onDeletePost={(id) =>
-              setPosts((prev) => {
+              setPostsWithCache((prev) => {
                 const found = prev.find((p) => p.id === id);
                 if (found) deletedPostsRef.current.set(id, found);
                 return prev.filter((p) => p.id !== id);
-              })
+              }, currentUserId)
             }
             onRestorePost={(id) => {
               const cached = deletedPostsRef.current.get(id);
               if (cached) {
-                setPosts((prev) => {
+                setPostsWithCache((prev) => {
                   if (prev.some((p) => p.id === id)) return prev;
                   return [cached, ...prev];
-                });
+                }, currentUserId);
                 deletedPostsRef.current.delete(id);
               }
             }}
           />
         ))}
-        {posts.length === 0 && (
-          <div className="rounded-3xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-600 shadow-sm">
-            Zatím žádné příspěvky.
-          </div>
-        )}
-      </div>
+      {posts.length === 0 && (
+        <div className="rounded-3xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-600 shadow-sm">
+          Zatím žádné příspěvky.
+        </div>
+      )}
     </div>
-  );
+  </div>
+);
 }

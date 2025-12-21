@@ -12,6 +12,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("banned_at")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    console.error("Failed to fetch profile in report", profileError);
+  }
+
+  if (profile?.banned_at) {
+    return NextResponse.json({ success: false, message: "User is banned" }, { status: 403 });
+  }
+
   const body = await request.json().catch(() => null);
   if (!body || typeof body.target_type !== "string" || typeof body.reason !== "string") {
     return NextResponse.json({ success: false, error: "Invalid payload" }, { status: 400 });

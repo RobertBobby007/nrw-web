@@ -81,7 +81,11 @@ export function ReportDialog({ open, targetId, targetType, onClose }: ReportDial
       });
       const json = await res.json();
       if (!res.ok || !json?.success) {
-        setError(json?.error || "Nahlášení se nepodařilo.");
+        if (json?.blocked) {
+          setError("Text nahlášení porušuje pravidla. Zkus to prosím přeformulovat.");
+        } else {
+          setError(json?.error || "Nahlášení se nepodařilo.");
+        }
         return;
       }
       setToastVisible(true);

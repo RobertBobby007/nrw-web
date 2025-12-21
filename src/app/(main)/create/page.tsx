@@ -50,6 +50,7 @@ export default function CreatePage() {
 
   const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setError(null);
 
     const content = `${title ? `${title}\n\n` : ""}${body}`.trim() || null;

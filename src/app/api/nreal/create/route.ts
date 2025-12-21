@@ -19,6 +19,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  let { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("banned_at, can_post_without_review")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileError?.code === "42703") {
+    const retry = await supabase.from("profiles").select("banned_at").eq("id", user.id).maybeSingle();
+    if (retry.error) {
+      console.error("Failed to fetch profile in create post", retry.error);
+    } else {
+      profile = retry.data;
+      profileError = null;
+    }
+  } else if (profileError) {
+    console.error("Failed to fetch profile in create post", profileError);
+  }
+
+  if (profile?.banned_at) {
+    return NextResponse.json({ message: "User is banned" }, { status: 403 });
+  }
+
   let payload: CreatePostPayload;
   try {
     payload = await request.json();
@@ -45,6 +67,10 @@ export async function POST(request: Request) {
     }
   }
 
+  const status = (profile as { can_post_without_review?: boolean | null } | null)?.can_post_without_review
+    ? "approved"
+    : "pending";
+
   const { data, error } = await supabase
     .from("nreal_posts")
     .insert({
@@ -52,8 +78,27 @@ export async function POST(request: Request) {
       user_id: user.id,
       media_url: mediaUrl,
       media_type: mediaType,
+      status,
     })
-    .select()
+    .select(
+      `
+        id,
+        user_id,
+        content,
+        created_at,
+        status,
+        media_url,
+        media_type,
+        is_deleted,
+        profiles (
+          username,
+          display_name,
+          avatar_url,
+          verified,
+          verification_label
+        )
+      `,
+    )
     .single();
 
   if (error) {

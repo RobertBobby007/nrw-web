@@ -6,11 +6,14 @@ export type NrealProfile = {
   verification_label?: string | null;
 };
 
+export type NrealPostStatus = "pending" | "approved" | "rejected";
+
 export type NrealPost = {
   id: string;
   user_id: string;
   content: string | null;
   created_at: string;
+  status: NrealPostStatus;
   media_url?: string | null;
   media_type?: "image" | "video" | null;
   is_deleted?: boolean | null;
