@@ -10,6 +10,7 @@ import type { Profile } from "@/lib/profiles";
 import { safeIdentityLabel } from "@/lib/content-filter";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ReportDialog } from "@/components/ui/ReportDialog";
+import type { NrealPostStatus } from "@/types/nreal";
 
 type CommentAuthor = {
   id: string;
@@ -34,6 +35,7 @@ type RealComment = {
 
 type CommentRow = {
   id: string;
+<<<<<<< HEAD
   content: string;
   created_at: string;
   user_id: string | null;
@@ -51,6 +53,20 @@ function errorMessage(err: unknown) {
   return null;
 }
 
+=======
+  post_id: string;
+  user_id: string | null;
+  content: string;
+  created_at: string;
+  reply_to_comment_id?: string | null;
+  reply_to_user_id?: string | null;
+  parent_id?: string | null;
+  is_deleted?: boolean | null;
+  author?: CommentAuthor | CommentAuthor[] | null;
+  reply_to_user?: CommentAuthor | CommentAuthor[] | null;
+};
+
+>>>>>>> origin/main
 type PostCardProps = {
   postId: string;
   postUserId: string;
@@ -65,6 +81,7 @@ type PostCardProps = {
   };
   content: string;
   createdAt?: string | null;
+  status?: NrealPostStatus | null;
   mediaUrl?: string | null;
   mediaType?: "image" | "video" | null;
   likesCount: number;
@@ -147,6 +164,11 @@ function formatTimeLabel(createdAt?: string | null) {
   });
 }
 
+function normalizeAuthor(value?: CommentAuthor | CommentAuthor[] | null): CommentAuthor | null {
+  if (!value) return null;
+  return Array.isArray(value) ? value[0] ?? null : value;
+}
+
 const COMMENTS_SORT: "asc" | "desc" = "asc";
 const CONTENT_PREVIEW_CHARS = 650;
 
@@ -155,6 +177,7 @@ export function PostCard({
   author,
   content,
   createdAt,
+  status,
   mediaUrl,
   mediaType,
   likesCount,
@@ -165,7 +188,6 @@ export function PostCard({
   postUserId,
   isDeleted,
   onDeletePost,
-  onRestorePost,
   currentUserProfile,
 }: PostCardProps) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
@@ -186,7 +208,9 @@ export function PostCard({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportTarget, setReportTarget] = useState<{ type: "post" | "comment"; id: string } | null>(null);
-  const [deleteToast, setDeleteToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [deleteToast, setDeleteToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(
+    null,
+  );
   const [isFollowingAuthor, setIsFollowingAuthor] = useState<boolean | null>(null);
   const [followBusy, setFollowBusy] = useState(false);
   const [isContentExpanded, setIsContentExpanded] = useState(false);
@@ -198,11 +222,15 @@ export function PostCard({
   const hasMedia = Boolean(mediaUrl);
   const likeActionDisabled = likeDisabled || !onToggleLike;
   const authorProfileHref = profileHrefFromUsername(author.username);
+<<<<<<< HEAD
   const shouldTruncateContent = contentTrimmed.length > CONTENT_PREVIEW_CHARS;
   const visibleContent =
     shouldTruncateContent && !isContentExpanded
       ? `${contentTrimmed.slice(0, CONTENT_PREVIEW_CHARS)}…`
       : contentTrimmed;
+=======
+  const showModerationNotice = status === "pending" || status === "rejected";
+>>>>>>> origin/main
 
   const currentUserAuthor = useMemo<CommentAuthor | null>(() => {
     if (currentUserProfile) {
@@ -250,6 +278,11 @@ export function PostCard({
   }, [deleteToast]);
 
   const mapCommentRow = useCallback((c: CommentRow, postIdParam: string): RealComment => {
+<<<<<<< HEAD
+=======
+    const author = normalizeAuthor(c.author);
+    const replyToUser = normalizeAuthor(c.reply_to_user);
+>>>>>>> origin/main
     return {
       id: c.id,
       content: c.content,
@@ -258,22 +291,22 @@ export function PostCard({
       post_id: postIdParam,
       parent_id: c.reply_to_comment_id ?? c.parent_id ?? null,
       reply_to_user_id: c.reply_to_user_id ?? null,
-      author: c.author
+      author: author
         ? {
-            id: c.author.id,
-            display_name: c.author.display_name,
-            username: c.author.username,
-            avatar_url: c.author.avatar_url,
-            verified: c.author.verified,
+            id: author.id,
+            display_name: author.display_name,
+            username: author.username,
+            avatar_url: author.avatar_url,
+            verified: author.verified,
           }
         : null,
-      reply_to_user: c.reply_to_user
+      reply_to_user: replyToUser
         ? {
-            id: c.reply_to_user.id,
-            display_name: c.reply_to_user.display_name,
-            username: c.reply_to_user.username,
-            avatar_url: c.reply_to_user.avatar_url,
-            verified: c.reply_to_user.verified,
+            id: replyToUser.id,
+            display_name: replyToUser.display_name,
+            username: replyToUser.username,
+            avatar_url: replyToUser.avatar_url,
+            verified: replyToUser.verified,
           }
         : null,
       is_deleted: c.is_deleted ?? null,
@@ -327,7 +360,11 @@ export function PostCard({
         return;
       }
 
+<<<<<<< HEAD
       const mapped: RealComment[] = ((data ?? []) as CommentRow[]).map((c) => mapCommentRow(c, postIdParam));
+=======
+      const mapped: RealComment[] = (data as CommentRow[]).map((c) => mapCommentRow(c, postIdParam));
+>>>>>>> origin/main
 
       setComments(mapped);
       setCommentCount(mapped.length);
@@ -712,10 +749,18 @@ export function PostCard({
         if (error) throw error;
         setDeleteToast({ type: "success", message: "Přestal(a) jsi sledovat." });
       }
+<<<<<<< HEAD
     } catch (e: unknown) {
       console.error("toggleFollowAuthor failed", e);
       setIsFollowingAuthor(prev);
       setDeleteToast({ type: "error", message: errorMessage(e) ?? "Akce se nepovedla." });
+=======
+    } catch (err: unknown) {
+      console.error("toggleFollowAuthor failed", err);
+      setIsFollowingAuthor(prev);
+      const message = err instanceof Error ? err.message : null;
+      setDeleteToast({ type: "error", message: message ?? "Akce se nepovedla." });
+>>>>>>> origin/main
     } finally {
       setFollowBusy(false);
     }
@@ -750,9 +795,16 @@ export function PostCard({
 
       onDeletePost?.(postId);
       setDeleteToast({ type: "success", message: "Příspěvek smazán." });
+<<<<<<< HEAD
     } catch (e: unknown) {
       console.error("Delete post failed:", JSON.stringify(e, null, 2));
       setDeleteToast({ type: "error", message: errorMessage(e) ?? "Smazání příspěvku selhalo." });
+=======
+    } catch (err: unknown) {
+      console.error("Delete post failed:", JSON.stringify(err, null, 2));
+      const message = err instanceof Error ? err.message : null;
+      setDeleteToast({ type: "error", message: message ?? "Smazání příspěvku selhalo." });
+>>>>>>> origin/main
     } finally {
       setIsDeletingPost(false);
     }
@@ -932,6 +984,28 @@ export function PostCard({
         </div>
       </header>
 
+      {showModerationNotice ? (
+        <div className="px-4 pt-3">
+          {status === "pending" ? (
+            <>
+              <div className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200">
+                <span aria-hidden="true">⏳</span>
+                <span>Čeká na schválení</span>
+              </div>
+              <div className="mt-1 text-xs text-neutral-500">Vidíš to jen ty, dokud to neschválíme.</div>
+            </>
+          ) : (
+            <>
+              <div className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700 ring-1 ring-red-200">
+                <span aria-hidden="true">❌</span>
+                <span>Zamítnuto</span>
+              </div>
+              <div className="mt-1 text-xs text-neutral-500">Vidíš to jen ty.</div>
+            </>
+          )}
+        </div>
+      ) : null}
+
       {/* obsah postu */}
       <div className="space-y-3 px-4 pb-4 pt-3">
         {hasContent ? (
@@ -1012,7 +1086,11 @@ export function PostCard({
       {deleteToast ? (
         <div
           className={`fixed bottom-4 right-4 z-50 rounded-full px-4 py-2 text-sm font-semibold text-white shadow-lg ${
-            deleteToast.type === "success" ? "bg-emerald-600" : "bg-red-600"
+            deleteToast.type === "success"
+              ? "bg-emerald-600"
+              : deleteToast.type === "info"
+                ? "bg-amber-600"
+                : "bg-red-600"
           }`}
         >
           {deleteToast.message}

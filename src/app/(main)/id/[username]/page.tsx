@@ -6,9 +6,14 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { BadgeCheck } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+<<<<<<< HEAD
 import { safeIdentityLabel } from "@/lib/content-filter";
 import { follow, getFollowCounts, getPostsCount, isFollowing, unfollow } from "@/lib/follows";
 import type { Profile } from "@/lib/profiles";
+=======
+import { follow, getFollowCounts, getPostsCount, isFollowing, peekFollowCounts, peekPostsCount, unfollow } from "@/lib/follows";
+import { fetchCurrentProfile, getCachedProfile, type Profile } from "@/lib/profiles";
+>>>>>>> origin/main
 import type { NrealPost, NrealProfile } from "@/types/nreal";
 import { PostCard } from "../../real/PostCard";
 
@@ -19,6 +24,9 @@ function toUsernameParam(value: string) {
 function formatCount(value: number) {
   return value.toLocaleString("cs-CZ");
 }
+
+const PROFILE_CACHE_TTL_MS = 60000;
+const profileCache = new Map<string, { profile: Profile; fetchedAt: number }>();
 
 export default function PublicProfilePage() {
   const params = useParams<{ username: string }>();
@@ -59,7 +67,24 @@ export default function PublicProfilePage() {
   useEffect(() => {
     let active = true;
     const load = async () => {
-      setLoading(true);
+      const cachedEntry = profileCache.get(usernameParam);
+      const currentCached = getCachedProfile();
+      const cachedProfile =
+        (cachedEntry && Date.now() - cachedEntry.fetchedAt < PROFILE_CACHE_TTL_MS ? cachedEntry.profile : null) ??
+        (currentCached && currentCached.username === usernameParam ? currentCached : null);
+      if (cachedProfile) {
+        setProfile(cachedProfile);
+        const cachedFollow = peekFollowCounts(cachedProfile.id);
+        const cachedPosts = peekPostsCount(cachedProfile.id);
+        if (cachedFollow || cachedPosts !== null) {
+          setCounts((prev) => ({
+            posts: cachedPosts ?? prev.posts,
+            followers: cachedFollow?.followers ?? prev.followers,
+            following: cachedFollow?.following ?? prev.following,
+          }));
+        }
+      }
+      setLoading(!cachedProfile);
       setError(null);
 
       const [{ data: authData }, { data: profileData, error: profileError }] = await Promise.all([
@@ -72,12 +97,8 @@ export default function PublicProfilePage() {
       const uid = authData?.user?.id ?? null;
       setCurrentUserId(uid);
       if (uid) {
-        const { data: viewerProfile } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", uid)
-          .maybeSingle<Profile>();
-        if (active) setCurrentUserProfile(viewerProfile ?? null);
+        const viewerProfile = await fetchCurrentProfile();
+        if (active) setCurrentUserProfile(viewerProfile);
       } else {
         setCurrentUserProfile(null);
       }
@@ -97,6 +118,27 @@ export default function PublicProfilePage() {
       }
 
       setProfile(profileData);
+      profileCache.set(usernameParam, { profile: profileData, fetchedAt: Date.now() });
+
+      const cachedFollow = peekFollowCounts(profileData.id);
+      const cachedPosts = peekPostsCount(profileData.id);
+      if (cachedFollow || cachedPosts !== null) {
+        setCounts((prev) => ({
+          posts: cachedPosts ?? prev.posts,
+          followers: cachedFollow?.followers ?? prev.followers,
+          following: cachedFollow?.following ?? prev.following,
+        }));
+      }
+
+      if (profileData.banned_at) {
+        setCounts({ posts: 0, followers: 0, following: 0 });
+        setFollowing(false);
+        setPosts([]);
+        setPostsError(null);
+        setPostsLoading(false);
+        setLoading(false);
+        return;
+      }
 
       const [posts, followCounts, isF] = await Promise.all([
         getPostsCount(profileData.id),
@@ -117,8 +159,10 @@ export default function PublicProfilePage() {
   }, [supabase, usernameParam]);
 
   const isOwnProfile = Boolean(currentUserId && profile?.id && currentUserId === profile.id);
+  const isBannedProfile = Boolean(profile?.banned_at);
 
-  type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentUser"> & {
+  type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentUser" | "status"> & {
+    status?: NrealPost["status"] | null;
     profiles?: NrealProfile | NrealProfile[] | null;
     likesCount?: number;
     likedByCurrentUser?: boolean;
@@ -130,6 +174,7 @@ export default function PublicProfilePage() {
     const profiles = Array.isArray(rawProfiles) ? rawProfiles : rawProfiles ? [rawProfiles] : [];
     return {
       ...post,
+      status: post.status ?? "approved",
       is_deleted: (post as SupabasePost).is_deleted ?? null,
       profiles,
       likesCount: post.likesCount ?? 0,
@@ -139,13 +184,18 @@ export default function PublicProfilePage() {
   };
 
   useEffect(() => {
-    if (!profile?.id) return;
+    if (!profile?.id || profile?.banned_at) {
+      setPosts([]);
+      setPostsError(null);
+      setPostsLoading(false);
+      return;
+    }
     let active = true;
     const loadPosts = async () => {
       setPostsLoading(true);
       setPostsError(null);
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("nreal_posts")
         .select(
           `
@@ -153,6 +203,7 @@ export default function PublicProfilePage() {
           user_id,
           content,
           created_at,
+          status,
           media_url,
           media_type,
           is_deleted,
@@ -166,9 +217,14 @@ export default function PublicProfilePage() {
         `,
         )
         .eq("user_id", profile.id)
-        .eq("is_deleted", false)
-        .order("created_at", { ascending: false })
-        .limit(30);
+        .eq("is_deleted", false);
+
+      const isOwnPostView = Boolean(currentUserId && profile?.id && currentUserId === profile.id);
+      if (!isOwnPostView) {
+        query = query.or("status.eq.approved,status.is.null");
+      }
+
+      const { data, error } = await query.order("created_at", { ascending: false }).limit(30);
 
       if (!active) return;
 
@@ -319,6 +375,20 @@ export default function PublicProfilePage() {
             <div className="text-sm text-red-700">{error}</div>
           ) : !profile ? (
             <div className="text-sm text-neutral-600">Profil nenalezen.</div>
+          ) : isBannedProfile ? (
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-4">
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-neutral-200 text-sm font-semibold text-neutral-600">
+                  NRW
+                </div>
+                <div className="space-y-1">
+                  <h1 className="text-xl font-semibold text-neutral-900">
+                    Tento účet byl smazán nebo deaktivován
+                  </h1>
+                  <p className="text-sm text-neutral-600">Profil není veřejně dostupný.</p>
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="flex min-w-0 items-start gap-4">
@@ -409,6 +479,7 @@ export default function PublicProfilePage() {
 
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-6">
+<<<<<<< HEAD
             <ProfileStories canAdd={isOwnProfile} />
             <ProfileTabs activeTab={activeTab} onChange={setActiveTab} />
 
@@ -496,13 +567,108 @@ export default function PublicProfilePage() {
                 </div>
               </>
             ) : (
+=======
+            {isBannedProfile ? (
+>>>>>>> origin/main
               <div className="rounded-3xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
-                {activeTab === "reels"
-                  ? "Klipy se zobrazí brzy."
-                  : activeTab === "tags"
-                    ? "Označené příspěvky se zobrazí brzy."
-                    : "Vlákna se zobrazí brzy."}
+                Tento účet byl smazán nebo deaktivován. Obsah profilu není dostupný.
               </div>
+            ) : (
+              <>
+                <ProfileStories canAdd={isOwnProfile} />
+                <ProfileTabs activeTab={activeTab} onChange={setActiveTab} />
+
+                {activeTab === "posts" ? (
+                  <>
+                    <PhotoGrid
+                      items={posts
+                        .filter((p) => Boolean(p.media_url))
+                        .slice(0, 9)
+                        .map((p) => ({
+                          id: p.id,
+                          url: p.media_url as string,
+                          type: (p.media_type as "image" | "video" | null) ?? "image",
+                        }))}
+                    />
+
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-sm font-semibold text-neutral-900">Krátké posty</h2>
+                        {posts.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllPosts((p) => !p)}
+                            className="rounded-full px-3 py-1 text-xs font-semibold text-neutral-600 transition hover:bg-neutral-100"
+                          >
+                            {showAllPosts ? "Skrýt" : "Zobrazit všechno"}
+                          </button>
+                        ) : null}
+                      </div>
+
+                      {postsError ? (
+                        <div className="rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">
+                          Nepodařilo se načíst příspěvky: {postsError}
+                        </div>
+                      ) : null}
+
+                      {postsLoading ? (
+                        <div className="rounded-3xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
+                          Načítám příspěvky…
+                        </div>
+                      ) : posts.length === 0 ? (
+                        <div className="rounded-3xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
+                          Zatím žádné příspěvky.
+                        </div>
+                      ) : (
+                        (showAllPosts ? posts : posts.slice(0, 3)).map((post) => {
+                          const author = post.profiles?.[0] ?? null;
+                          const authorName =
+                            author?.display_name || author?.username || profile?.display_name || "NRW uživatel";
+                          const authorUsername = author?.username ? `@${author.username}` : null;
+                          const verificationLabel = author?.verified
+                            ? author?.verification_label || "NRW Verified"
+                            : null;
+                          return (
+                            <PostCard
+                              key={post.id}
+                              postId={post.id}
+                              postUserId={post.user_id}
+                              isDeleted={post.is_deleted ?? null}
+                              author={{
+                                displayName: authorName,
+                                username: authorUsername,
+                                avatarUrl: author?.avatar_url ?? null,
+                                isCurrentUser: Boolean(currentUserId && post.user_id === currentUserId),
+                                verified: Boolean(author?.verified),
+                                verificationLabel,
+                              }}
+                              content={post.content ?? ""}
+                              createdAt={post.created_at}
+                              status={post.status}
+                              mediaUrl={post.media_url ?? null}
+                              mediaType={post.media_type ?? null}
+                              likesCount={post.likesCount ?? 0}
+                              likedByCurrentUser={post.likedByCurrentUser ?? false}
+                              commentsCount={post.commentsCount ?? 0}
+                              onToggleLike={toggleLike}
+                              likeDisabled={likingPostIds.has(post.id)}
+                              currentUserProfile={currentUserProfile}
+                            />
+                          );
+                        })
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-3xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
+                    {activeTab === "reels"
+                      ? "Klipy se zobrazí brzy."
+                      : activeTab === "tags"
+                        ? "Označené příspěvky se zobrazí brzy."
+                        : "Vlákna se zobrazí brzy."}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

@@ -1,36 +1,12 @@
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { ProfileBadge } from "@/components/layout/ProfileBadge";
 import { NexaBubble } from "@/components/layout/NexaBubble";
 import { OnlineHeartbeat } from "@/components/online-heartbeat";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-export async function createSupabaseServerClient() {
-  const cookieStore = await cookies();
-
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll();
-      },
-      setAll(cookiesToSet) {
-        // V server componentu to někdy Next blokne -> necrashnout
-        try {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set({ name, value, ...options });
-          });
-        } catch {
-          // ignore (server components)
-        }
-      },
-    },
-  });
-}
+import { BanWatcher } from "@/components/ban-watcher";
+import { FullscreenAnnouncement } from "@/components/announcements/FullscreenAnnouncement";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 export default async function MainLayout({
   children,
@@ -50,7 +26,7 @@ export default async function MainLayout({
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("banned")
+    .select("banned_at")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -58,13 +34,14 @@ export default async function MainLayout({
     console.error("Failed to fetch profile in layout", profileError);
   }
 
-  if (profile?.banned) {
-    redirect("/auth/login?banned=1");
+  if (profile?.banned_at) {
+    redirect("/auth/banned");
   }
 
   return (
     <div className="min-h-screen bg-white text-neutral-900 flex flex-col md:flex-row">
       <OnlineHeartbeat />
+      <BanWatcher />
       <Sidebar />
       <main className="relative flex-1 overflow-x-hidden border-t md:border-t-0 md:border-l border-neutral-200/70 pb-20 md:pb-0">
         <div className="hidden md:block">
@@ -75,6 +52,7 @@ export default async function MainLayout({
         </div>
         {children}
       </main>
+      <FullscreenAnnouncement userId={user.id} />
     </div>
   );
 }
