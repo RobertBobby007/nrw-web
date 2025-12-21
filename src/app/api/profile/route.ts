@@ -46,10 +46,14 @@ export async function GET() {
     return NextResponse.json({ error: "profile_fetch_failed", message: error.message }, { status: 400 });
   }
 
-  const normalized =
-    data && typeof data === "object"
-      ? { ...data, can_post_without_review: (data as { can_post_without_review?: boolean | null }).can_post_without_review ?? false }
-      : data;
+  const normalized = (() => {
+    if (!data || typeof data !== "object") {
+      return data;
+    }
+    const dataRecord = data as Record<string, unknown>;
+    const canPost = (dataRecord.can_post_without_review as boolean | null | undefined) ?? false;
+    return { ...dataRecord, can_post_without_review: canPost };
+  })();
 
   return NextResponse.json({ data: normalized }, { status: 200 });
 }
