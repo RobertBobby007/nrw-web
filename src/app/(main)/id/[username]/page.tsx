@@ -6,14 +6,17 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { BadgeCheck } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-<<<<<<< HEAD
 import { safeIdentityLabel } from "@/lib/content-filter";
-import { follow, getFollowCounts, getPostsCount, isFollowing, unfollow } from "@/lib/follows";
-import type { Profile } from "@/lib/profiles";
-=======
-import { follow, getFollowCounts, getPostsCount, isFollowing, peekFollowCounts, peekPostsCount, unfollow } from "@/lib/follows";
+import {
+  follow,
+  getFollowCounts,
+  getPostsCount,
+  isFollowing,
+  peekFollowCounts,
+  peekPostsCount,
+  unfollow,
+} from "@/lib/follows";
 import { fetchCurrentProfile, getCachedProfile, type Profile } from "@/lib/profiles";
->>>>>>> origin/main
 import type { NrealPost, NrealProfile } from "@/types/nreal";
 import { PostCard } from "../../real/PostCard";
 
@@ -479,97 +482,7 @@ export default function PublicProfilePage() {
 
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-6">
-<<<<<<< HEAD
-            <ProfileStories canAdd={isOwnProfile} />
-            <ProfileTabs activeTab={activeTab} onChange={setActiveTab} />
-
-            {activeTab === "posts" ? (
-              <>
-                <PhotoGrid
-                  items={posts
-                    .filter((p) => Boolean(p.media_url))
-                    .slice(0, 9)
-                    .map((p) => ({
-                      id: p.id,
-                      url: p.media_url as string,
-                      type: (p.media_type as "image" | "video" | null) ?? "image",
-                    }))}
-                />
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-sm font-semibold text-neutral-900">Krátké posty</h2>
-                    {posts.length > 0 ? (
-                      <button
-                        type="button"
-                        onClick={() => setShowAllPosts((p) => !p)}
-                        className="rounded-full px-3 py-1 text-xs font-semibold text-neutral-600 transition hover:bg-neutral-100"
-                      >
-                        {showAllPosts ? "Skrýt" : "Zobrazit všechno"}
-                      </button>
-                    ) : null}
-                  </div>
-
-                  {postsError ? (
-                    <div className="rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">
-                      Nepodařilo se načíst příspěvky: {postsError}
-                    </div>
-                  ) : null}
-
-                  {postsLoading ? (
-                    <div className="rounded-3xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
-                      Načítám příspěvky…
-                    </div>
-                  ) : posts.length === 0 ? (
-                    <div className="rounded-3xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
-                      Zatím žádné příspěvky.
-                    </div>
-                  ) : (
-                    (showAllPosts ? posts : posts.slice(0, 3)).map((post) => {
-                      const author = post.profiles?.[0] ?? null;
-                      const safeUsername = safeIdentityLabel(author?.username ?? null, "");
-                      const authorName = safeIdentityLabel(
-                        author?.display_name ?? null,
-                        safeUsername || safeIdentityLabel(profile?.display_name ?? null, "NRW uživatel"),
-                      );
-                      const authorUsername = safeUsername ? `@${safeUsername}` : null;
-                      const verificationLabel = author?.verified
-                        ? author?.verification_label || "NRW Verified"
-                        : null;
-                      return (
-                        <PostCard
-                          key={post.id}
-                          postId={post.id}
-                          postUserId={post.user_id}
-                          isDeleted={post.is_deleted ?? null}
-                          author={{
-                            displayName: authorName,
-                            username: authorUsername,
-                            avatarUrl: author?.avatar_url ?? null,
-                            isCurrentUser: Boolean(currentUserId && post.user_id === currentUserId),
-                            verified: Boolean(author?.verified),
-                            verificationLabel,
-                          }}
-                          content={post.content ?? ""}
-                          createdAt={post.created_at}
-                          mediaUrl={post.media_url ?? null}
-                          mediaType={post.media_type ?? null}
-                          likesCount={post.likesCount ?? 0}
-                          likedByCurrentUser={post.likedByCurrentUser ?? false}
-                          commentsCount={post.commentsCount ?? 0}
-                          onToggleLike={toggleLike}
-                          likeDisabled={likingPostIds.has(post.id)}
-                          currentUserProfile={currentUserProfile}
-                        />
-                      );
-                    })
-                  )}
-                </div>
-              </>
-            ) : (
-=======
             {isBannedProfile ? (
->>>>>>> origin/main
               <div className="rounded-3xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
                 Tento účet byl smazán nebo deaktivován. Obsah profilu není dostupný.
               </div>
@@ -622,9 +535,12 @@ export default function PublicProfilePage() {
                       ) : (
                         (showAllPosts ? posts : posts.slice(0, 3)).map((post) => {
                           const author = post.profiles?.[0] ?? null;
-                          const authorName =
-                            author?.display_name || author?.username || profile?.display_name || "NRW uživatel";
-                          const authorUsername = author?.username ? `@${author.username}` : null;
+                          const safeUsername = safeIdentityLabel(author?.username ?? null, "");
+                          const authorName = safeIdentityLabel(
+                            author?.display_name ?? null,
+                            safeUsername || safeIdentityLabel(profile?.display_name ?? null, "NRW uživatel"),
+                          );
+                          const authorUsername = safeUsername ? `@${safeUsername}` : null;
                           const verificationLabel = author?.verified
                             ? author?.verification_label || "NRW Verified"
                             : null;

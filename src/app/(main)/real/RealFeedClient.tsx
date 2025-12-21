@@ -17,13 +17,10 @@ type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentU
   commentsCount?: number;
 };
 
-<<<<<<< HEAD
 const MAX_POST_CHARS = 3000;
-=======
 const POST_CACHE_TTL_MS = 30000;
 const POST_CACHE_LIMIT = 60;
 let nrealPostsCache: { userId: string | null; posts: NrealPost[]; fetchedAt: number } | null = null;
->>>>>>> origin/main
 
 export function RealFeedClient() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);

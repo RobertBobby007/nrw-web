@@ -35,25 +35,6 @@ type RealComment = {
 
 type CommentRow = {
   id: string;
-<<<<<<< HEAD
-  content: string;
-  created_at: string;
-  user_id: string | null;
-  reply_to_comment_id?: string | null;
-  parent_id?: string | null;
-  reply_to_user_id?: string | null;
-  is_deleted?: boolean | null;
-  author?: CommentAuthor | null;
-  reply_to_user?: CommentAuthor | null;
-};
-
-function errorMessage(err: unknown) {
-  if (err instanceof Error) return err.message;
-  if (typeof err === "string") return err;
-  return null;
-}
-
-=======
   post_id: string;
   user_id: string | null;
   content: string;
@@ -66,7 +47,12 @@ function errorMessage(err: unknown) {
   reply_to_user?: CommentAuthor | CommentAuthor[] | null;
 };
 
->>>>>>> origin/main
+function errorMessage(err: unknown) {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  return null;
+}
+
 type PostCardProps = {
   postId: string;
   postUserId: string;
@@ -222,15 +208,12 @@ export function PostCard({
   const hasMedia = Boolean(mediaUrl);
   const likeActionDisabled = likeDisabled || !onToggleLike;
   const authorProfileHref = profileHrefFromUsername(author.username);
-<<<<<<< HEAD
   const shouldTruncateContent = contentTrimmed.length > CONTENT_PREVIEW_CHARS;
   const visibleContent =
     shouldTruncateContent && !isContentExpanded
       ? `${contentTrimmed.slice(0, CONTENT_PREVIEW_CHARS)}…`
       : contentTrimmed;
-=======
   const showModerationNotice = status === "pending" || status === "rejected";
->>>>>>> origin/main
 
   const currentUserAuthor = useMemo<CommentAuthor | null>(() => {
     if (currentUserProfile) {
@@ -278,11 +261,8 @@ export function PostCard({
   }, [deleteToast]);
 
   const mapCommentRow = useCallback((c: CommentRow, postIdParam: string): RealComment => {
-<<<<<<< HEAD
-=======
     const author = normalizeAuthor(c.author);
     const replyToUser = normalizeAuthor(c.reply_to_user);
->>>>>>> origin/main
     return {
       id: c.id,
       content: c.content,
@@ -360,11 +340,7 @@ export function PostCard({
         return;
       }
 
-<<<<<<< HEAD
-      const mapped: RealComment[] = ((data ?? []) as CommentRow[]).map((c) => mapCommentRow(c, postIdParam));
-=======
       const mapped: RealComment[] = (data as CommentRow[]).map((c) => mapCommentRow(c, postIdParam));
->>>>>>> origin/main
 
       setComments(mapped);
       setCommentCount(mapped.length);
@@ -749,18 +725,10 @@ export function PostCard({
         if (error) throw error;
         setDeleteToast({ type: "success", message: "Přestal(a) jsi sledovat." });
       }
-<<<<<<< HEAD
     } catch (e: unknown) {
       console.error("toggleFollowAuthor failed", e);
       setIsFollowingAuthor(prev);
       setDeleteToast({ type: "error", message: errorMessage(e) ?? "Akce se nepovedla." });
-=======
-    } catch (err: unknown) {
-      console.error("toggleFollowAuthor failed", err);
-      setIsFollowingAuthor(prev);
-      const message = err instanceof Error ? err.message : null;
-      setDeleteToast({ type: "error", message: message ?? "Akce se nepovedla." });
->>>>>>> origin/main
     } finally {
       setFollowBusy(false);
     }
@@ -795,16 +763,9 @@ export function PostCard({
 
       onDeletePost?.(postId);
       setDeleteToast({ type: "success", message: "Příspěvek smazán." });
-<<<<<<< HEAD
     } catch (e: unknown) {
       console.error("Delete post failed:", JSON.stringify(e, null, 2));
       setDeleteToast({ type: "error", message: errorMessage(e) ?? "Smazání příspěvku selhalo." });
-=======
-    } catch (err: unknown) {
-      console.error("Delete post failed:", JSON.stringify(err, null, 2));
-      const message = err instanceof Error ? err.message : null;
-      setDeleteToast({ type: "error", message: message ?? "Smazání příspěvku selhalo." });
->>>>>>> origin/main
     } finally {
       setIsDeletingPost(false);
     }
