@@ -56,8 +56,6 @@ export const BLOCKED_TERMS: BlockedTerm[] = [
   { pattern: /\bmake\s+money\s+fast\b/i, reason: "spam" },
   { pattern: /\bget\s+rich\s+quick\b/i, reason: "spam" },
   { pattern: /\bwork\s+from\s+home\b/i, reason: "spam" },
-  { pattern: /\bclick\s+here\b/i, reason: "spam" },
-  { pattern: /\bcasino\b/i, reason: "spam" },
   { pattern: /\bxxx\b/i, reason: "spam" },
   { pattern: /\bviagra\b/i, reason: "spam" },
   { pattern: /\bcrypto\s+giveaway\b/i, reason: "spam" },
