@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -15,6 +16,7 @@ export function ProfileBadge() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [initials, setInitials] = useState<string>("NRW");
   const [profileUsername, setProfileUsername] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const supabase = getSupabaseBrowserClient();
 
   const computeInitials = (value: string | null | undefined) => {
@@ -36,23 +38,27 @@ export function ProfileBadge() {
     if (!user?.id) {
       setInitials("NRW");
       setProfileUsername(null);
+      setAvatarUrl(null);
       return;
     }
     const { data: profile } = await supabase
       .from("profiles")
-      .select("display_name, username")
+      .select("display_name, username, avatar_url")
       .eq("id", user.id)
       .maybeSingle();
 
     const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
     const metaDisplayName = typeof meta.display_name === "string" ? meta.display_name : null;
     const metaUsername = typeof meta.username === "string" ? meta.username : null;
+    const metaAvatarUrl = typeof meta.avatar_url === "string" ? meta.avatar_url : null;
     const displayName = profile?.display_name ?? metaDisplayName ?? null;
     const username = profile?.username ?? metaUsername ?? null;
+    const avatar = profile?.avatar_url ?? metaAvatarUrl ?? null;
     const safeUsername = safeIdentityLabel(username, "");
     const name = safeIdentityLabel(displayName, safeUsername || "Uživatel");
     setInitials(computeInitials(name));
     setProfileUsername(safeUsername ? safeUsername.trim().replace(/^@+/, "") : null);
+    setAvatarUrl(avatar);
   }, [supabase]);
 
   useEffect(() => {
@@ -89,7 +95,18 @@ export function ProfileBadge() {
           onClick={() => setOpen((prev) => !prev)}
           className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-neutral-900 via-neutral-700 to-neutral-900 text-sm font-semibold text-white shadow-lg shadow-neutral-900/15 ring-2 ring-white transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-neutral-900/20 md:h-11 md:w-11"
         >
-          <span>{initials}</span>
+          {avatarUrl ? (
+            <Image
+              src={avatarUrl}
+              alt="Profilová fotka"
+              fill
+              sizes="44px"
+              className="rounded-full object-cover"
+              onError={() => setAvatarUrl(null)}
+            />
+          ) : (
+            <span>{initials}</span>
+          )}
           <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-white bg-emerald-400" />
         </button>
 
