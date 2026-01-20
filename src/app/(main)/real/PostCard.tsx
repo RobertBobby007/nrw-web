@@ -8,6 +8,7 @@ import type { Session } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import type { Profile } from "@/lib/profiles";
 import { safeIdentityLabel } from "@/lib/content-filter";
+import { requestAuth } from "@/lib/auth-required";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ReportDialog } from "@/components/ui/ReportDialog";
 import type { NrealPostStatus } from "@/types/nreal";
@@ -209,6 +210,7 @@ export function PostCard({
   const likeActionDisabled = likeDisabled || !onToggleLike;
   const authorProfileHref = profileHrefFromUsername(author.username);
   const shouldTruncateContent = contentTrimmed.length > CONTENT_PREVIEW_CHARS;
+  const canSubmitComment = Boolean(session?.user?.id);
   const visibleContent =
     shouldTruncateContent && !isContentExpanded
       ? `${contentTrimmed.slice(0, CONTENT_PREVIEW_CHARS)}…`
@@ -387,11 +389,13 @@ export function PostCard({
 
       if (userError) {
         console.error("Failed to get current user for comment", userError);
+        requestAuth();
         return;
       }
 
       if (!user) {
         console.error("No user – cannot add comment");
+        requestAuth();
         return;
       }
 
@@ -533,11 +537,13 @@ export function PostCard({
 
       if (userError) {
         console.error("Failed to get current user for reply", userError);
+        requestAuth();
         return;
       }
 
       if (!user) {
         console.error("No user – cannot add reply");
+        requestAuth();
         return;
       }
 
@@ -698,7 +704,7 @@ export function PostCard({
   const toggleFollowAuthor = async () => {
     if (followBusy) return;
     if (!currentUserId) {
-      window.location.href = "/auth/login";
+      requestAuth();
       return;
     }
     if (currentUserId === postUserId) return;
@@ -744,7 +750,7 @@ export function PostCard({
       if (authErr) throw authErr;
       const user = authData?.user;
       if (!user) {
-        window.location.href = "/auth/login";
+        requestAuth();
         throw new Error("Nejsi přihlášený.");
       }
 
@@ -773,7 +779,7 @@ export function PostCard({
 
   const handleDeleteComment = async (commentId: string) => {
     if (!currentUserId) {
-      window.location.href = "/auth/login";
+      requestAuth();
       return;
     }
     setComments((prev) =>
@@ -910,7 +916,7 @@ export function PostCard({
                     type="button"
                     onClick={() => {
                       if (!currentUserId) {
-                        window.location.href = "/auth/login";
+                        requestAuth();
                         return;
                       }
                       setDeleteDialogOpen(true);
@@ -927,7 +933,7 @@ export function PostCard({
                     type="button"
                     onClick={() => {
                       if (!currentUserId) {
-                        window.location.href = "/auth/login";
+                        requestAuth();
                         return;
                       }
                       setReportTarget({ type: "post", id: postId });
@@ -1099,7 +1105,7 @@ export function PostCard({
             />
             <button
               type="submit"
-              disabled={!newComment.trim() || isSending}
+              disabled={!canSubmitComment || !newComment.trim() || isSending}
               className="text-sm font-medium text-primary transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Poslat
@@ -1196,7 +1202,7 @@ export function PostCard({
                                   type="button"
                                   onClick={() => {
                                     if (!currentUserId) {
-                                      window.location.href = "/auth/login";
+                                      requestAuth();
                                       return;
                                     }
                                     setReportTarget({ type: "comment", id: comment.id });
@@ -1236,7 +1242,7 @@ export function PostCard({
                                 />
                                 <button
                                   type="submit"
-                                  disabled={!replyText.trim() || isSending}
+                                  disabled={!canSubmitComment || !replyText.trim() || isSending}
                                   className="text-sm font-medium text-primary transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
                                 >
                                   Odpovědět
@@ -1344,7 +1350,7 @@ export function PostCard({
                                       type="button"
                                       onClick={() => {
                                         if (!currentUserId) {
-                                          window.location.href = "/auth/login";
+                                          requestAuth();
                                           return;
                                         }
                                         setReportTarget({ type: "comment", id: reply.id });

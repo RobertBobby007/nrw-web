@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { requestAuth } from "@/lib/auth-required";
 import { PostCard } from "./real/PostCard";
 import { fetchCurrentProfile, type Profile } from "@/lib/profiles";
 import type { NrealPost, NrealProfile } from "@/types/nreal";
@@ -292,7 +293,7 @@ export default function HomePage() {
 
   const toggleLike = async (postId: string) => {
     if (!currentUserId) {
-      window.location.href = "/auth/login";
+      requestAuth();
       return;
     }
     if (likingPostIds.has(postId)) return;

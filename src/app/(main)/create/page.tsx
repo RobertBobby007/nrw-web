@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { containsBlockedContent } from "@/lib/content-filter";
+import { requestAuth } from "@/lib/auth-required";
 
 export default function CreatePage() {
   const router = useRouter();
@@ -74,6 +75,7 @@ export default function CreatePage() {
 
     if (userError || !user) {
       setError("Musíš být přihlášený, abys publikoval.");
+      requestAuth();
       setLoading(false);
       return;
     }

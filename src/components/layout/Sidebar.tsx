@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
   Home,
   MessageCircle,
@@ -18,6 +18,7 @@ import {
   Clapperboard,
 } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { requestAuth } from "@/lib/auth-required";
 
 const NAV_ITEMS = [
   { href: "/", label: "Home", icon: Home },
@@ -29,10 +30,13 @@ const NAV_ITEMS = [
   { href: "/id", label: "nID", icon: User },
 ];
 
+const PROTECTED_HREFS = new Set(["/create", "/notifications", "/settings", "/chat", "/id", "/love"]);
+
 export function Sidebar() {
   const pathname = usePathname();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
@@ -45,6 +49,7 @@ export function Sidebar() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+      setIsAuthenticated(Boolean(user?.id));
       if (!active) return;
       if (!user?.id) {
         setUnreadCount(0);
@@ -83,6 +88,13 @@ export function Sidebar() {
     };
   }, [supabase]);
 
+  const handleProtectedClick = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (!isAuthenticated && PROTECTED_HREFS.has(href)) {
+      event.preventDefault();
+      requestAuth();
+    }
+  };
+
   return (
     <>
       <div className="flex items-center justify-between border-b border-neutral-200/70 bg-white px-4 py-3 md:hidden">
@@ -92,6 +104,7 @@ export function Sidebar() {
         <div className="flex items-center gap-2">
           <Link
             href="/create"
+            onClick={(event) => handleProtectedClick(event, "/create")}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200/70 bg-white text-neutral-600 shadow-sm transition hover:text-neutral-900"
             aria-label="Přidat příspěvek nebo video"
           >
@@ -99,6 +112,7 @@ export function Sidebar() {
           </Link>
           <Link
             href="/chat"
+            onClick={(event) => handleProtectedClick(event, "/chat")}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200/70 bg-white text-neutral-600 shadow-sm transition hover:text-neutral-900"
             aria-label="nChat"
           >
@@ -106,6 +120,7 @@ export function Sidebar() {
           </Link>
           <Link
             href="/notifications"
+            onClick={(event) => handleProtectedClick(event, "/notifications")}
             className="relative flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200/70 bg-white text-neutral-600 shadow-sm transition hover:text-neutral-900"
             aria-label="Oznámení"
           >
@@ -118,6 +133,7 @@ export function Sidebar() {
           </Link>
           <Link
             href="/settings"
+            onClick={(event) => handleProtectedClick(event, "/settings")}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200/70 bg-white text-neutral-600 shadow-sm transition hover:text-neutral-900"
             aria-label="Nastavení"
           >
@@ -144,6 +160,7 @@ export function Sidebar() {
             </Link>
             <Link
               href="/notifications"
+              onClick={(event) => handleProtectedClick(event, "/notifications")}
               className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-200/70 bg-white text-neutral-600 shadow-sm transition hover:-translate-y-0.5 hover:text-neutral-900"
               aria-label="Oznámení"
             >
@@ -156,6 +173,7 @@ export function Sidebar() {
             </Link>
             <Link
               href="/create"
+              onClick={(event) => handleProtectedClick(event, "/create")}
               className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-900 text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-neutral-800"
               aria-label="Přidat příspěvek nebo video"
             >
@@ -171,6 +189,7 @@ export function Sidebar() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  onClick={(event) => handleProtectedClick(event, item.href)}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
                     active
                       ? "bg-neutral-100 text-neutral-900 font-semibold"
@@ -187,6 +206,7 @@ export function Sidebar() {
           <div className="hidden border-t border-neutral-200/70 pt-4 md:block">
             <Link
               href="/settings"
+              onClick={(event) => handleProtectedClick(event, "/settings")}
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-neutral-500 transition-colors hover:text-neutral-900"
             >
               <Settings className="h-5 w-5" />
@@ -216,6 +236,7 @@ export function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={(event) => handleProtectedClick(event, item.href)}
                 className={`flex flex-1 flex-col items-center gap-1 rounded-md px-2 text-[11px] font-medium transition-colors ${
                   active ? "text-neutral-900" : "text-neutral-500 hover:text-neutral-900"
                 }`}

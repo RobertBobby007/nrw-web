@@ -7,6 +7,7 @@ import Link from "next/link";
 import { BadgeCheck } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { safeIdentityLabel } from "@/lib/content-filter";
+import { requestAuth } from "@/lib/auth-required";
 import {
   follow,
   getFollowCounts,
@@ -293,7 +294,7 @@ export default function PublicProfilePage() {
 
   const toggleLike = async (postId: string) => {
     if (!currentUserId) {
-      router.push("/auth/login");
+      requestAuth();
       return;
     }
     if (likingPostIds.has(postId)) return;
@@ -469,7 +470,7 @@ export default function PublicProfilePage() {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => router.push("/auth/login")}
+                    onClick={() => requestAuth()}
                     className="rounded-full bg-neutral-900 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800"
                   >
                     Přihlásit se

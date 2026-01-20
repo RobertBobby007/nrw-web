@@ -18,6 +18,7 @@ import type { NrealPost, NrealProfile } from "@/types/nreal";
 import { PostCard } from "../real/PostCard";
 import { getFollowCounts, getPostsCount, peekFollowCounts, peekPostsCount } from "@/lib/follows";
 import { containsBlockedContent } from "@/lib/content-filter";
+import { requestAuth } from "@/lib/auth-required";
 
 const media = [
   { id: "m1", label: "Golden hour crew", gradient: "from-amber-300 via-orange-200 to-rose-200" },
@@ -259,7 +260,7 @@ export default function IdPage() {
   const toggleLike = async (postId: string) => {
     const currentUserId = profile?.id ?? null;
     if (!currentUserId) {
-      router.push("/auth/login");
+      requestAuth();
       return;
     }
     if (likingPostIds.has(postId)) return;
@@ -481,7 +482,13 @@ export default function IdPage() {
           </div>
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             <button
-              onClick={() => router.push("/settings")}
+              onClick={() => {
+                if (!user) {
+                  requestAuth();
+                  return;
+                }
+                router.push("/settings");
+              }}
               className="flex-1 rounded-full border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-100 sm:flex-none"
             >
               Upravit profil

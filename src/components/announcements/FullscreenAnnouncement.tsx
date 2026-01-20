@@ -4,7 +4,7 @@ import { AlertTriangle, Info, Link2, Siren } from "lucide-react";
 import { useFullscreenAnnouncement } from "@/hooks/useFullscreenAnnouncement";
 
 type FullscreenAnnouncementProps = {
-  userId: string;
+  userId?: string | null;
 };
 
 type SeverityKey = "info" | "warn" | "urgent";

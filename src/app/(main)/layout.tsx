@@ -6,6 +6,7 @@ import { NexaBubble } from "@/components/layout/NexaBubble";
 import { OnlineHeartbeat } from "@/components/online-heartbeat";
 import { BanWatcher } from "@/components/ban-watcher";
 import { FullscreenAnnouncement } from "@/components/announcements/FullscreenAnnouncement";
+import { AuthRequiredDialog } from "@/components/ui/AuthRequiredDialog";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 export default async function MainLayout({
@@ -20,22 +21,20 @@ export default async function MainLayout({
     error: userError,
   } = await supabase.auth.getUser();
 
-  if (userError || !user) {
-    redirect("/auth/login");
-  }
+  if (user && !userError) {
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("banned_at")
+      .eq("id", user.id)
+      .maybeSingle();
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("banned_at")
-    .eq("id", user.id)
-    .maybeSingle();
+    if (profileError) {
+      console.error("Failed to fetch profile in layout", profileError);
+    }
 
-  if (profileError) {
-    console.error("Failed to fetch profile in layout", profileError);
-  }
-
-  if (profile?.banned_at) {
-    redirect("/auth/banned");
+    if (profile?.banned_at) {
+      redirect("/auth/banned");
+    }
   }
 
   return (
@@ -52,7 +51,8 @@ export default async function MainLayout({
         </div>
         {children}
       </main>
-      <FullscreenAnnouncement userId={user.id} />
+      <AuthRequiredDialog />
+      <FullscreenAnnouncement userId={user?.id ?? null} />
     </div>
   );
 }

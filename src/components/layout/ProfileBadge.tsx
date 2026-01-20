@@ -8,6 +8,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { safeIdentityLabel } from "@/lib/content-filter";
 
 const HIDDEN_PREFIXES = ["/support", "/settings", "/id"];
+const AVATAR_CACHE_KEY = "nrw_profile_avatar_url";
 
 export function ProfileBadge() {
   const pathname = usePathname();
@@ -18,6 +19,18 @@ export function ProfileBadge() {
   const [profileUsername, setProfileUsername] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const supabase = getSupabaseBrowserClient();
+  const updateAvatarCache = (value: string | null) => {
+    if (typeof window === "undefined") return;
+    try {
+      if (value) {
+        window.localStorage.setItem(AVATAR_CACHE_KEY, value);
+      } else {
+        window.localStorage.removeItem(AVATAR_CACHE_KEY);
+      }
+    } catch {
+      // Ignore storage access errors (private mode, etc.).
+    }
+  };
 
   const computeInitials = (value: string | null | undefined) => {
     const name = (value || "").trim();
@@ -39,6 +52,7 @@ export function ProfileBadge() {
       setInitials("NRW");
       setProfileUsername(null);
       setAvatarUrl(null);
+      updateAvatarCache(null);
       return;
     }
     const { data: profile } = await supabase
@@ -59,11 +73,24 @@ export function ProfileBadge() {
     setInitials(computeInitials(name));
     setProfileUsername(safeUsername ? safeUsername.trim().replace(/^@+/, "") : null);
     setAvatarUrl(avatar);
+    updateAvatarCache(avatar);
   }, [supabase]);
 
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const cached = window.localStorage.getItem(AVATAR_CACHE_KEY);
+      if (cached && !avatarUrl) {
+        setAvatarUrl(cached);
+      }
+    } catch {
+      // Ignore storage access errors.
+    }
+  }, [avatarUrl]);
 
   useEffect(() => {
     let active = true;
