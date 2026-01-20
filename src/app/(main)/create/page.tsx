@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { MAX_POST_MEDIA_IMAGES, serializeMediaUrls } from "@/lib/media";
 import { containsBlockedContent } from "@/lib/content-filter";
 import { requestAuth } from "@/lib/auth-required";
 
@@ -16,37 +17,66 @@ export default function CreatePage() {
   const [contentType, setContentType] = useState("Text");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mediaFile, setMediaFile] = useState<File | null>(null);
-  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+  const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
   const [mediaType, setMediaType] = useState<"image" | "video" | null>(null);
 
-  const handleFileChange = (file?: File | null) => {
-    setError(null);
-    if (!file) {
-      setMediaFile(null);
-      setMediaPreview(null);
-      setMediaType(null);
-      return;
-    }
-    const type = file.type.startsWith("video") ? "video" : "image";
-    setMediaFile(file);
-    setMediaPreview(URL.createObjectURL(file));
-    setMediaType(type);
+  const resetMedia = () => {
+    mediaPreviews.forEach((url) => URL.revokeObjectURL(url));
+    setMediaFiles([]);
+    setMediaPreviews([]);
+    setMediaType(null);
   };
 
-  const uploadMedia = async (file: File, userId: string) => {
-    const ext = file.name.split(".").pop() || "bin";
-    const path = `${userId}/${Date.now()}.${ext}`;
-    const { error: uploadError } = await supabase.storage.from("nreal_media").upload(path, file, {
-      upsert: true,
-      cacheControl: "3600",
-    });
-    if (uploadError) {
-      setError("Nahrání souboru selhalo.");
-      return null;
+  const handleFileChange = (fileList?: FileList | null) => {
+    setError(null);
+    const files = fileList ? Array.from(fileList) : [];
+    if (files.length === 0) {
+      resetMedia();
+      return;
     }
-    const { data } = supabase.storage.from("nreal_media").getPublicUrl(path);
-    return data.publicUrl ?? null;
+    const containsVideo = files.some((file) => file.type.startsWith("video"));
+    const hasExistingMedia = mediaFiles.length > 0;
+    if (containsVideo) {
+      if (files.length > 1 || hasExistingMedia) {
+        setError("Video nelze kombinovat s fotkami a jde nahrát jen jedno.");
+        return;
+      }
+      const file = files.find((f) => f.type.startsWith("video")) ?? files[0];
+      resetMedia();
+      setMediaFiles([file]);
+      setMediaPreviews([URL.createObjectURL(file)]);
+      setMediaType("video");
+      return;
+    }
+
+    const nextFiles = [...(mediaType === "image" ? mediaFiles : []), ...files].slice(0, MAX_POST_MEDIA_IMAGES);
+    if (nextFiles.length < (mediaFiles.length + files.length)) {
+      setError(`Maximálně ${MAX_POST_MEDIA_IMAGES} fotky.`);
+    }
+    resetMedia();
+    setMediaFiles(nextFiles);
+    setMediaPreviews(nextFiles.map((file) => URL.createObjectURL(file)));
+    setMediaType("image");
+  };
+
+  const uploadMedia = async (files: File[], userId: string) => {
+    const uploaded: string[] = [];
+    for (const [index, file] of files.entries()) {
+      const ext = file.name.split(".").pop() || "bin";
+      const path = `${userId}/${Date.now()}-${index}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("nreal_media").upload(path, file, {
+        upsert: true,
+        cacheControl: "3600",
+      });
+      if (uploadError) {
+        setError("Nahrání souboru selhalo.");
+        return null;
+      }
+      const { data } = supabase.storage.from("nreal_media").getPublicUrl(path);
+      if (data.publicUrl) uploaded.push(data.publicUrl);
+    }
+    return uploaded;
   };
 
   const handlePublish = async (e: React.FormEvent) => {
@@ -55,7 +85,7 @@ export default function CreatePage() {
     setError(null);
 
     const content = `${title ? `${title}\n\n` : ""}${body}`.trim() || null;
-    if (!content && !mediaFile) {
+    if (!content && mediaFiles.length === 0) {
       setError("Přidej text nebo soubor.");
       return;
     }
@@ -80,13 +110,15 @@ export default function CreatePage() {
       return;
     }
 
-    let mediaUrl: string | null = null;
-    if (mediaFile) {
-      mediaUrl = await uploadMedia(mediaFile, user.id);
-      if (!mediaUrl) {
+    const mediaUrls = mediaFiles.length > 0 ? await uploadMedia(mediaFiles, user.id) : null;
+    if (mediaFiles.length > 0 && !mediaUrls) {
+      setLoading(false);
+      return;
+    }
+    const mediaUrl = mediaUrls ? serializeMediaUrls(mediaUrls) : null;
+    if (mediaFiles.length > 0 && !mediaUrl) {
         setLoading(false);
         return;
-      }
     }
 
     const response = await fetch("/api/nreal/create", {
@@ -199,14 +231,15 @@ export default function CreatePage() {
               type="file"
               accept="image/*,video/*"
               className="hidden"
-              onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
+              multiple
+              onChange={(e) => handleFileChange(e.target.files)}
             />
-            {mediaPreview ? "Změnit soubor" : "Nahrát fotku/video"}
+            {mediaPreviews.length > 0 ? "Přidat další" : "Nahrát fotku/video"}
           </label>
-          {mediaPreview && (
+          {mediaPreviews.length > 0 && (
             <button
               type="button"
-              onClick={() => handleFileChange(null)}
+              onClick={resetMedia}
               className="rounded-lg border border-neutral-200 px-3 py-1 text-sm font-medium text-neutral-600 transition hover:border-neutral-400"
             >
               Odebrat
@@ -214,13 +247,35 @@ export default function CreatePage() {
           )}
         </div>
 
-        {mediaPreview && (
+        {mediaPreviews.length > 0 && (
           <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-700">
             <div className="mb-2 font-semibold">Náhled</div>
             {mediaType === "video" ? (
-              <video src={mediaPreview} controls className="w-full max-h-[320px] rounded-lg" />
+              <video src={mediaPreviews[0]} controls className="w-full max-h-[320px] rounded-lg" />
             ) : (
-              <img src={mediaPreview} alt="Náhled" className="w-full max-h-[320px] rounded-lg object-cover" />
+              <div className="grid grid-cols-2 gap-2">
+                {mediaPreviews.map((preview, index) => (
+                  <div key={preview} className="relative overflow-hidden rounded-lg border border-neutral-200 bg-white">
+                    <img src={preview} alt={`Náhled ${index + 1}`} className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextFiles = mediaFiles.filter((_, i) => i !== index);
+                        const nextPreviews = mediaPreviews.filter((_, i) => i !== index);
+                        mediaPreviews.forEach((url, i) => {
+                          if (i === index) URL.revokeObjectURL(url);
+                        });
+                        setMediaFiles(nextFiles);
+                        setMediaPreviews(nextPreviews);
+                        if (nextFiles.length === 0) setMediaType(null);
+                      }}
+                      className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-1 text-[11px] font-semibold text-neutral-700 shadow-sm"
+                    >
+                      Odebrat
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}

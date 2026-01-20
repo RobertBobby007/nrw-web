@@ -12,6 +12,7 @@ import { requestAuth } from "@/lib/auth-required";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ReportDialog } from "@/components/ui/ReportDialog";
 import type { NrealPostStatus } from "@/types/nreal";
+import { parseMediaUrls } from "@/lib/media";
 
 type CommentAuthor = {
   id: string;
@@ -206,7 +207,13 @@ export function PostCard({
   const badgeLabel = author.verified ? author.verificationLabel || "Ověřený profil" : null;
   const contentTrimmed = content.trim();
   const hasContent = Boolean(contentTrimmed);
-  const hasMedia = Boolean(mediaUrl);
+  const isVideoMedia = mediaType === "video";
+  const mediaUrls = useMemo(() => (!isVideoMedia ? parseMediaUrls(mediaUrl) : []), [isVideoMedia, mediaUrl]);
+  const hasMedia = isVideoMedia ? Boolean(mediaUrl) : mediaUrls.length > 0;
+  const [activeMediaIndex, setActiveMediaIndex] = useState(0);
+  const activeImageUrl = mediaUrls[activeMediaIndex] ?? mediaUrls[0] ?? null;
+  const isMultiImage = mediaUrls.length > 1;
+  const mediaGridRows = mediaUrls.length > 2 ? "grid-rows-2" : "grid-rows-1";
   const likeActionDisabled = likeDisabled || !onToggleLike;
   const authorProfileHref = profileHrefFromUsername(author.username);
   const shouldTruncateContent = contentTrimmed.length > CONTENT_PREVIEW_CHARS;
@@ -255,6 +262,11 @@ export function PostCard({
       listener?.subscription.unsubscribe();
     };
   }, [supabase]);
+
+  useEffect(() => {
+    if (mediaUrls.length === 0) return;
+    if (activeMediaIndex >= mediaUrls.length) setActiveMediaIndex(0);
+  }, [activeMediaIndex, mediaUrls.length]);
 
   useEffect(() => {
     if (!deleteToast) return;
@@ -990,7 +1002,7 @@ export function PostCard({
           </div>
         ) : null}
         {hasMedia ? (
-          mediaType === "video" ? (
+          isVideoMedia ? (
             <div className="mx-auto aspect-square w-[280px] max-w-full overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50">
               <video
                 src={mediaUrl ?? undefined}
@@ -1001,12 +1013,34 @@ export function PostCard({
             </div>
           ) : (
             <div className="mx-auto aspect-square w-[280px] max-w-full overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-100">
-              <img
-                src={mediaUrl ?? undefined}
-                alt="Příloha"
-                className="h-full w-full cursor-zoom-in object-cover"
-                onClick={() => setShowFullMedia(true)}
-              />
+              {isMultiImage ? (
+                <div className={`grid h-full w-full grid-cols-2 ${mediaGridRows} gap-1`}>
+                  {mediaUrls.slice(0, 3).map((url, index) => (
+                    <button
+                      key={`${url}-${index}`}
+                      type="button"
+                      className="relative h-full w-full overflow-hidden"
+                      onClick={() => {
+                        setActiveMediaIndex(index);
+                        setShowFullMedia(true);
+                      }}
+                    >
+                      <img
+                        src={url}
+                        alt={`Příloha ${index + 1}`}
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <img
+                  src={mediaUrls[0] ?? undefined}
+                  alt="Příloha"
+                  className="h-full w-full cursor-zoom-in object-cover"
+                  onClick={() => setShowFullMedia(true)}
+                />
+              )}
             </div>
           )
         ) : null}
@@ -1022,10 +1056,32 @@ export function PostCard({
             <X className="h-6 w-6" />
           </button>
           <div className="max-h-[90vh] max-w-5xl overflow-hidden rounded-2xl bg-black">
-            {mediaType === "video" ? (
+            {isVideoMedia ? (
               <video src={mediaUrl ?? undefined} controls className="h-full max-h-[90vh] w-full object-contain" />
             ) : (
-              <img src={mediaUrl ?? undefined} alt="Příloha" className="h-full max-h-[90vh] w-full object-contain" />
+              <div className="relative">
+                <img src={activeImageUrl ?? undefined} alt="Příloha" className="h-full max-h-[90vh] w-full object-contain" />
+                {mediaUrls.length > 1 ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setActiveMediaIndex((prev) => (prev - 1 + mediaUrls.length) % mediaUrls.length)
+                      }
+                      className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+                    >
+                      ‹
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveMediaIndex((prev) => (prev + 1) % mediaUrls.length)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+                    >
+                      ›
+                    </button>
+                  </>
+                ) : null}
+              </div>
             )}
           </div>
         </div>

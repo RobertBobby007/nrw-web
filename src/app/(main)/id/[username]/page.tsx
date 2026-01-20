@@ -8,6 +8,7 @@ import { BadgeCheck } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { safeIdentityLabel } from "@/lib/content-filter";
 import { requestAuth } from "@/lib/auth-required";
+import { parseMediaUrls } from "@/lib/media";
 import {
   follow,
   getFollowCounts,
@@ -500,7 +501,7 @@ export default function PublicProfilePage() {
                         .slice(0, 9)
                         .map((p) => ({
                           id: p.id,
-                          url: p.media_url as string,
+                          url: parseMediaUrls(p.media_url as string)[0] ?? "",
                           type: (p.media_type as "image" | "video" | null) ?? "image",
                         }))}
                     />

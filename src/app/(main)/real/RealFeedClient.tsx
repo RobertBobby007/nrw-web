@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Image as ImageIcon, Video as VideoIcon } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { containsBlockedContent, safeIdentityLabel } from "@/lib/content-filter";
+import { MAX_POST_MEDIA_IMAGES, serializeMediaUrls } from "@/lib/media";
 import type { NrealPost, NrealProfile } from "@/types/nreal";
 import { PostCard } from "./PostCard";
 import { fetchCurrentProfile, type Profile } from "@/lib/profiles";
@@ -33,8 +34,8 @@ export function RealFeedClient() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [currentUserMetaProfile, setCurrentUserMetaProfile] = useState<NrealProfile | null>(null);
-  const [mediaFile, setMediaFile] = useState<File | null>(null);
-  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+  const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
   const [mediaType, setMediaType] = useState<"image" | "video" | null>(null);
   const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
   const deletedPostsRef = useRef<Map<string, NrealPost>>(new Map());
@@ -205,33 +206,62 @@ export function RealFeedClient() {
     };
   }, [supabase]);
 
-  const handleFileChange = (file?: File | null) => {
-    setError(null);
-    if (!file) {
-      setMediaFile(null);
-      setMediaPreview(null);
-      setMediaType(null);
-      return;
-    }
-    const type = file.type.startsWith("video") ? "video" : "image";
-    setMediaFile(file);
-    setMediaPreview(URL.createObjectURL(file));
-    setMediaType(type);
+  const resetMedia = () => {
+    mediaPreviews.forEach((url) => URL.revokeObjectURL(url));
+    setMediaFiles([]);
+    setMediaPreviews([]);
+    setMediaType(null);
   };
 
-  const uploadMedia = async (file: File, userId: string) => {
-    const ext = file.name.split(".").pop() || "bin";
-    const path = `${userId}/${Date.now()}.${ext}`;
-    const { error: uploadError } = await supabase.storage.from("nreal_media").upload(path, file, {
-      upsert: true,
-      cacheControl: "3600",
-    });
-    if (uploadError) {
-      setError("Nahrání souboru selhalo.");
-      return null;
+  const handleFileChange = (fileList?: FileList | null) => {
+    setError(null);
+    const files = fileList ? Array.from(fileList) : [];
+    if (files.length === 0) {
+      resetMedia();
+      return;
     }
-    const { data } = supabase.storage.from("nreal_media").getPublicUrl(path);
-    return data.publicUrl ?? null;
+    const containsVideo = files.some((file) => file.type.startsWith("video"));
+    const hasExistingMedia = mediaFiles.length > 0;
+    if (containsVideo) {
+      if (files.length > 1 || hasExistingMedia) {
+        setError("Video nelze kombinovat s fotkami a jde nahrát jen jedno.");
+        return;
+      }
+      const file = files.find((f) => f.type.startsWith("video")) ?? files[0];
+      resetMedia();
+      setMediaFiles([file]);
+      setMediaPreviews([URL.createObjectURL(file)]);
+      setMediaType("video");
+      return;
+    }
+
+    const nextFiles = [...(mediaType === "image" ? mediaFiles : []), ...files].slice(0, MAX_POST_MEDIA_IMAGES);
+    if (nextFiles.length < (mediaFiles.length + files.length)) {
+      setError(`Maximálně ${MAX_POST_MEDIA_IMAGES} fotky.`);
+    }
+    resetMedia();
+    setMediaFiles(nextFiles);
+    setMediaPreviews(nextFiles.map((file) => URL.createObjectURL(file)));
+    setMediaType("image");
+  };
+
+  const uploadMedia = async (files: File[], userId: string) => {
+    const uploaded: string[] = [];
+    for (const [index, file] of files.entries()) {
+      const ext = file.name.split(".").pop() || "bin";
+      const path = `${userId}/${Date.now()}-${index}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("nreal_media").upload(path, file, {
+        upsert: true,
+        cacheControl: "3600",
+      });
+      if (uploadError) {
+        setError("Nahrání souboru selhalo.");
+        return null;
+      }
+      const { data } = supabase.storage.from("nreal_media").getPublicUrl(path);
+      if (data.publicUrl) uploaded.push(data.publicUrl);
+    }
+    return uploaded;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -242,7 +272,7 @@ export function RealFeedClient() {
       return;
     }
     const trimmed = content.trim();
-    if (!trimmed && !mediaFile) return;
+    if (!trimmed && mediaFiles.length === 0) return;
     if (trimmed.length > MAX_POST_CHARS) {
       setError(`Text je moc dlouhý (max ${MAX_POST_CHARS} znaků).`);
       return;
@@ -257,13 +287,15 @@ export function RealFeedClient() {
 
     setPosting(true);
     setError(null);
-    let mediaUrl: string | null = null;
-    if (mediaFile) {
-      mediaUrl = await uploadMedia(mediaFile, userId);
-      if (!mediaUrl) {
-        setPosting(false);
-        return;
-      }
+    const mediaUrls = mediaFiles.length > 0 ? await uploadMedia(mediaFiles, userId) : null;
+    if (mediaFiles.length > 0 && !mediaUrls) {
+      setPosting(false);
+      return;
+    }
+    const mediaUrl = mediaUrls ? serializeMediaUrls(mediaUrls) : null;
+    if (mediaFiles.length > 0 && !mediaUrl) {
+      setPosting(false);
+      return;
     }
     const optimisticId = `temp-${Date.now()}`;
     const optimisticStatus = currentProfile?.can_post_without_review ? "approved" : "pending";
@@ -332,7 +364,7 @@ export function RealFeedClient() {
       return;
     }
     const data = payload?.data as SupabasePost | undefined;
-    if (data) {
+      if (data) {
       const typed = normalizePost(data as SupabasePost);
       const resolvedStatus = data.status ?? optimisticStatus;
       const fallbackProfiles = typed.profiles.length
@@ -361,7 +393,7 @@ export function RealFeedClient() {
       };
       setPostsWithCache((prev) => prev.map((post) => (post.id === optimisticId ? withProfile : post)), userId);
       setContent("");
-      handleFileChange(null);
+      resetMedia();
     } else {
       setPostsWithCache((prev) => prev.filter((post) => post.id !== optimisticId), userId);
     }
@@ -460,47 +492,68 @@ export function RealFeedClient() {
                 type="file"
                 accept="image/*,video/*"
                 className="hidden"
-                onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
+                multiple
+                onChange={(e) => handleFileChange(e.target.files)}
               />
               {mediaType === "video" ? (
                 <VideoIcon className="h-4 w-4 text-neutral-500" />
               ) : (
                 <ImageIcon className="h-4 w-4 text-neutral-500" />
               )}
-              {mediaPreview ? "Změnit soubor" : "Přidat foto/video"}
+              {mediaPreviews.length > 0 ? "Přidat další" : "Přidat foto/video"}
             </label>
-            {mediaPreview && (
+            {mediaPreviews.length > 0 && (
               <button
                 type="button"
-                onClick={() => handleFileChange(null)}
+                onClick={resetMedia}
                 className="rounded-lg border border-neutral-200 px-3 py-1 text-xs font-semibold text-neutral-600 transition hover:border-neutral-400"
               >
                 Odebrat
               </button>
             )}
-            {mediaPreview && (
+            {mediaPreviews.length > 0 && (
               <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
                 {mediaType === "video" ? "Video" : "Foto"}
               </span>
             )}
           </div>
-          {mediaPreview && (
+          {mediaPreviews.length > 0 && (
             <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
               <div className="mb-2 text-xs font-semibold text-neutral-700">Náhled</div>
               {mediaType === "video" ? (
                 <video
-                  src={mediaPreview}
+                  src={mediaPreviews[0]}
                   controls
                   className="w-full max-h-[480px] rounded-2xl border border-neutral-200 object-contain"
                 />
               ) : (
-                <div className="relative w-full overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-100" style={{ aspectRatio: "3 / 4" }}>
-                  <img
-                    src={mediaPreview}
-                    alt="Náhled"
-                    className="h-full w-full object-cover"
-                    onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
-                  />
+                <div className="grid grid-cols-2 gap-2">
+                  {mediaPreviews.map((preview, index) => (
+                    <div key={preview} className="relative overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-100">
+                      <img
+                        src={preview}
+                        alt={`Náhled ${index + 1}`}
+                        className="h-full w-full object-cover"
+                        onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextFiles = mediaFiles.filter((_, i) => i !== index);
+                          const nextPreviews = mediaPreviews.filter((_, i) => i !== index);
+                          mediaPreviews.forEach((url, i) => {
+                            if (i === index) URL.revokeObjectURL(url);
+                          });
+                          setMediaFiles(nextFiles);
+                          setMediaPreviews(nextPreviews);
+                          if (nextFiles.length === 0) setMediaType(null);
+                        }}
+                        className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-1 text-[11px] font-semibold text-neutral-700 shadow-sm"
+                      >
+                        Odebrat
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -511,7 +564,7 @@ export function RealFeedClient() {
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={posting || (!content.trim() && !mediaFile) || !userId}
+              disabled={posting || (!content.trim() && mediaFiles.length === 0) || !userId}
               className="rounded-full bg-black px-5 py-2 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-50"
             >
               {posting ? "Odesílám…" : "Přidat příspěvek"}
