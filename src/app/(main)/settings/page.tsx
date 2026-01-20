@@ -402,7 +402,6 @@ export default function SettingsPage() {
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              capture="environment"
               className="hidden"
               onChange={(e) => handleAvatarChange(e.target.files?.[0] ?? null)}
             />

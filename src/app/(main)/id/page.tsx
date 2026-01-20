@@ -422,7 +422,6 @@ export default function IdPage() {
                 <input
                   type="file"
                   accept="image/*"
-                  capture="environment"
                   className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                   onChange={(e) => handleAvatarChange(e.target.files?.[0] ?? null)}
                 />
