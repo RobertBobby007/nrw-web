@@ -224,6 +224,12 @@ export function PostCard({
       : contentTrimmed;
   const showModerationNotice = status === "pending" || status === "rejected";
 
+  useEffect(() => {
+    if (typeof commentsCount === "number") {
+      setCommentCount(commentsCount);
+    }
+  }, [commentsCount]);
+
   const currentUserAuthor = useMemo<CommentAuthor | null>(() => {
     if (currentUserProfile) {
       return {

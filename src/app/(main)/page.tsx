@@ -28,33 +28,6 @@ type WidgetId = "weather" | "date" | "suggested" | "heatmap";
 
 const WIDGETS_STORAGE_KEY = "nrw.widget.layout";
 
-const demoNewsItems: FeedItem[] = [
-  {
-    id: "news-1",
-    type: "nNews",
-    title: "NRW 0.2.0: první veřejná alpha",
-    excerpt: "Přinášíme nový sidebar, NRStream feed a základní přihlášení uživatelů...",
-    meta: "NRW Team · dnes",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
-  },
-  {
-    type: "nNews",
-    id: "news-2",
-    title: "Změny v ochraně soukromí",
-    excerpt: "Upravili jsme, jak pracujeme s daty a jak si můžeš nastavit viditelnost profilu...",
-    meta: "NRW Trust & Safety · před 2 dny",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
-  },
-  {
-    id: "news-3",
-    type: "nNews",
-    title: "NRW Community event #1",
-    excerpt: "První setkání uživatelů NRW – online i offline, společně o budoucnosti platformy...",
-    meta: "NRW Community · minulý týden",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
-  },
-];
-
 const tabs = ["Mix", "nReal", "nNews"] as const;
 type StreamTab = (typeof tabs)[number];
 
@@ -279,16 +252,9 @@ export default function HomePage() {
       return nrealPosts.map((post) => ({ kind: "nReal", createdAt: post.created_at, post }));
     }
     if (activeTab === "nNews") {
-      return demoNewsItems.map((item) => ({ kind: "nNews", createdAt: item.createdAt, item }));
+      return [];
     }
-    const mixed: StreamItem[] = [
-      ...nrealPosts.map((post) => ({ kind: "nReal" as const, createdAt: post.created_at, post })),
-      ...demoNewsItems.map((item) => ({ kind: "nNews" as const, createdAt: item.createdAt, item })),
-    ];
-    return mixed
-      .slice()
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 30);
+    return nrealPosts.map((post) => ({ kind: "nReal" as const, createdAt: post.created_at, post }));
   }, [activeTab, nrealPosts]);
 
   const toggleLike = async (postId: string) => {

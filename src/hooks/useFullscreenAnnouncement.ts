@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { subscribeToTable } from "@/lib/realtime";
 
 type AnnouncementRow = {
   id: string;
@@ -14,8 +15,6 @@ type AnnouncementRow = {
   link_label?: string | null;
   color?: string | null;
 };
-
-const REFRESH_INTERVAL_MS = 15000;
 
 export function useFullscreenAnnouncement(userId?: string | null) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
@@ -118,12 +117,22 @@ export function useFullscreenAnnouncement(userId?: string | null) {
     dismissedIdsRef.current = new Set();
     setAnnouncement(null);
     void fetchAnnouncement();
-    const interval = window.setInterval(() => {
+  }, [fetchAnnouncement, userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+
+    const unsubscribe = subscribeToTable("announcements", (payload) => {
+      if (payload?.eventType !== "INSERT" && payload?.eventType !== "UPDATE") {
+        return;
+      }
       void fetchAnnouncement();
-    }, REFRESH_INTERVAL_MS);
+    });
 
     return () => {
-      window.clearInterval(interval);
+      unsubscribe();
     };
   }, [fetchAnnouncement, userId]);
 

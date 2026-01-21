@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Megaphone } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { safeIdentityLabel } from "@/lib/content-filter";
+import { subscribeToTable } from "@/lib/realtime";
 
 type ActorProfile = {
   id: string;
@@ -71,14 +72,56 @@ export default function NotificationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<NotificationRow[]>([]);
   const [actorsById, setActorsById] = useState<Record<string, ActorProfile>>({});
+  const [userId, setUserId] = useState<string | null>(null);
+  const actorsByIdRef = useRef<Record<string, ActorProfile>>({});
 
   const unreadCount = items.filter((n) => !n.read_at).length;
+
+  useEffect(() => {
+    actorsByIdRef.current = actorsById;
+  }, [actorsById]);
+
+  const upsertActorProfile = useCallback(
+    async (actorId: string) => {
+      if (!actorId || actorsByIdRef.current[actorId]) return;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, username, display_name, avatar_url")
+        .eq("id", actorId)
+        .maybeSingle();
+      if (error || !data) return;
+      setActorsById((prev) => ({ ...prev, [data.id]: data as ActorProfile }));
+    },
+    [supabase],
+  );
+
+  const addNotification = useCallback((row: NotificationRow) => {
+    setItems((prev) => {
+      const existingIndex = prev.findIndex((item) => item.id === row.id);
+      if (existingIndex !== -1) {
+        const next = [...prev];
+        next[existingIndex] = { ...next[existingIndex], ...row };
+        return next;
+      }
+      return [row, ...prev].slice(0, 50);
+    });
+  }, []);
+
+  const updateNotification = useCallback((row: NotificationRow) => {
+    setItems((prev) => prev.map((item) => (item.id === row.id ? { ...item, ...row } : item)));
+  }, []);
 
   useEffect(() => {
     let active = true;
     const load = async () => {
       setLoading(true);
       setError(null);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!active) return;
+      setUserId(user?.id ?? null);
 
       const { data, error } = await supabase
         .from("notifications")
@@ -140,6 +183,34 @@ export default function NotificationsPage() {
       active = false;
     };
   }, [supabase]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const unsubscribe = subscribeToTable("notifications", (payload) => {
+      if (!payload) return;
+      if (payload.eventType === "INSERT") {
+        const row = payload.new as NotificationRow;
+        const targetUserId = (payload.new as { user_id?: string | null })?.user_id ?? null;
+        if (targetUserId && targetUserId !== userId) return;
+        addNotification(row);
+        if (row.actor_id) void upsertActorProfile(row.actor_id);
+        window.dispatchEvent(new CustomEvent("nrw:notifications_updated"));
+      } else if (payload.eventType === "UPDATE") {
+        const row = payload.new as NotificationRow;
+        const targetUserId =
+          (payload.new as { user_id?: string | null })?.user_id ??
+          (payload.old as { user_id?: string | null })?.user_id ??
+          null;
+        if (targetUserId && targetUserId !== userId) return;
+        updateNotification(row);
+        window.dispatchEvent(new CustomEvent("nrw:notifications_updated"));
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [addNotification, updateNotification, upsertActorProfile, userId]);
 
   const markAllAsRead = async () => {
     if (busy) return;

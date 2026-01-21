@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import {
   Home,
   MessageCircle,
@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { requestAuth } from "@/lib/auth-required";
+import { subscribeToTable } from "@/lib/realtime";
 
 const NAV_ITEMS = [
   { href: "/", label: "Home", icon: Home },
@@ -37,6 +38,7 @@ export function Sidebar() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const currentUserIdRef = useRef<string | null>(null);
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
@@ -45,12 +47,35 @@ export function Sidebar() {
 
   useEffect(() => {
     let active = true;
+    let realtimeUnsubscribe: (() => void) | null = null;
+
+    const ensureRealtime = (userId: string | null) => {
+      if (currentUserIdRef.current === userId) return;
+      currentUserIdRef.current = userId;
+      if (realtimeUnsubscribe) {
+        realtimeUnsubscribe();
+        realtimeUnsubscribe = null;
+      }
+      if (!userId) return;
+      realtimeUnsubscribe = subscribeToTable("notifications", (payload) => {
+        if (!payload) return;
+        if (payload.eventType !== "INSERT" && payload.eventType !== "UPDATE") return;
+        const targetUserId =
+          (payload.new as { user_id?: string | null })?.user_id ??
+          (payload.old as { user_id?: string | null })?.user_id ??
+          null;
+        if (targetUserId && targetUserId !== userId) return;
+        void loadUnread();
+      });
+    };
+
     const loadUnread = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       setIsAuthenticated(Boolean(user?.id));
       if (!active) return;
+      ensureRealtime(user?.id ?? null);
       if (!user?.id) {
         setUnreadCount(0);
         return;
@@ -85,6 +110,9 @@ export function Sidebar() {
       window.removeEventListener("focus", onUpdated);
       document.removeEventListener("visibilitychange", onUpdated);
       authSub.subscription.unsubscribe();
+      if (realtimeUnsubscribe) {
+        realtimeUnsubscribe();
+      }
     };
   }, [supabase]);
 

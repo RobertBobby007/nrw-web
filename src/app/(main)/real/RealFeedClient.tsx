@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Image as ImageIcon, Video as VideoIcon } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { subscribeToTable } from "@/lib/realtime";
 import { containsBlockedContent, safeIdentityLabel } from "@/lib/content-filter";
 import { MAX_POST_MEDIA_IMAGES, serializeMediaUrls } from "@/lib/media";
 import type { NrealPost, NrealProfile } from "@/types/nreal";
@@ -205,6 +206,133 @@ export function RealFeedClient() {
       active = false;
     };
   }, [supabase]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    let active = true;
+    const profileCache = new Map<string, NrealProfile>();
+
+    const fetchProfileForUser = async (id: string): Promise<NrealProfile | null> => {
+      if (id === currentUserId && currentProfile) {
+        return {
+          username: currentProfile.username ?? null,
+          display_name: currentProfile.display_name ?? null,
+          avatar_url: currentProfile.avatar_url ?? null,
+          verified: currentProfile.verified ?? null,
+          verification_label: currentProfile.verification_label ?? null,
+        };
+      }
+      if (id === currentUserId && currentUserMetaProfile) {
+        return currentUserMetaProfile;
+      }
+      const cached = profileCache.get(id);
+      if (cached) return cached;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("username, display_name, avatar_url, verified, verification_label")
+        .eq("id", id)
+        .maybeSingle();
+      if (error || !data) return null;
+      const profile: NrealProfile = {
+        username: data.username ?? null,
+        display_name: data.display_name ?? null,
+        avatar_url: data.avatar_url ?? null,
+        verified: data.verified ?? null,
+        verification_label: data.verification_label ?? null,
+      };
+      profileCache.set(id, profile);
+      return profile;
+    };
+
+    const shouldIncludePost = (row: SupabasePost) => {
+      if (row.is_deleted) return false;
+      const status = row.status ?? "approved";
+      if (status === "approved") return true;
+      return row.user_id === currentUserId;
+    };
+
+    const handlePostInsert = async (row: SupabasePost) => {
+      if (!shouldIncludePost(row)) return;
+      const profile = await fetchProfileForUser(row.user_id);
+      if (!active) return;
+      const normalized = normalizePost({
+        ...row,
+        profiles: profile ? [profile] : [],
+      });
+      const newPost: NrealPost = {
+        ...normalized,
+        likesCount: 0,
+        likedByCurrentUser: false,
+        commentsCount: 0,
+      };
+      setPostsWithCache((prev) => {
+        if (prev.some((post) => post.id === newPost.id)) {
+          return prev;
+        }
+        const tempIndex = prev.findIndex(
+          (post) =>
+            post.id.startsWith("temp-") &&
+            post.user_id === newPost.user_id &&
+            (post.content ?? "") === (newPost.content ?? "") &&
+            (post.media_url ?? null) === (newPost.media_url ?? null),
+        );
+        if (tempIndex !== -1) {
+          const next = [...prev];
+          next[tempIndex] = newPost;
+          return next;
+        }
+        return [newPost, ...prev];
+      }, currentUserId);
+    };
+
+    const unsubscribePosts = subscribeToTable("nreal_posts", (payload) => {
+      if (!payload || payload.eventType !== "INSERT") return;
+      const row = payload.new as SupabasePost;
+      if (!row) return;
+      void handlePostInsert(row);
+    });
+
+    const unsubscribeLikes = subscribeToTable("nreal_likes", (payload) => {
+      if (!payload || payload.eventType !== "INSERT") return;
+      const row = payload.new as { post_id?: string | null; user_id?: string | null };
+      const postId = row?.post_id ?? null;
+      if (!postId) return;
+      setPostsWithCache(
+        (prev) =>
+          prev.map((post) => {
+            if (post.id !== postId) return post;
+            if (row.user_id === currentUserId) {
+              if (post.likedByCurrentUser) return post;
+              return { ...post, likesCount: post.likesCount + 1, likedByCurrentUser: true };
+            }
+            return { ...post, likesCount: post.likesCount + 1 };
+          }),
+        currentUserId,
+      );
+    });
+
+    const unsubscribeComments = subscribeToTable("nreal_comments", (payload) => {
+      if (!payload || payload.eventType !== "INSERT") return;
+      const row = payload.new as { post_id?: string | null; is_deleted?: boolean | null };
+      const postId = row?.post_id ?? null;
+      if (!postId || row?.is_deleted) return;
+      setPostsWithCache(
+        (prev) =>
+          prev.map((post) => {
+            if (post.id !== postId) return post;
+            return { ...post, commentsCount: (post.commentsCount ?? 0) + 1 };
+          }),
+        currentUserId,
+      );
+    });
+
+    return () => {
+      active = false;
+      unsubscribePosts();
+      unsubscribeLikes();
+      unsubscribeComments();
+    };
+  }, [currentProfile, currentUserId, currentUserMetaProfile, supabase]);
 
   const resetMedia = () => {
     mediaPreviews.forEach((url) => URL.revokeObjectURL(url));
