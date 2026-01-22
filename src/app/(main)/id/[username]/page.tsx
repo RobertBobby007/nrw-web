@@ -9,6 +9,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { safeIdentityLabel } from "@/lib/content-filter";
 import { requestAuth } from "@/lib/auth-required";
 import { parseMediaUrls } from "@/lib/media";
+import { getOrCreateDirectChat } from "@/lib/chat";
 import {
   follow,
   getFollowCounts,
@@ -61,6 +62,7 @@ export default function PublicProfilePage() {
 
   const [following, setFollowing] = useState<boolean>(false);
   const [followBusy, setFollowBusy] = useState(false);
+  const [chatBusy, setChatBusy] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   useEffect(() => {
@@ -360,6 +362,25 @@ export default function PublicProfilePage() {
     }
   };
 
+  const handleStartChat = async () => {
+    if (!profile?.id) return;
+    if (!currentUserId) {
+      requestAuth({ message: "Prihlaste se pro nChat." });
+      return;
+    }
+
+    setChatBusy(true);
+    try {
+      const chatId = await getOrCreateDirectChat(profile.id);
+      router.push(`/chat?chatId=${chatId}`);
+    } catch (error) {
+      console.error("Start chat failed", error);
+      setToast({ type: "error", message: "Nepodarilo se otevrit chat." });
+    } finally {
+      setChatBusy(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-neutral-50 to-white pb-24">
       <section className="mx-auto w-full max-w-4xl px-4 py-8 space-y-6 sm:space-y-8 lg:max-w-6xl lg:py-12">
@@ -456,18 +477,28 @@ export default function PublicProfilePage() {
                     Upravit profil
                   </Link>
                 ) : currentUserId ? (
-                  <button
-                    type="button"
-                    disabled={followBusy}
-                    onClick={handleToggleFollow}
-                    className={`rounded-full px-5 py-2 text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-70 ${
-                      following
-                        ? "border border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-50"
-                        : "bg-neutral-900 text-white hover:bg-neutral-800"
-                    }`}
-                  >
-                    {following ? "Sleduji" : "Sledovat"}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      disabled={chatBusy}
+                      onClick={handleStartChat}
+                      className="rounded-full border border-neutral-200 bg-white px-5 py-2 text-sm font-semibold text-neutral-900 shadow-sm transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      Napsat zpravu
+                    </button>
+                    <button
+                      type="button"
+                      disabled={followBusy}
+                      onClick={handleToggleFollow}
+                      className={`rounded-full px-5 py-2 text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-70 ${
+                        following
+                          ? "border border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-50"
+                          : "bg-neutral-900 text-white hover:bg-neutral-800"
+                      }`}
+                    >
+                      {following ? "Sleduji" : "Sledovat"}
+                    </button>
+                  </>
                 ) : (
                   <button
                     type="button"

@@ -1,123 +1,293 @@
 "use client";
 
-import {
-  MessageCircle,
-  MoreHorizontal,
-  Phone,
-  Search,
-  Send,
-  Smile,
-  Video,
-  Image as ImageIcon,
-  Camera,
-  Mic,
-} from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { MessageCircle, Plus, Search, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { requestAuth } from "@/lib/auth-required";
+import { getOrCreateDirectChat } from "@/lib/chat";
+import { ChatThread } from "@/components/ChatThread";
 
-type Participant = {
+type ProfileLite = {
   id: string;
-  name: string;
-  handle: string;
-  unread?: number;
-  status: "online" | "offline" | "away";
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
 };
 
-type Message = {
+type ChatSummary = {
   id: string;
-  from: string;
-  text: string;
-  time: string;
-  isMe?: boolean;
+  other: ProfileLite | null;
 };
 
-type Thread = {
-  id: string;
-  category: "main" | "other" | "rooms" | "requests";
-  participants: Participant[];
-  preview: string;
-  messages: Message[];
-};
+function profileLabel(profile: ProfileLite | null) {
+  const name = profile?.display_name?.trim() || profile?.username?.trim() || "nChat";
+  const username = profile?.username?.trim();
+  return { name, username: username ? `@${username}` : null };
+}
 
-const threads: Thread[] = [
-  {
-    id: "t1",
-    category: "main",
-    participants: [
-      { id: "p1", name: "Natka", handle: "@nat", unread: 2, status: "online" },
-      { id: "me", name: "Ty", handle: "@you", status: "online" },
-    ],
-    preview: "Poď dnes večer na NRW meetup?",
-    messages: [
-      { id: "m1", from: "Natka", text: "Hele, jdeš dnes na NRW meetup?", time: "18:20" },
-      { id: "m2", from: "Me", text: "Jo, v 19:30 jsem tam.", time: "18:22", isMe: true },
-      { id: "m3", from: "Natka", text: "Beru foťák, uděláme momenty.", time: "18:23" },
-    ],
-  },
-  {
-    id: "t2",
-    category: "other",
-    participants: [
-      { id: "p2", name: "Lukáš", handle: "@lukas", status: "away" },
-      { id: "me", name: "Ty", handle: "@you", status: "online" },
-    ],
-    preview: "Dropni mi link na nLove beta",
-    messages: [
-      { id: "m4", from: "Lukáš", text: "Dropni mi link na nLove beta?", time: "17:05" },
-      { id: "m5", from: "Me", text: "Mrkni do kanálu #beta v appce.", time: "17:08", isMe: true },
-    ],
-  },
-  {
-    id: "t3",
-    category: "rooms",
-    participants: [
-      { id: "p3", name: "NRW crew", handle: "@nrw", status: "online" },
-      { id: "me", name: "Ty", handle: "@you", status: "online" },
-    ],
-    preview: "Zítra nahráváme nový díl nReal Talks",
-    messages: [
-      { id: "m6", from: "NRW crew", text: "Zítra nahráváme nový díl nReal Talks.", time: "09:10" },
-      { id: "m7", from: "Me", text: "Chcete shoutouty z komunity?", time: "09:14", isMe: true },
-    ],
-  },
-  {
-    id: "t4",
-    category: "requests",
-    participants: [
-      { id: "p4", name: "Ema", handle: "@ema", unread: 1, status: "offline" },
-      { id: "me", name: "Ty", handle: "@you", status: "online" },
-    ],
-    preview: "Chce si tě přidat do NRW crew chat",
-    messages: [
-      { id: "m8", from: "Ema", text: "Ahoj, můžu do NRW crew vlákna?", time: "08:12" },
-      { id: "m9", from: "Me", text: "Jasně, přidám tě po schválení.", time: "08:15", isMe: true },
-    ],
-  },
-];
+function profileInitial(profile: ProfileLite | null) {
+  const label = profile?.display_name?.trim() || profile?.username?.trim() || "N";
+  return label.charAt(0).toUpperCase();
+}
 
 export default function ChatPage() {
-  const [activeThreadId, setActiveThreadId] = useState<string>(threads[0]?.id ?? "");
-  const [category, setCategory] = useState<"main" | "other" | "rooms" | "requests">("main");
-  const filteredThreads = useMemo(() => threads.filter((t) => t.category === category), [category]);
-  const activeThread = useMemo(
-    () => filteredThreads.find((t) => t.id === activeThreadId) ?? filteredThreads[0],
-    [activeThreadId, filteredThreads]
-  );
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const searchParams = useSearchParams();
+  const requestedChatId = searchParams.get("chatId");
+  const appliedChatIdRef = useRef(false);
+
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [chats, setChats] = useState<ChatSummary[]>([]);
+  const [activeChatId, setActiveChatId] = useState<string>("");
+  const [loadingChats, setLoadingChats] = useState(true);
+  const [chatError, setChatError] = useState<string | null>(null);
+
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<ProfileLite[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [creatingUserId, setCreatingUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    const firstInCategory = filteredThreads[0]?.id;
-    if (!firstInCategory) {
-      setActiveThreadId("");
+    let active = true;
+    supabase.auth.getUser().then(({ data, error }) => {
+      if (!active) return;
+      if (error) {
+        console.error("Failed to fetch user", error);
+        setCurrentUserId(null);
+        return;
+      }
+      setCurrentUserId(data.user?.id ?? null);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!currentUserId) {
+      setChats([]);
+      setLoadingChats(false);
       return;
     }
-    if (!filteredThreads.some((thread) => thread.id === activeThreadId)) {
-      setActiveThreadId(firstInCategory);
-    }
-  }, [category, filteredThreads, activeThreadId]);
 
-  const handleSelectCategory = (cat: "main" | "other" | "rooms" | "requests") => {
-    setCategory(cat);
-    const first = threads.find((t) => t.category === cat);
-    setActiveThreadId(first?.id ?? "");
+    let active = true;
+    setLoadingChats(true);
+    setChatError(null);
+
+    const loadChats = async () => {
+      const { data: memberRows, error: memberError } = await supabase
+        .from("chat_members")
+        .select("chat_id")
+        .eq("user_id", currentUserId);
+
+      if (!active) return;
+
+      if (memberError) {
+        console.error("Failed to fetch chat members", memberError);
+        setChatError("Nepodarilo se nacist chaty.");
+        setLoadingChats(false);
+        return;
+      }
+
+      const chatIds = (memberRows ?? []).map((row) => row.chat_id).filter(Boolean);
+      if (chatIds.length === 0) {
+        setChats([]);
+        setLoadingChats(false);
+        return;
+      }
+
+      const { data: chatRows, error: chatsError } = await supabase
+        .from("chats")
+        .select("id, type, created_at")
+        .eq("type", "direct")
+        .in("id", chatIds)
+        .order("created_at", { ascending: false });
+
+      if (!active) return;
+
+      if (chatsError) {
+        console.error("Failed to fetch chats", chatsError);
+        setChatError("Nepodarilo se nacist chaty.");
+        setLoadingChats(false);
+        return;
+      }
+
+      const directChatIds = (chatRows ?? []).map((chat) => chat.id).filter(Boolean);
+      if (directChatIds.length === 0) {
+        setChats([]);
+        setLoadingChats(false);
+        return;
+      }
+
+      const { data: memberProfiles, error: profilesError } = await supabase
+        .from("chat_members")
+        .select("chat_id, user_id")
+        .in("chat_id", directChatIds)
+        .neq("user_id", currentUserId);
+
+      if (!active) return;
+
+      if (profilesError) {
+        console.error("Failed to fetch chat profiles", profilesError);
+        setChatError("Nepodarilo se nacist chaty.");
+        setLoadingChats(false);
+        return;
+      }
+
+      const otherIds = Array.from(
+        new Set((memberProfiles ?? []).map((row) => row.user_id).filter(Boolean)),
+      ) as string[];
+      const profilesById = new Map<string, ProfileLite>();
+      if (otherIds.length > 0) {
+        const { data: profileRows, error: profileError } = await supabase
+          .from("profiles")
+          .select("id, username, display_name, avatar_url")
+          .in("id", otherIds);
+
+        if (!active) return;
+
+        if (profileError) {
+          console.error("Failed to fetch profiles", profileError);
+          setChatError("Nepodarilo se nacist chaty.");
+          setLoadingChats(false);
+          return;
+        }
+
+        (profileRows ?? []).forEach((profile) => {
+          if (profile?.id) {
+            profilesById.set(profile.id, profile as ProfileLite);
+          }
+        });
+      }
+
+      const othersByChatId = new Map<string, ProfileLite>();
+      (memberProfiles ?? []).forEach((row) => {
+        if (!row.chat_id || !row.user_id) return;
+        const profile = profilesById.get(row.user_id) ?? null;
+        if (profile) {
+          othersByChatId.set(row.chat_id, profile);
+        }
+      });
+
+      const nextChats = (chatRows ?? []).map((chat) => ({
+        id: chat.id,
+        other: othersByChatId.get(chat.id) ?? null,
+      }));
+
+      setChats(nextChats);
+      setLoadingChats(false);
+    };
+
+    void loadChats();
+
+    return () => {
+      active = false;
+    };
+  }, [currentUserId, supabase]);
+
+  useEffect(() => {
+    if (appliedChatIdRef.current) return;
+    if (!requestedChatId) return;
+    setActiveChatId(requestedChatId);
+    appliedChatIdRef.current = true;
+  }, [requestedChatId]);
+
+  useEffect(() => {
+    if (!chats.length) {
+      if (activeChatId) {
+        setActiveChatId("");
+      }
+      return;
+    }
+    if (activeChatId) return;
+    setActiveChatId(chats[0]?.id ?? "");
+  }, [activeChatId, chats]);
+
+  useEffect(() => {
+    if (!newChatOpen) {
+      setSearchQuery("");
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    if (!currentUserId) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    const term = searchQuery.trim();
+    if (!term) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    let active = true;
+    setSearchLoading(true);
+    const handle = setTimeout(async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, username, display_name, avatar_url")
+        .or(`username.ilike.%${term}%,display_name.ilike.%${term}%`)
+        .limit(10);
+
+      if (!active) return;
+
+      if (error) {
+        console.error("Search profiles failed", error);
+        setSearchResults([]);
+        setSearchLoading(false);
+        return;
+      }
+
+      const rows = (data ?? []).filter((row) => row.id !== currentUserId) as ProfileLite[];
+      setSearchResults(rows);
+      setSearchLoading(false);
+    }, 300);
+
+    return () => {
+      active = false;
+      clearTimeout(handle);
+    };
+  }, [currentUserId, newChatOpen, searchQuery, supabase]);
+
+  const activeChat = chats.find((chat) => chat.id === activeChatId) ?? null;
+
+  const handleOpenNewChat = () => {
+    if (!currentUserId) {
+      requestAuth({ message: "Prihlaste se pro nChat." });
+      return;
+    }
+    setNewChatOpen(true);
+  };
+
+  const handleSelectUser = async (profile: ProfileLite) => {
+    if (!currentUserId) {
+      requestAuth({ message: "Prihlaste se pro nChat." });
+      return;
+    }
+
+    setCreatingUserId(profile.id);
+    try {
+      const chatId = await getOrCreateDirectChat(profile.id);
+      setChats((prev) => {
+        if (prev.some((chat) => chat.id === chatId)) {
+          return prev;
+        }
+        return [{ id: chatId, other: profile }, ...prev];
+      });
+      setActiveChatId(chatId);
+      setNewChatOpen(false);
+    } catch (error) {
+      console.error("Failed to start direct chat", error);
+    } finally {
+      setCreatingUserId(null);
+    }
   };
 
   return (
@@ -126,24 +296,54 @@ export default function ChatPage() {
         <header className="flex items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-neutral-900">nChat</h1>
-            <p className="text-sm text-neutral-600">Rychlé zprávy, rooms i reakce.</p>
+            <p className="text-sm text-neutral-600">Rychle zpravy, rooms i reakce.</p>
           </div>
           <div className="hidden md:block" aria-hidden />
         </header>
 
         <div className="grid flex-1 min-h-0 gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
           <aside className="flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-            <SidebarHeader selectedCategory={category} onSelectCategory={handleSelectCategory} />
-            <ThreadList threads={filteredThreads} activeThreadId={activeThreadId} onSelect={setActiveThreadId} />
+            <SidebarHeader onNewChat={handleOpenNewChat} />
+            {chatError ? (
+              <div className="p-4 text-sm text-red-600">{chatError}</div>
+            ) : loadingChats ? (
+              <div className="p-4 text-sm text-neutral-600">Nacitam chaty...</div>
+            ) : (
+              <ThreadList chats={chats} activeChatId={activeChatId} onSelect={setActiveChatId} />
+            )}
           </aside>
 
-          <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-            <ThreadHeader participants={activeThread?.participants ?? []} />
-            <MessagesList messages={activeThread?.messages ?? []} />
-            <Composer />
+          <section className="flex min-h-0 flex-col">
+            {activeChat ? (
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
+                <ThreadHeader profile={activeChat.other} />
+                <ChatThread
+                  chatId={activeChat.id}
+                  withBorder={false}
+                  className="flex-1"
+                  currentUserId={currentUserId}
+                  otherUser={activeChat.other}
+                />
+              </div>
+            ) : (
+              <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-white text-sm text-neutral-500">
+                Zacni novy chat.
+              </div>
+            )}
           </section>
         </div>
       </section>
+
+      <NewChatOverlay
+        open={newChatOpen}
+        query={searchQuery}
+        loading={searchLoading}
+        results={searchResults}
+        creatingUserId={creatingUserId}
+        onClose={() => setNewChatOpen(false)}
+        onQueryChange={setSearchQuery}
+        onSelect={handleSelectUser}
+      />
     </main>
   );
 }
@@ -154,122 +354,96 @@ function SearchBar() {
       <Search className="h-4 w-4 text-neutral-400" />
       <input
         type="search"
-        placeholder="Hledej lidi nebo vlákna"
+        placeholder="Hledej lidi nebo vlakna"
         className="w-48 bg-transparent text-sm text-neutral-800 outline-none placeholder:text-neutral-400"
       />
     </div>
   );
 }
 
-function SidebarHeader({
-  selectedCategory,
-  onSelectCategory,
-}: {
-  selectedCategory: "main" | "other" | "rooms" | "requests";
-  onSelectCategory: (cat: "main" | "other" | "rooms" | "requests") => void;
-}) {
+function SidebarHeader({ onNewChat }: { onNewChat: () => void }) {
   return (
     <div className="border-b border-neutral-100 px-4 py-3">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">Chaty</p>
-          <p className="text-sm text-neutral-600">Tvůj hlavní inbox</p>
+          <p className="text-sm text-neutral-600">Tvuj hlavni inbox</p>
         </div>
-        <MessageCircle className="h-5 w-5 text-neutral-400" />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onNewChat}
+            className="rounded-full border border-neutral-200 p-2 text-neutral-600 transition hover:border-neutral-300 hover:bg-neutral-50"
+            aria-label="Novy chat"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+          <MessageCircle className="h-5 w-5 text-neutral-400" />
+        </div>
       </div>
       <div className="mt-3">
         <SearchBar />
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
-        {[
-          { id: "main", label: "Hlavní" },
-          { id: "other", label: "Ostatní" },
-          { id: "rooms", label: "Rooms" },
-          { id: "requests", label: "Žádosti" },
-        ].map((cat) => {
-          const isActive = selectedCategory === cat.id;
-          return (
-            <button
-              key={cat.id}
-              onClick={() => onSelectCategory(cat.id as typeof selectedCategory)}
-              className={`rounded-full border px-3 py-1 transition ${
-                isActive
-                  ? "border-neutral-900 bg-neutral-900 text-white"
-                  : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300"
-              }`}
-            >
-              {cat.label}
-            </button>
-          );
-        })}
       </div>
     </div>
   );
 }
 
 function ThreadList({
-  threads,
-  activeThreadId,
+  chats,
+  activeChatId,
   onSelect,
 }: {
-  threads: Thread[];
-  activeThreadId: string;
+  chats: ChatSummary[];
+  activeChatId: string;
   onSelect: (id: string) => void;
 }) {
-  if (!threads.length) {
+  if (!chats.length) {
     return (
       <div className="flex flex-1 items-center justify-center px-4 py-10 text-sm text-neutral-500">
-        Žádné zprávy v této kategorii.
+        Zacni novy chat.
       </div>
     );
   }
 
   return (
     <div className="divide-y divide-neutral-100">
-      {threads.map((thread) => {
-        const other = thread.participants.find((p) => p.id !== "me") ?? thread.participants[0];
-        const isActive = thread.id === activeThreadId;
-        const statusDot =
-          other?.status === "online"
-            ? "bg-emerald-500"
-            : other?.status === "away"
-            ? "bg-amber-400"
-            : "bg-neutral-300";
+      {chats.map((chat) => {
+        const { name, username } = profileLabel(chat.other);
+        const isActive = chat.id === activeChatId;
         return (
           <button
-            key={thread.id}
-            onClick={() => onSelect(thread.id)}
+            key={chat.id}
+            onClick={() => onSelect(chat.id)}
             className={`flex w-full items-center gap-3 px-4 py-3 text-left transition ${
               isActive ? "bg-neutral-900 text-white shadow-inner" : "hover:bg-neutral-50"
             }`}
           >
-            <div
-              className={`relative flex h-10 w-10 items-center justify-center rounded-full bg-neutral-900 text-sm font-semibold text-white ring-2 ${
-                isActive ? "ring-white/40" : "ring-neutral-100"
-              }`}
-            >
-              {other?.name?.charAt(0) ?? "N"}
-              <span className={`absolute -right-1 -bottom-1 h-2.5 w-2.5 rounded-full border-2 border-white ${statusDot}`} />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <span className={`text-sm font-semibold ${isActive ? "text-white" : "text-neutral-900"}`}>
-                  {other?.name ?? "nChat"}
-                </span>
-              </div>
-              <div className={`text-xs ${isActive ? "text-white/80" : "text-neutral-500"}`}>
-                {thread.preview}
-              </div>
-            </div>
-            {other?.unread ? (
-              <span
-                className={`rounded-full px-2 py-[2px] text-[11px] font-semibold ${
-                  isActive ? "bg-white/20 text-white" : "bg-neutral-900 text-white"
+            {chat.other?.avatar_url ? (
+              <img
+                src={chat.other.avatar_url}
+                alt={name}
+                className={`h-10 w-10 rounded-full object-cover ring-2 ${
+                  isActive ? "ring-white/40" : "ring-neutral-100"
+                }`}
+                onError={(event) => ((event.currentTarget as HTMLImageElement).style.display = "none")}
+              />
+            ) : (
+              <div
+                className={`flex h-10 w-10 items-center justify-center rounded-full bg-neutral-900 text-sm font-semibold text-white ring-2 ${
+                  isActive ? "ring-white/40" : "ring-neutral-100"
                 }`}
               >
-                {other.unread}
-              </span>
-            ) : null}
+                {profileInitial(chat.other)}
+              </div>
+            )}
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <span className={`text-sm font-semibold ${isActive ? "text-white" : "text-neutral-900"}`}>{name}</span>
+              </div>
+              <div className={`text-xs ${isActive ? "text-white/80" : "text-neutral-500"}`}>
+                {username ?? "Direct chat"}
+              </div>
+            </div>
           </button>
         );
       })}
@@ -277,92 +451,134 @@ function ThreadList({
   );
 }
 
-function ThreadHeader({ participants }: { participants: Participant[] }) {
-  const other = participants.find((p) => p.id !== "me") ?? participants[0];
-  const statusColor =
-    other?.status === "online" ? "bg-emerald-500" : other?.status === "away" ? "bg-amber-400" : "bg-neutral-300";
-
+function ThreadHeader({ profile }: { profile: ProfileLite | null }) {
+  const { name, username } = profileLabel(profile);
   return (
     <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
       <div className="flex items-center gap-3">
-        <div className="relative h-10 w-10 rounded-full bg-gradient-to-br from-neutral-800 to-neutral-600 text-sm font-semibold text-white ring-2 ring-neutral-100 flex items-center justify-center">
-          {other?.name?.charAt(0) ?? "N"}
-          <span className={`absolute -right-1 -bottom-1 h-3 w-3 rounded-full border-2 border-white ${statusColor}`} />
-        </div>
+        {profile?.avatar_url ? (
+          <img
+            src={profile.avatar_url}
+            alt={name}
+            className="h-10 w-10 rounded-full object-cover ring-2 ring-neutral-100"
+            onError={(event) => ((event.currentTarget as HTMLImageElement).style.display = "none")}
+          />
+        ) : (
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-neutral-800 to-neutral-600 text-sm font-semibold text-white ring-2 ring-neutral-100">
+            {profileInitial(profile)}
+          </div>
+        )}
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-neutral-900">{other?.name ?? "nChat"}</span>
-            <span className="text-[11px] text-neutral-500">{other?.handle ?? "@nchat"}</span>
+            <span className="text-sm font-semibold text-neutral-900">{name}</span>
+            {username ? <span className="text-[11px] text-neutral-500">{username}</span> : null}
           </div>
-          <div className="text-[11px] text-neutral-500">
-            {other?.status === "online"
-              ? "Online"
-              : other?.status === "away"
-              ? "Pryč"
-              : "Offline"}
-          </div>
+          <div className="text-[11px] text-neutral-500">Direct chat</div>
         </div>
-      </div>
-      <div className="flex items-center gap-2 text-neutral-600">
-        <button className="rounded-full p-2 transition hover:bg-neutral-100" aria-label="Hovor">
-          <Phone className="h-5 w-5" />
-        </button>
-        <button className="rounded-full p-2 transition hover:bg-neutral-100" aria-label="Video">
-          <Video className="h-5 w-5" />
-        </button>
-        <button className="rounded-full p-2 transition hover:bg-neutral-100" aria-label="Více">
-          <MoreHorizontal className="h-5 w-5" />
-        </button>
       </div>
     </div>
   );
 }
 
-function MessagesList({ messages }: { messages: Message[] }) {
+function NewChatOverlay({
+  open,
+  query,
+  loading,
+  results,
+  creatingUserId,
+  onClose,
+  onQueryChange,
+  onSelect,
+}: {
+  open: boolean;
+  query: string;
+  loading: boolean;
+  results: ProfileLite[];
+  creatingUserId: string | null;
+  onClose: () => void;
+  onQueryChange: (value: string) => void;
+  onSelect: (profile: ProfileLite) => void;
+}) {
+  if (!open) return null;
+
   return (
-    <div className="flex flex-1 flex-col gap-3 overflow-y-auto bg-white px-4 py-4 min-h-0">
-      {messages.map((msg) => (
-        <div key={msg.id} className={`flex ${msg.isMe ? "justify-end" : "justify-start"}`}>
-          <div
-            className={`max-w-[70%] rounded-2xl px-3 py-2 text-sm shadow-sm ${
-              msg.isMe ? "rounded-br-sm bg-neutral-900 text-white" : "rounded-bl-sm bg-neutral-100 text-neutral-900"
-            }`}
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/60 px-4 py-6"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg rounded-2xl border border-neutral-200 bg-white p-4 shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold text-neutral-900">Novy chat</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-2 text-neutral-500 transition hover:bg-neutral-100"
+            aria-label="Zavrit"
           >
-            <div className="text-[11px] text-neutral-500">{msg.isMe ? "Ty" : msg.from}</div>
-            <div>{msg.text}</div>
-            <div className="mt-1 text-[10px] text-neutral-400">{msg.time}</div>
-          </div>
+            <X className="h-4 w-4" />
+          </button>
         </div>
-      ))}
-    </div>
-  );
-}
 
-function Composer() {
-  return (
-    <div className="border-t border-neutral-100 bg-white px-4 py-3">
-      <div className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 shadow-sm">
-        <button className="rounded-full p-1.5 text-neutral-500 transition hover:bg-neutral-100" aria-label="Emoji">
-          <Smile className="h-5 w-5" />
-        </button>
-        <button className="rounded-full p-1.5 text-neutral-500 transition hover:bg-neutral-100" aria-label="Připojit fotku">
-          <ImageIcon className="h-5 w-5" />
-        </button>
-        <button className="rounded-full p-1.5 text-neutral-500 transition hover:bg-neutral-100" aria-label="Otevřít foťák">
-          <Camera className="h-5 w-5" />
-        </button>
-        <button className="rounded-full p-1.5 text-neutral-500 transition hover:bg-neutral-100" aria-label="Nahrát audio">
-          <Mic className="h-5 w-5" />
-        </button>
-        <input
-          type="text"
-          placeholder="Napiš zprávu..."
-          className="flex-1 bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
-        />
-        <button className="flex items-center gap-1 rounded-full bg-neutral-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:-translate-y-[1px]">
-          <Send className="h-4 w-4" />
-          Poslat
-        </button>
+        <div className="mt-4 flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 shadow-sm">
+          <Search className="h-4 w-4 text-neutral-400" />
+          <input
+            type="text"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="Vyhledat uzivatele"
+            className="w-full bg-transparent text-sm text-neutral-800 outline-none placeholder:text-neutral-400"
+          />
+        </div>
+
+        <div className="mt-4 max-h-[360px] overflow-y-auto">
+          {loading ? (
+            <div className="p-3 text-sm text-neutral-500">Hledam...</div>
+          ) : query.trim().length === 0 ? (
+            <div className="p-3 text-sm text-neutral-500">Zadej jmeno nebo username.</div>
+          ) : results.length === 0 ? (
+            <div className="p-3 text-sm text-neutral-500">Zadne vysledky.</div>
+          ) : (
+            <ul className="space-y-2">
+              {results.map((profile) => {
+                const { name, username } = profileLabel(profile);
+                const isCreating = creatingUserId === profile.id;
+                return (
+                  <li key={profile.id}>
+                    <button
+                      type="button"
+                      onClick={() => onSelect(profile)}
+                      disabled={isCreating}
+                      className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 px-3 py-2 text-left text-sm transition hover:border-neutral-300 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {profile.avatar_url ? (
+                        <img
+                          src={profile.avatar_url}
+                          alt={name}
+                          className="h-10 w-10 rounded-full object-cover ring-1 ring-neutral-200"
+                          onError={(event) => ((event.currentTarget as HTMLImageElement).style.display = "none")}
+                        />
+                      ) : (
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-900 text-xs font-semibold text-white">
+                          {profileInitial(profile)}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold text-neutral-900">{name}</div>
+                        {username ? <div className="text-xs text-neutral-500">{username}</div> : null}
+                      </div>
+                      {isCreating ? <span className="ml-auto text-xs text-neutral-500">Oteviram...</span> : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   );
