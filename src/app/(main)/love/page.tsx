@@ -110,7 +110,7 @@ export default function LovePage() {
             <SwipeControls onAction={handleAction} />
           </div>
 
-          <aside className="space-y-3 lg:sticky lg:top-10 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto lg:pr-1">
+          <aside className="hidden space-y-3 lg:block lg:sticky lg:top-10 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto lg:pr-1">
             <Widget title="Match queue">
               <MatchQueue currentIndex={currentIndex} />
             </Widget>

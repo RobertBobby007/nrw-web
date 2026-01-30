@@ -167,6 +167,7 @@ export default function PublicProfilePage() {
 
   const isOwnProfile = Boolean(currentUserId && profile?.id && currentUserId === profile.id);
   const isBannedProfile = Boolean(profile?.banned_at);
+  
 
   type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentUser" | "status"> & {
     status?: NrealPost["status"] | null;

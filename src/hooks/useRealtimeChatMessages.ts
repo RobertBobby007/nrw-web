@@ -10,6 +10,7 @@ export type ChatMessage = {
   user_id?: string | null;
   content: string;
   created_at: string;
+  read_by: string[];
 };
 
 export function useRealtimeChatMessages(chatId?: string | null) {
@@ -42,7 +43,7 @@ export function useRealtimeChatMessages(chatId?: string | null) {
             if (prev.some((message) => message.id === next.id)) {
               return prev;
             }
-            return [...prev, next];
+            return [...prev, { ...next, read_by: [] }];
           });
         },
       )

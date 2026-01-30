@@ -5,15 +5,19 @@ import {
   Flame,
   GripVertical,
   MapPin,
+  LocateFixed,
   Sun,
   Users,
 } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { requestAuth } from "@/lib/auth-required";
 import { PostCard } from "./real/PostCard";
 import { fetchCurrentProfile, type Profile } from "@/lib/profiles";
 import type { NrealPost, NrealProfile } from "@/types/nreal";
+import { useWeather } from "@/hooks/useWeather";
+import { useRealtimeNRealFeed } from "@/hooks/useRealtimeNRealFeed";
+import { getFeedVariant, rankPosts } from "@/lib/nreal-feed-ranking";
 
 type FeedItem = {
   id: string;
@@ -113,6 +117,14 @@ export default function HomePage() {
     });
   };
 
+  const applyNrealRealtimeUpdate = useCallback(
+    (update: NrealPost[] | ((prev: NrealPost[]) => NrealPost[])) => {
+      const updater = typeof update === "function" ? update : () => update;
+      setNrealPostsWithCache(updater, currentUserId);
+    },
+    [currentUserId],
+  );
+
   useEffect(() => {
     const stored = window.localStorage.getItem(WIDGETS_STORAGE_KEY);
     const storedOrder = stored ? (JSON.parse(stored) as WidgetId[]) : null;
@@ -136,6 +148,7 @@ export default function HomePage() {
       const { data: userData } = await supabase.auth.getUser();
       const user = userData?.user ?? null;
       setCurrentUserId(user?.id ?? null);
+      const { variant: variantToUse } = getFeedVariant(user?.id ?? null);
       if (user?.id) {
         const profileData = await fetchCurrentProfile();
         if (active) setCurrentProfile(profileData);
@@ -152,7 +165,22 @@ export default function HomePage() {
       setNrealLoading(!cacheValid);
 
       if (cacheValid && active && nrealFeedCache) {
-        setNrealPosts(nrealFeedCache.posts);
+        let followingSet = new Set<string>();
+        if (user?.id) {
+          const { data: followRows } = await supabase
+            .from("follows")
+            .select("following_id")
+            .eq("follower_id", user.id);
+          followingSet = new Set(
+            (followRows ?? [])
+              .map((row) => (row as { following_id?: string | null }).following_id)
+              .filter(Boolean) as string[],
+          );
+        }
+        const now = new Date();
+        const ranked = rankPosts(nrealFeedCache.posts, followingSet, variantToUse, now);
+        setNrealPosts(ranked);
+        cacheNrealPosts(ranked, cacheKey);
       }
 
       let query = supabase
@@ -198,6 +226,7 @@ export default function HomePage() {
         const likesCountMap: Record<string, number> = {};
         const commentsCountMap: Record<string, number> = {};
         const likedPostIds = new Set<string>();
+        let followingSet = new Set<string>();
 
         if (postIds.length > 0) {
           const { data: likesData } = await supabase.from("nreal_likes").select("post_id").in("post_id", postIds);
@@ -229,13 +258,28 @@ export default function HomePage() {
           });
         }
 
+        if (user?.id) {
+          const { data: followRows } = await supabase
+            .from("follows")
+            .select("following_id")
+            .eq("follower_id", user.id);
+          followingSet = new Set(
+            (followRows ?? [])
+              .map((row) => (row as { following_id?: string | null }).following_id)
+              .filter(Boolean) as string[],
+          );
+        }
+
         const withCounts = normalized.map((post) => ({
           ...post,
           likesCount: likesCountMap[post.id] ?? 0,
           likedByCurrentUser: likedPostIds.has(post.id),
           commentsCount: commentsCountMap[post.id] ?? 0,
         }));
-        const nextPosts = withCounts.filter((post) => !post.is_deleted);
+        const visible = withCounts.filter((post) => !post.is_deleted);
+        const now = new Date();
+        const nextPosts = rankPosts(visible, followingSet, variantToUse, now);
+
         setNrealPosts(nextPosts);
         cacheNrealPosts(nextPosts, cacheKey);
       }
@@ -246,6 +290,8 @@ export default function HomePage() {
       active = false;
     };
   }, [supabase]);
+
+  useRealtimeNRealFeed({ currentUserId, setPosts: applyNrealRealtimeUpdate });
 
   const visibleItems = useMemo<StreamItem[]>(() => {
     if (activeTab === "nReal") {
@@ -430,7 +476,7 @@ export default function HomePage() {
             })}
           </div>
 
-          <aside className="space-y-3 lg:sticky lg:top-6 lg:max-h-[calc(100vh-96px)] lg:overflow-y-auto lg:pr-1">
+          <aside className="hidden space-y-3 lg:block lg:sticky lg:top-6 lg:max-h-[calc(100vh-96px)] lg:overflow-y-auto lg:pr-1">
             {isEditing && (
               <div className="flex justify-end">
                 <button
@@ -527,32 +573,86 @@ function WidgetCard({
 }
 
 function WeatherWidget({ today }: { today?: Date }) {
-  const lastUpdate =
-    today &&
-    today.toLocaleTimeString("cs-CZ", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const weather = useWeather();
+  const lastUpdate = weather.updatedAt
+    ? new Date(weather.updatedAt).toLocaleTimeString("cs-CZ", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : today?.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" });
 
   return (
     <div className="space-y-3 text-sm text-neutral-700">
-      <div className="flex items-center gap-2 text-neutral-900">
-        <Sun className="h-5 w-5 text-amber-500" />
-        <span className="font-semibold">18°C · Jasno</span>
-      </div>
-      <div className="flex items-center gap-2 text-neutral-500">
-        <MapPin className="h-4 w-4" />
-        <span>Praha, Česko</span>
-      </div>
-      <div className="grid grid-cols-4 gap-2 text-xs text-neutral-600">
-        {["Po", "Út", "St", "Čt"].map((day, idx) => (
+      {weather.loading ? (
+        <>
+          <div className="flex items-center gap-2 text-neutral-500">
+            <div className="h-4 w-4 animate-pulse rounded-full bg-neutral-200" />
+            <div className="h-3 w-24 animate-pulse rounded bg-neutral-200" />
+          </div>
+          <div className="flex items-center gap-2 text-neutral-900">
+            <div className="h-5 w-5 animate-pulse rounded-full bg-neutral-200" />
+            <div className="h-4 w-32 animate-pulse rounded bg-neutral-200" />
+          </div>
+        </>
+      ) : weather.error ? (
+        <div className="text-sm text-neutral-500">Počasí nedostupné</div>
+      ) : (
+        <>
+          <div className="flex items-center gap-2 text-neutral-500">
+            <MapPin className="h-4 w-4" />
+            <span>{weather.city ?? "Praha, Česko"}</span>
+            <button
+              type="button"
+              onClick={() => weather.refreshWithLocation()}
+              className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full border border-neutral-200 text-neutral-600 transition hover:border-neutral-300 hover:text-neutral-900"
+              aria-label="Použít aktuální polohu"
+              title="Použít aktuální polohu"
+            >
+              <LocateFixed className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex items-center gap-2 text-neutral-900">
+            {weather.icon ? (
+              <img
+                src={`https://openweathermap.org/img/wn/${weather.icon}@2x.png`}
+                alt={weather.description ?? "Počasí"}
+                className="h-10 w-10"
+              />
+            ) : (
+              <Sun className="h-5 w-5 text-amber-500" />
+            )}
+            <span className="font-semibold">
+              {weather.description ? `Dnes bude ${weather.description}` : "Dnes bude jasno"}
+            </span>
+          </div>
+        </>
+      )}
+      <div className="grid grid-cols-5 gap-2 text-xs text-neutral-600">
+        {(weather.forecast.length
+          ? weather.forecast
+          : ["Po", "Út", "St", "Čt"].map((day, idx) => ({
+              day,
+              max: 18 + idx,
+              min: 9 + idx,
+              icon: null,
+            }))
+        ).map((item) => (
           <div
-            key={day}
+            key={item.day}
             className="flex flex-col items-center rounded-lg border border-neutral-100 bg-neutral-50 px-2 py-2"
           >
-            <span className="font-semibold text-neutral-900">{day}</span>
+            <span className="font-semibold text-neutral-900">{item.day}</span>
+            {item.icon ? (
+              <img
+                src={`https://openweathermap.org/img/wn/${item.icon}@2x.png`}
+                alt=""
+                className="h-7 w-7"
+              />
+            ) : (
+              <div className="h-7 w-7 rounded-full bg-neutral-200" />
+            )}
             <span className="text-[11px] text-neutral-500">
-              {18 + idx}° / {9 + idx}°
+              {item.max}° / {item.min}°
             </span>
           </div>
         ))}

@@ -28,6 +28,7 @@ const media = [
   { id: "m5", label: "Afterparty", gradient: "from-rose-200 via-fuchsia-200 to-purple-200" },
   { id: "m6", label: "nReal live", gradient: "from-amber-200 via-yellow-200 to-lime-200" },
 ];
+const PROFILE_TAB_KEY = "nrw:profile-tab";
 
 export default function IdPage() {
   const router = useRouter();
@@ -723,7 +724,7 @@ export default function IdPage() {
             />
           </div>
 
-          <aside className="space-y-3 lg:sticky lg:top-10 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto lg:pr-1">
+          <aside className="hidden space-y-3 lg:block lg:sticky lg:top-10 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto lg:pr-1">
             <Widget title="Highlighy">
               <Highlights />
             </Widget>
@@ -769,6 +770,20 @@ function ProfileStories() {
 }
 
 function ProfileTabs() {
+  const [activeTab, setActiveTab] = useState<"posts" | "reels" | "tags" | "threads">("posts");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem(PROFILE_TAB_KEY);
+    if (saved === "posts" || saved === "reels" || saved === "tags" || saved === "threads") {
+      setActiveTab(saved);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(PROFILE_TAB_KEY, activeTab);
+  }, [activeTab]);
+
   const tabs = [
     { id: "posts", label: "Příspěvky" },
     { id: "reels", label: "Klipy" },
@@ -777,11 +792,13 @@ function ProfileTabs() {
   ];
   return (
     <div className="flex items-center gap-2 overflow-x-auto pb-1 text-sm font-semibold text-neutral-700 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-      {tabs.map((tab, idx) => {
-        const isActive = idx === 0;
+      {tabs.map((tab) => {
+        const isActive = tab.id === activeTab;
         return (
           <button
             key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id as "posts" | "reels" | "tags" | "threads")}
             className={`rounded-full border px-4 py-2 transition ${
               isActive
                 ? "border-neutral-900 bg-neutral-900 text-white"

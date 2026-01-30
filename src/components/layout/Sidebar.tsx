@@ -44,6 +44,7 @@ export function Sidebar() {
     pathname === href || pathname.startsWith(`${href}/`);
 
   const mobileNavItems = NAV_ITEMS.filter((item) => item.href !== "/chat");
+  const hideMobileHeader = pathname?.startsWith("/chat");
 
   useEffect(() => {
     let active = true;
@@ -125,7 +126,11 @@ export function Sidebar() {
 
   return (
     <>
-      <div className="flex items-center justify-between border-b border-neutral-200/70 bg-white px-4 py-3 md:hidden">
+      <div
+        className={`border-b border-neutral-200/70 bg-white px-4 py-3 md:hidden ${
+          hideMobileHeader ? "hidden" : "flex items-center justify-between"
+        }`}
+      >
         <Link href="/" className="text-base font-semibold tracking-tight">
           NRW
         </Link>
@@ -247,6 +252,14 @@ export function Sidebar() {
               <LifeBuoy className="h-5 w-5" />
               <span>Podpora</span>
             </Link>
+            <div className="ml-8 mt-2 space-y-1 text-xs text-neutral-500">
+              <Link href="/privacy" className="block transition-colors hover:text-neutral-900">
+                Ochrana soukromí
+              </Link>
+              <Link href="/terms" className="block transition-colors hover:text-neutral-900">
+                Smluvní podmínky
+              </Link>
+            </div>
           </div>
         </div>
       </aside>

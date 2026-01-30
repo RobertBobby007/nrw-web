@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { ensureOnlinePresence } from "@/lib/presence/useUserPresence";
 
 export function OnlineHeartbeat() {
   const supabase = getSupabaseBrowserClient();
@@ -19,6 +20,7 @@ export function OnlineHeartbeat() {
       try {
         const { data } = await supabase.auth.getUser();
         userId = data.user?.id ?? null;
+        ensureOnlinePresence(userId);
       } catch (e) {
         console.error("heartbeat getUser failed", e);
       }

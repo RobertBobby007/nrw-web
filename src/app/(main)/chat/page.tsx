@@ -1,23 +1,28 @@
 "use client";
 
-import { MessageCircle, Plus, Search, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, Info, MessageCircle, Plus, Search, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { requestAuth } from "@/lib/auth-required";
 import { getOrCreateDirectChat } from "@/lib/chat";
 import { ChatThread } from "@/components/ChatThread";
+import { useOnlineUsers, useUserPresence } from "@/lib/presence/useUserPresence";
+import { formatLastSeen, getLastSeenTone } from "@/lib/time/formatLastSeen";
 
 type ProfileLite = {
   id: string;
   username: string | null;
   display_name: string | null;
   avatar_url: string | null;
+  last_seen?: string | null;
 };
 
 type ChatSummary = {
   id: string;
   other: ProfileLite | null;
+  lastMessageAt?: string | null;
 };
 
 function profileLabel(profile: ProfileLite | null) {
@@ -31,6 +36,42 @@ function profileInitial(profile: ProfileLite | null) {
   return label.charAt(0).toUpperCase();
 }
 
+function isSameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function isYesterday(date: Date, now: Date) {
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  return isSameDay(date, yesterday);
+}
+
+function formatLastMessageLabel(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const now = new Date();
+  if (isSameDay(date, now)) return "dnes";
+  if (isYesterday(date, now)) return "včera";
+
+  const day = date.getDate();
+  const month = date.getMonth() + 1;
+  const year = date.getFullYear();
+  if (year === now.getFullYear()) {
+    return `${day}.${month}`;
+  }
+  return `${day}.${month}.${year}`;
+}
+
+function sortChatsByRecent(a: ChatSummary, b: ChatSummary) {
+  const aParsed = a.lastMessageAt ? Date.parse(a.lastMessageAt) : 0;
+  const bParsed = b.lastMessageAt ? Date.parse(b.lastMessageAt) : 0;
+  const aTime = Number.isFinite(aParsed) ? aParsed : 0;
+  const bTime = Number.isFinite(bParsed) ? bParsed : 0;
+  return bTime - aTime;
+}
+
 export default function ChatPage() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const searchParams = useSearchParams();
@@ -42,6 +83,10 @@ export default function ChatPage() {
   const [activeChatId, setActiveChatId] = useState<string>("");
   const [loadingChats, setLoadingChats] = useState(true);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [mobileView, setMobileView] = useState<"list" | "chat">("list");
+  const [showInfo, setShowInfo] = useState(false);
+  const refetchedForRequestedChat = useRef(false);
 
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -67,135 +112,67 @@ export default function ChatPage() {
   }, [supabase]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(min-width: 768px)");
+    const update = () => setIsDesktop(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  const fetchChats = useCallback(async () => {
     if (!currentUserId) {
       setChats([]);
       setLoadingChats(false);
       return;
     }
 
-    let active = true;
     setLoadingChats(true);
     setChatError(null);
 
-    const loadChats = async () => {
-      const { data: memberRows, error: memberError } = await supabase
-        .from("chat_members")
-        .select("chat_id")
-        .eq("user_id", currentUserId);
+    const response = await fetch("/api/chat/threads", {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+    const payload = (await response.json().catch(() => null)) as
+      | { chats?: ChatSummary[]; error?: string }
+      | null;
 
-      if (!active) return;
-
-      if (memberError) {
-        console.error("Failed to fetch chat members", memberError);
-        setChatError("Nepodarilo se nacist chaty.");
-        setLoadingChats(false);
-        return;
-      }
-
-      const chatIds = (memberRows ?? []).map((row) => row.chat_id).filter(Boolean);
-      if (chatIds.length === 0) {
-        setChats([]);
-        setLoadingChats(false);
-        return;
-      }
-
-      const { data: chatRows, error: chatsError } = await supabase
-        .from("chats")
-        .select("id, type, created_at")
-        .eq("type", "direct")
-        .in("id", chatIds)
-        .order("created_at", { ascending: false });
-
-      if (!active) return;
-
-      if (chatsError) {
-        console.error("Failed to fetch chats", chatsError);
-        setChatError("Nepodarilo se nacist chaty.");
-        setLoadingChats(false);
-        return;
-      }
-
-      const directChatIds = (chatRows ?? []).map((chat) => chat.id).filter(Boolean);
-      if (directChatIds.length === 0) {
-        setChats([]);
-        setLoadingChats(false);
-        return;
-      }
-
-      const { data: memberProfiles, error: profilesError } = await supabase
-        .from("chat_members")
-        .select("chat_id, user_id")
-        .in("chat_id", directChatIds)
-        .neq("user_id", currentUserId);
-
-      if (!active) return;
-
-      if (profilesError) {
-        console.error("Failed to fetch chat profiles", profilesError);
-        setChatError("Nepodarilo se nacist chaty.");
-        setLoadingChats(false);
-        return;
-      }
-
-      const otherIds = Array.from(
-        new Set((memberProfiles ?? []).map((row) => row.user_id).filter(Boolean)),
-      ) as string[];
-      const profilesById = new Map<string, ProfileLite>();
-      if (otherIds.length > 0) {
-        const { data: profileRows, error: profileError } = await supabase
-          .from("profiles")
-          .select("id, username, display_name, avatar_url")
-          .in("id", otherIds);
-
-        if (!active) return;
-
-        if (profileError) {
-          console.error("Failed to fetch profiles", profileError);
-          setChatError("Nepodarilo se nacist chaty.");
-          setLoadingChats(false);
-          return;
-        }
-
-        (profileRows ?? []).forEach((profile) => {
-          if (profile?.id) {
-            profilesById.set(profile.id, profile as ProfileLite);
-          }
-        });
-      }
-
-      const othersByChatId = new Map<string, ProfileLite>();
-      (memberProfiles ?? []).forEach((row) => {
-        if (!row.chat_id || !row.user_id) return;
-        const profile = profilesById.get(row.user_id) ?? null;
-        if (profile) {
-          othersByChatId.set(row.chat_id, profile);
-        }
-      });
-
-      const nextChats = (chatRows ?? []).map((chat) => ({
-        id: chat.id,
-        other: othersByChatId.get(chat.id) ?? null,
-      }));
-
-      setChats(nextChats);
+    if (!response.ok || !payload?.chats) {
+      console.error("Failed to fetch chats", payload?.error);
+      setChatError("Nepodarilo se nacist chaty.");
       setLoadingChats(false);
-    };
+      return;
+    }
 
-    void loadChats();
+    const sorted = [...payload.chats].sort(sortChatsByRecent);
+    setChats(sorted);
+    setLoadingChats(false);
+  }, [currentUserId]);
 
-    return () => {
-      active = false;
-    };
-  }, [currentUserId, supabase]);
+  useEffect(() => {
+    void fetchChats();
+  }, [fetchChats]);
 
   useEffect(() => {
     if (appliedChatIdRef.current) return;
     if (!requestedChatId) return;
+    refetchedForRequestedChat.current = false;
     setActiveChatId(requestedChatId);
+    setMobileView("chat");
     appliedChatIdRef.current = true;
   }, [requestedChatId]);
 
   useEffect(() => {
+    if (!requestedChatId || loadingChats) return;
+    if (chats.some((chat) => chat.id === requestedChatId)) return;
+    if (refetchedForRequestedChat.current) return;
+    refetchedForRequestedChat.current = true;
+    void fetchChats();
+  }, [chats, fetchChats, loadingChats, requestedChatId]);
+
+  useEffect(() => {
+    if (!isDesktop) return;
     if (!chats.length) {
       if (activeChatId) {
         setActiveChatId("");
@@ -204,7 +181,7 @@ export default function ChatPage() {
     }
     if (activeChatId) return;
     setActiveChatId(chats[0]?.id ?? "");
-  }, [activeChatId, chats]);
+  }, [activeChatId, chats, isDesktop]);
 
   useEffect(() => {
     if (!newChatOpen) {
@@ -260,15 +237,26 @@ export default function ChatPage() {
 
   const handleOpenNewChat = () => {
     if (!currentUserId) {
-      requestAuth({ message: "Prihlaste se pro nChat." });
+      requestAuth({ message: "Přihlaste se pro nChat." });
       return;
     }
     setNewChatOpen(true);
   };
 
+  const handleSelectChat = (chatId: string) => {
+    setActiveChatId(chatId);
+    setMobileView("chat");
+    setShowInfo(false);
+  };
+
+  const handleOpenInfo = () => {
+    if (!activeChat?.other) return;
+    setShowInfo(true);
+  };
+
   const handleSelectUser = async (profile: ProfileLite) => {
     if (!currentUserId) {
-      requestAuth({ message: "Prihlaste se pro nChat." });
+      requestAuth({ message: "Přihlaste se pro nChat." });
       return;
     }
 
@@ -282,6 +270,7 @@ export default function ChatPage() {
         return [{ id: chatId, other: profile }, ...prev];
       });
       setActiveChatId(chatId);
+      setMobileView("chat");
       setNewChatOpen(false);
     } catch (error) {
       console.error("Failed to start direct chat", error);
@@ -291,43 +280,62 @@ export default function ChatPage() {
   };
 
   return (
-    <main className="min-h-screen bg-neutral-50 flex">
-      <section className="flex w-full flex-1 flex-col gap-4 px-4 py-8 md:px-8">
-        <header className="flex items-center justify-between gap-4">
+    <main className="flex h-[calc(100dvh-80px)] min-h-[calc(100svh-80px)] overflow-hidden bg-neutral-50 md:h-screen md:overflow-hidden">
+      <section className="flex h-full w-full flex-1 flex-col gap-0 px-0 py-0 md:gap-4 md:px-8 md:py-8 min-h-0">
+        <header className="hidden md:flex items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-neutral-900">nChat</h1>
-            <p className="text-sm text-neutral-600">Rychle zpravy, rooms i reakce.</p>
+            <p className="text-sm text-neutral-600">Rychlé zprávy, rooms i reakce.</p>
           </div>
           <div className="hidden md:block" aria-hidden />
         </header>
 
-        <div className="grid flex-1 min-h-0 gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-          <aside className="flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
+        <div className="grid flex-1 min-h-0 gap-4 md:gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+          <aside
+            className={`flex min-h-0 flex-col overflow-hidden bg-white ${
+              mobileView === "chat" ? "hidden" : "flex"
+            } md:flex md:rounded-2xl md:border md:border-neutral-200 md:shadow-sm`}
+          >
             <SidebarHeader onNewChat={handleOpenNewChat} />
             {chatError ? (
               <div className="p-4 text-sm text-red-600">{chatError}</div>
             ) : loadingChats ? (
-              <div className="p-4 text-sm text-neutral-600">Nacitam chaty...</div>
+              <ThreadListSkeleton />
             ) : (
-              <ThreadList chats={chats} activeChatId={activeChatId} onSelect={setActiveChatId} />
+              <ThreadList chats={chats} activeChatId={activeChatId} onSelect={handleSelectChat} />
             )}
           </aside>
 
-          <section className="flex min-h-0 flex-col">
-            {activeChat ? (
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-                <ThreadHeader profile={activeChat.other} />
-                <ChatThread
-                  chatId={activeChat.id}
-                  withBorder={false}
-                  className="flex-1"
-                  currentUserId={currentUserId}
-                  otherUser={activeChat.other}
+          <section
+            className={`flex min-h-0 flex-col ${mobileView === "chat" ? "flex" : "hidden"} md:flex`}
+          >
+            {activeChatId ? (
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white md:rounded-2xl md:border md:border-neutral-200 md:shadow-sm">
+                <ThreadHeader
+                  chatId={activeChatId}
+                  profile={activeChat?.other ?? null}
+                  onBack={() => {
+                    setActiveChatId("");
+                    setMobileView("list");
+                    setShowInfo(false);
+                  }}
+                  onInfo={handleOpenInfo}
                 />
+                {showInfo && activeChat?.other ? (
+                  <ChatInfoPanel profile={activeChat.other} onClose={() => setShowInfo(false)} />
+                ) : (
+                  <ChatThread
+                    chatId={activeChatId}
+                    withBorder={false}
+                    className="flex-1"
+                    currentUserId={currentUserId}
+                    otherUser={activeChat?.other ?? null}
+                  />
+                )}
               </div>
             ) : (
-              <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-white text-sm text-neutral-500">
-                Zacni novy chat.
+              <div className="flex min-h-0 flex-1 items-center justify-center bg-white text-sm text-neutral-500 md:rounded-2xl md:border md:border-dashed md:border-neutral-200">
+                Začni nový chat.
               </div>
             )}
           </section>
@@ -354,7 +362,7 @@ function SearchBar() {
       <Search className="h-4 w-4 text-neutral-400" />
       <input
         type="search"
-        placeholder="Hledej lidi nebo vlakna"
+        placeholder="Hledej lidi nebo vlákna"
         className="w-48 bg-transparent text-sm text-neutral-800 outline-none placeholder:text-neutral-400"
       />
     </div>
@@ -367,14 +375,14 @@ function SidebarHeader({ onNewChat }: { onNewChat: () => void }) {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">Chaty</p>
-          <p className="text-sm text-neutral-600">Tvuj hlavni inbox</p>
+          <p className="text-sm text-neutral-600">Tvůj hlavní inbox</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onNewChat}
             className="rounded-full border border-neutral-200 p-2 text-neutral-600 transition hover:border-neutral-300 hover:bg-neutral-50"
-            aria-label="Novy chat"
+            aria-label="Nový chat"
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -397,10 +405,11 @@ function ThreadList({
   activeChatId: string;
   onSelect: (id: string) => void;
 }) {
+  const { onlineIds } = useOnlineUsers();
   if (!chats.length) {
     return (
       <div className="flex flex-1 items-center justify-center px-4 py-10 text-sm text-neutral-500">
-        Zacni novy chat.
+        Začni nový chat.
       </div>
     );
   }
@@ -410,6 +419,11 @@ function ThreadList({
       {chats.map((chat) => {
         const { name, username } = profileLabel(chat.other);
         const isActive = chat.id === activeChatId;
+        const lastLabel = formatLastMessageLabel(chat.lastMessageAt);
+        const isOnline = Boolean(chat.other?.id && onlineIds.has(chat.other.id));
+        const lastSeenTone = getLastSeenTone(chat.other?.last_seen ?? null);
+        const offlineDot =
+          isOnline ? "bg-emerald-500" : lastSeenTone === "recent" ? "bg-orange-400" : "bg-red-400";
         return (
           <button
             key={chat.id}
@@ -418,27 +432,40 @@ function ThreadList({
               isActive ? "bg-neutral-900 text-white shadow-inner" : "hover:bg-neutral-50"
             }`}
           >
-            {chat.other?.avatar_url ? (
-              <img
-                src={chat.other.avatar_url}
-                alt={name}
-                className={`h-10 w-10 rounded-full object-cover ring-2 ${
-                  isActive ? "ring-white/40" : "ring-neutral-100"
-                }`}
-                onError={(event) => ((event.currentTarget as HTMLImageElement).style.display = "none")}
+            <div className="relative">
+              {chat.other?.avatar_url ? (
+                <img
+                  src={chat.other.avatar_url}
+                  alt={name}
+                  className={`h-10 w-10 rounded-full object-cover ring-2 ${
+                    isActive ? "ring-white/40" : "ring-neutral-100"
+                  }`}
+                  onError={(event) => ((event.currentTarget as HTMLImageElement).style.display = "none")}
+                />
+              ) : (
+                <div
+                  className={`flex h-10 w-10 items-center justify-center rounded-full bg-neutral-900 text-sm font-semibold text-white ring-2 ${
+                    isActive ? "ring-white/40" : "ring-neutral-100"
+                  }`}
+                >
+                  {profileInitial(chat.other)}
+                </div>
+              )}
+              <span
+                className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2 ${
+                  isActive ? "ring-neutral-900" : "ring-white"
+                } ${offlineDot}`}
+                aria-hidden
               />
-            ) : (
-              <div
-                className={`flex h-10 w-10 items-center justify-center rounded-full bg-neutral-900 text-sm font-semibold text-white ring-2 ${
-                  isActive ? "ring-white/40" : "ring-neutral-100"
-                }`}
-              >
-                {profileInitial(chat.other)}
-              </div>
-            )}
+            </div>
             <div className="flex-1">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <span className={`text-sm font-semibold ${isActive ? "text-white" : "text-neutral-900"}`}>{name}</span>
+                {lastLabel ? (
+                  <span className={`text-[11px] ${isActive ? "text-white/70" : "text-neutral-400"}`}>
+                    {lastLabel}
+                  </span>
+                ) : null}
               </div>
               <div className={`text-xs ${isActive ? "text-white/80" : "text-neutral-500"}`}>
                 {username ?? "Direct chat"}
@@ -451,29 +478,192 @@ function ThreadList({
   );
 }
 
-function ThreadHeader({ profile }: { profile: ProfileLite | null }) {
-  const { name, username } = profileLabel(profile);
+function ThreadListSkeleton() {
   return (
-    <div className="flex items-center justify-between border-b border-neutral-100 px-4 py-3">
+    <div className="space-y-3 p-4">
+      <div className="h-12 w-full animate-pulse rounded-xl bg-neutral-100" />
+      <div className="h-12 w-full animate-pulse rounded-xl bg-neutral-100" />
+      <div className="h-12 w-full animate-pulse rounded-xl bg-neutral-100" />
+    </div>
+  );
+}
+
+function ThreadHeader({
+  chatId,
+  profile,
+  onBack,
+  onInfo,
+}: {
+  chatId: string;
+  profile: ProfileLite | null;
+  onBack?: () => void;
+  onInfo?: () => void;
+}) {
+  const { name, username } = profileLabel(profile);
+  const { isOnline } = useUserPresence(profile?.id ?? null);
+  const lastSeenLabel = isOnline ? "Online" : formatLastSeen(profile?.last_seen ?? null);
+  const lastSeenTone = getLastSeenTone(profile?.last_seen ?? null);
+  const statusDot = isOnline
+    ? "bg-emerald-500"
+    : lastSeenTone === "recent"
+    ? "bg-orange-400"
+    : "bg-red-400";
+  return (
+    <div className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-100 bg-white px-4 py-3">
       <div className="flex items-center gap-3">
-        {profile?.avatar_url ? (
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="md:hidden rounded-full p-2 text-neutral-500 transition hover:bg-neutral-100"
+            aria-label="Zpět na chaty"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+        ) : null}
+        {profile?.username ? (
+          <Link
+            href={`/id/${profile.username}?fromChatId=${encodeURIComponent(chatId)}`}
+            className="flex items-center gap-3"
+          >
+            {profile?.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt={name}
+                className="h-10 w-10 rounded-full object-cover ring-2 ring-neutral-100"
+                onError={(event) => ((event.currentTarget as HTMLImageElement).style.display = "none")}
+              />
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-neutral-800 to-neutral-600 text-sm font-semibold text-white ring-2 ring-neutral-100">
+                {profileInitial(profile)}
+              </div>
+            )}
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-neutral-900">{name}</span>
+                {username ? <span className="text-[11px] text-neutral-500">{username}</span> : null}
+              </div>
+              {profile?.id ? (
+                <div className="flex items-center gap-2 text-[11px] text-neutral-500">
+                  <span className={`inline-flex h-2 w-2 rounded-full ${statusDot}`} />
+                  <span>{isOnline ? "Online" : lastSeenLabel}</span>
+                </div>
+              ) : (
+                <div className="text-[11px] text-neutral-500">Direct chat</div>
+              )}
+            </div>
+          </Link>
+        ) : (
+          <>
+            {profile?.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt={name}
+                className="h-10 w-10 rounded-full object-cover ring-2 ring-neutral-100"
+                onError={(event) => ((event.currentTarget as HTMLImageElement).style.display = "none")}
+              />
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-neutral-800 to-neutral-600 text-sm font-semibold text-white ring-2 ring-neutral-100">
+                {profileInitial(profile)}
+              </div>
+            )}
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-neutral-900">{name}</span>
+                {username ? <span className="text-[11px] text-neutral-500">{username}</span> : null}
+              </div>
+              {profile?.id ? (
+                <div className="flex items-center gap-2 text-[11px] text-neutral-500">
+                  <span className={`inline-flex h-2 w-2 rounded-full ${statusDot}`} />
+                  <span>{isOnline ? "Online" : lastSeenLabel}</span>
+                </div>
+              ) : (
+                <div className="text-[11px] text-neutral-500">Direct chat</div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+      {onInfo ? (
+        <button
+          type="button"
+          onClick={onInfo}
+          className="rounded-full p-2 text-neutral-500 transition hover:bg-neutral-100"
+          aria-label="Info o chatu"
+        >
+          <Info className="h-5 w-5" />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function ChatInfoPanel({
+  profile,
+  onClose,
+}: {
+  profile: ProfileLite | null;
+  onClose: () => void;
+}) {
+  if (!profile) return null;
+  const { name, username } = profileLabel(profile);
+
+  return (
+    <div className="flex flex-1 flex-col overflow-y-auto p-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-neutral-900">Info o chatu</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-full p-2 text-neutral-500 transition hover:bg-neutral-100"
+          aria-label="Zavřít"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="mt-4 flex items-center gap-3">
+        {profile.avatar_url ? (
           <img
             src={profile.avatar_url}
             alt={name}
-            className="h-10 w-10 rounded-full object-cover ring-2 ring-neutral-100"
+            className="h-12 w-12 rounded-full object-cover ring-2 ring-neutral-100"
             onError={(event) => ((event.currentTarget as HTMLImageElement).style.display = "none")}
           />
         ) : (
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-neutral-800 to-neutral-600 text-sm font-semibold text-white ring-2 ring-neutral-100">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-900 text-sm font-semibold text-white ring-2 ring-neutral-100">
             {profileInitial(profile)}
           </div>
         )}
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-neutral-900">{name}</span>
-            {username ? <span className="text-[11px] text-neutral-500">{username}</span> : null}
+          <div className="text-sm font-semibold text-neutral-900">{name}</div>
+          {username ? <div className="text-xs text-neutral-500">{username}</div> : null}
+        </div>
+      </div>
+
+      <div className="mt-6 space-y-3">
+        <div className="rounded-xl border border-neutral-200 p-3">
+          <div className="text-xs font-semibold text-neutral-500">Sdílená média</div>
+          <div className="mt-2 text-sm text-neutral-600">Zatím žádné fotky.</div>
+        </div>
+        <div className="rounded-xl border border-neutral-200 p-3">
+          <div className="text-xs font-semibold text-neutral-500">Akce</div>
+          <div className="mt-3 flex flex-col gap-2">
+            <button
+              type="button"
+              disabled
+              className="rounded-lg border border-neutral-200 px-3 py-2 text-left text-sm text-neutral-400"
+            >
+              Zablokovat účet (připravujeme)
+            </button>
+            <button
+              type="button"
+              disabled
+              className="rounded-lg border border-neutral-200 px-3 py-2 text-left text-sm text-neutral-400"
+            >
+              Nahlásit účet (připravujeme)
+            </button>
           </div>
-          <div className="text-[11px] text-neutral-500">Direct chat</div>
         </div>
       </div>
     </div>
@@ -513,12 +703,12 @@ function NewChatOverlay({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-neutral-900">Novy chat</h2>
+          <h2 className="text-lg font-semibold text-neutral-900">Nový chat</h2>
           <button
             type="button"
             onClick={onClose}
             className="rounded-full p-2 text-neutral-500 transition hover:bg-neutral-100"
-            aria-label="Zavrit"
+            aria-label="Zavřít"
           >
             <X className="h-4 w-4" />
           </button>
@@ -530,18 +720,18 @@ function NewChatOverlay({
             type="text"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="Vyhledat uzivatele"
+            placeholder="Vyhledat uživatele"
             className="w-full bg-transparent text-sm text-neutral-800 outline-none placeholder:text-neutral-400"
           />
         </div>
 
         <div className="mt-4 max-h-[360px] overflow-y-auto">
           {loading ? (
-            <div className="p-3 text-sm text-neutral-500">Hledam...</div>
+            <div className="p-3 text-sm text-neutral-500">Hledám…</div>
           ) : query.trim().length === 0 ? (
-            <div className="p-3 text-sm text-neutral-500">Zadej jmeno nebo username.</div>
+            <div className="p-3 text-sm text-neutral-500">Zadej jméno nebo username.</div>
           ) : results.length === 0 ? (
-            <div className="p-3 text-sm text-neutral-500">Zadne vysledky.</div>
+            <div className="p-3 text-sm text-neutral-500">Žádné výsledky.</div>
           ) : (
             <ul className="space-y-2">
               {results.map((profile) => {
@@ -571,7 +761,7 @@ function NewChatOverlay({
                         <div className="truncate font-semibold text-neutral-900">{name}</div>
                         {username ? <div className="text-xs text-neutral-500">{username}</div> : null}
                       </div>
-                      {isCreating ? <span className="ml-auto text-xs text-neutral-500">Oteviram...</span> : null}
+                      {isCreating ? <span className="ml-auto text-xs text-neutral-500">Otevírám…</span> : null}
                     </button>
                   </li>
                 );

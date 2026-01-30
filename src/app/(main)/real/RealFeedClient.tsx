@@ -10,6 +10,7 @@ import { MAX_POST_MEDIA_IMAGES, serializeMediaUrls } from "@/lib/media";
 import type { NrealPost, NrealProfile } from "@/types/nreal";
 import { PostCard } from "./PostCard";
 import { fetchCurrentProfile, type Profile } from "@/lib/profiles";
+import { getFeedVariant, rankPosts } from "@/lib/nreal-feed-ranking";
 
 type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentUser" | "status"> & {
   status?: NrealPost["status"] | null;
@@ -100,6 +101,8 @@ export function RealFeedClient() {
         setCurrentProfile(null);
       }
 
+      const { variant: variantToUse } = getFeedVariant(user?.id ?? null);
+
       const cacheKey = user?.id ?? null;
       const cacheValid =
         nrealPostsCache &&
@@ -109,7 +112,22 @@ export function RealFeedClient() {
       setLoading(!cacheValid);
 
       if (cacheValid && nrealPostsCache) {
-        setPosts(nrealPostsCache.posts);
+        let followingSet = new Set<string>();
+        if (user?.id) {
+          const { data: followRows } = await supabase
+            .from("follows")
+            .select("following_id")
+            .eq("follower_id", user.id);
+          followingSet = new Set(
+            (followRows ?? [])
+              .map((row) => (row as { following_id?: string | null }).following_id)
+              .filter(Boolean) as string[],
+          );
+        }
+        const now = new Date();
+        const ranked = rankPosts(nrealPostsCache.posts, followingSet, variantToUse, now);
+        setPosts(ranked);
+        cachePosts(ranked, cacheKey);
       }
 
       let query = supabase
@@ -189,13 +207,28 @@ export function RealFeedClient() {
           });
         }
 
+        let followingSet = new Set<string>();
+        if (user?.id) {
+          const { data: followRows } = await supabase
+            .from("follows")
+            .select("following_id")
+            .eq("follower_id", user.id);
+          followingSet = new Set(
+            (followRows ?? [])
+              .map((row) => (row as { following_id?: string | null }).following_id)
+              .filter(Boolean) as string[],
+          );
+        }
+
         const withCounts = normalized.map((post) => ({
           ...post,
           likesCount: likesCountMap[post.id] ?? 0,
           likedByCurrentUser: likedPostIds.has(post.id),
           commentsCount: commentsCountMap[post.id] ?? 0,
         }));
-        const nextPosts = withCounts.filter((post) => !post.is_deleted);
+        const visible = withCounts.filter((post) => !post.is_deleted);
+        const now = new Date();
+        const nextPosts = rankPosts(visible, followingSet, variantToUse, now);
         setPosts(nextPosts);
         cachePosts(nextPosts, cacheKey);
       }

@@ -350,6 +350,14 @@ export default function SettingsPage() {
                   <LifeBuoy className="h-5 w-5" />
                   <span className="flex-1 text-left">Podpora</span>
                 </Link>
+                <div className="ml-11 mt-2 space-y-1 text-xs text-neutral-500">
+                  <Link href="/privacy" className="block transition-colors hover:text-neutral-900">
+                    Ochrana soukromí
+                  </Link>
+                  <Link href="/terms" className="block transition-colors hover:text-neutral-900">
+                    Smluvní podmínky
+                  </Link>
+                </div>
               </div>
             </div>
           </aside>

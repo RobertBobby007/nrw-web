@@ -174,7 +174,7 @@ export default function ClipsPage() {
             ))}
           </div>
 
-          <aside className="space-y-3 lg:sticky lg:top-6">
+          <aside className="hidden space-y-3 lg:block lg:sticky lg:top-6">
             <div className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between text-sm font-semibold text-neutral-900">
                 Tvoje flow
