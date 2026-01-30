@@ -56,16 +56,20 @@ export function useRealtimeNRealFeed(params: {
           if (!isApproved(next)) return;
 
           const hydrateAndInsert = async () => {
-            const profiles = next.profiles?.length
-              ? next.profiles
-              : (await supabase
+            let profiles: NrealPost["profiles"] = next.profiles?.length ? next.profiles : [];
+            if (!profiles.length) {
+              try {
+                const { data } = await supabase
                   .from("profiles")
                   .select("username, display_name, avatar_url, verified, verification_label")
                   .eq("id", next.user_id ?? "")
                   .limit(1)
-                  .maybeSingle()
-                  .then(({ data }) => (data ? [data] : []))
-                  .catch(() => []));
+                  .maybeSingle();
+                profiles = data ? [data] : [];
+              } catch {
+                profiles = [];
+              }
+            }
 
             const hydrated: NrealPost = {
               ...(next as NrealPost),
