@@ -6,6 +6,7 @@ import {
   GripVertical,
   MapPin,
   LocateFixed,
+  Moon,
   Sun,
   Users,
 } from "lucide-react";
@@ -29,6 +30,7 @@ type FeedItem = {
 };
 
 type WidgetId = "weather" | "date" | "suggested" | "heatmap";
+type WeatherSnapshot = ReturnType<typeof useWeather>;
 
 const WIDGETS_STORAGE_KEY = "nrw.widget.layout";
 
@@ -55,13 +57,13 @@ const widgetConfig: Record<
   WidgetId,
   {
     title: string;
-    render: (today?: Date) => ReactNode;
+    render: (today: Date | undefined, weather: WeatherSnapshot) => ReactNode;
   }
 > = {
-  weather: { title: "Počasí", render: (today) => <WeatherWidget today={today} /> },
-  date: { title: "Kalendář", render: (today) => <DateWidget today={today} /> },
-  suggested: { title: "Návrhy", render: () => <SuggestionsWidget /> },
-  heatmap: { title: "Heat mapa", render: () => <HeatmapWidget /> },
+  weather: { title: "Počasí", render: (today, weather) => <WeatherWidget today={today} weather={weather} /> },
+  date: { title: "Kalendář", render: (today, _weather) => <DateWidget today={today} /> },
+  suggested: { title: "Návrhy", render: (_today, _weather) => <SuggestionsWidget /> },
+  heatmap: { title: "Heat mapa", render: (_today, _weather) => <HeatmapWidget /> },
 };
 
 const defaultWidgetOrder: WidgetId[] = ["weather", "date", "suggested", "heatmap"];
@@ -88,6 +90,7 @@ const normalizePost = (post: SupabasePost): NrealPost => {
 
 export default function HomePage() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const weather = useWeather();
   const [activeTab, setActiveTab] = useState<StreamTab>("Mix");
   const [today] = useState<Date>(() => new Date());
   const [isEditing, setIsEditing] = useState(false);
@@ -379,15 +382,9 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-neutral-50 pb-24">
       <section className="mx-auto max-w-6xl px-4 py-8 space-y-8">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900">
-            NRStream – hlavní přehled
-          </h1>
-          <p className="max-w-2xl text-sm text-neutral-700">
-            Jeden mix z nReal a nNews. Sleduj příběhy, novinky a aktualizace na jednom
-            místě.
-          </p>
-        </header>
+        <h1 className="sr-only">NRStream</h1>
+
+        <MobileWeatherCard today={today} weather={weather} />
 
         <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-700">
           {tabs.map((tab) => {
@@ -506,7 +503,7 @@ export default function HomePage() {
                   onDragEnter={() => isEditing && draggingId && reorderWidgets(draggingId, widgetId)}
                   onDragEnd={() => setDraggingId(null)}
                 >
-                  {config.render(today)}
+                  {config.render(today, weather)}
                 </WidgetCard>
               );
             })}
@@ -572,8 +569,93 @@ function WidgetCard({
   );
 }
 
-function WeatherWidget({ today }: { today?: Date }) {
-  const weather = useWeather();
+function MobileWeatherCard({ today, weather }: { today?: Date; weather: WeatherSnapshot }) {
+  const forecastFallback = ["Út", "St", "Čt", "Pá", "So"].map((day, idx) => ({
+    day,
+    max: 6 + idx,
+    min: -1 + idx,
+    icon: null,
+  }));
+  const forecast = weather.forecast.length ? weather.forecast : forecastFallback;
+  const nextDay = forecast[0];
+  const nowTemp = weather.temp !== null ? `${weather.temp}°` : "--°";
+  const nightTemp = nextDay ? `${nextDay.min}°` : "--°";
+  const tomorrowTemp = nextDay ? `${nextDay.max}°` : "--°";
+  const dateLabel = today
+    ? today.toLocaleDateString("cs-CZ", { weekday: "long", day: "numeric", month: "long" })
+    : "Dnes";
+
+  return (
+    <div className="lg:hidden">
+      <div className="rounded-2xl border border-slate-200/70 bg-gradient-to-br from-white via-slate-50 to-amber-50 p-3 shadow-sm">
+        <div className="text-sm text-slate-600">
+          <span className="capitalize">{dateLabel}</span>
+        </div>
+
+        <div className="mt-3 rounded-xl border border-slate-200/70 bg-white/90 px-3 py-2 text-slate-900 shadow-sm">
+          {weather.loading ? (
+            <div className="grid grid-cols-3 gap-2">
+              {Array.from({ length: 3 }).map((_, idx) => (
+                <div
+                  key={`weather-skeleton-${idx}`}
+                  className="h-12 rounded-lg bg-slate-100"
+                />
+              ))}
+            </div>
+          ) : weather.error ? (
+            <div className="py-1 text-sm text-slate-500">Počasí je teď nedostupné.</div>
+          ) : (
+            <div className="grid grid-cols-3 items-center text-sm">
+              <div className="flex items-center gap-2">
+                {weather.icon ? (
+                  <img
+                    src={`https://openweathermap.org/img/wn/${weather.icon}@2x.png`}
+                    alt={weather.description ?? "Počasí"}
+                    className="h-9 w-9"
+                  />
+                ) : (
+                  <Sun className="h-5 w-5 text-amber-500" />
+                )}
+                <div>
+                  <div className="text-lg font-semibold text-slate-900">{nowTemp}</div>
+                  <div className="text-xs text-slate-500">Právě teď</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 border-l border-slate-200/80 pl-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100">
+                  <Moon className="h-4 w-4 text-slate-500" />
+                </div>
+                <div>
+                  <div className="text-lg font-semibold text-slate-900">{nightTemp}</div>
+                  <div className="text-xs text-slate-500">V noci</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 border-l border-slate-200/80 pl-3">
+                {nextDay?.icon ? (
+                  <img
+                    src={`https://openweathermap.org/img/wn/${nextDay.icon}@2x.png`}
+                    alt=""
+                    className="h-9 w-9"
+                  />
+                ) : (
+                  <Sun className="h-5 w-5 text-amber-500" />
+                )}
+                <div>
+                  <div className="text-lg font-semibold text-slate-900">{tomorrowTemp}</div>
+                  <div className="text-xs text-slate-500">Zítra</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WeatherWidget({ today, weather }: { today?: Date; weather: WeatherSnapshot }) {
   const lastUpdate = weather.updatedAt
     ? new Date(weather.updatedAt).toLocaleTimeString("cs-CZ", {
         hour: "2-digit",
