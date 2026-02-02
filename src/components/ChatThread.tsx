@@ -20,12 +20,12 @@ type ChatThreadProps = {
   } | null;
 };
 
-function formatMessageTimeLabel(createdAt?: string | null) {
+function formatMessageTimeLabel(createdAt?: string | null, nowMs: number = Date.now()) {
   if (!createdAt) return "neznámý čas";
   const date = new Date(createdAt);
   if (Number.isNaN(date.getTime())) return "neznámý čas";
 
-  const diffMs = Date.now() - date.getTime();
+  const diffMs = nowMs - date.getTime();
   const diffMin = Math.floor(diffMs / 60000);
   const diffH = Math.floor(diffMin / 60);
 
@@ -87,6 +87,7 @@ export function ChatThread({
   const [reporting, setReporting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [reportedIds, setReportedIds] = useState<Set<string>>(new Set());
+  const [now, setNow] = useState(() => Date.now());
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const typingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingIdleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -102,6 +103,13 @@ export function ChatThread({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setNow(Date.now());
+    }, 30000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -245,24 +253,30 @@ export function ChatThread({
               const senderId = message.sender_id ?? message.user_id ?? null;
               const isMe = Boolean(currentUserId && senderId === currentUserId);
               const label = isMe ? "Ty" : otherLabel;
-              const timeLabel = formatMessageTimeLabel(message.created_at);
+              const timeLabel = formatMessageTimeLabel(message.created_at, now);
               const messageDate = new Date(message.created_at ?? "");
               const prevDate =
                 index > 0 ? new Date(messages[index - 1]?.created_at ?? "") : null;
-              const now = new Date();
+              const nowDate = new Date(now);
+              const isLastMessage = index === messages.length - 1;
               const showSeparator =
                 !prevDate ||
                 Number.isNaN(prevDate.getTime()) ||
                 Number.isNaN(messageDate.getTime()) ||
                 !isSameDay(messageDate, prevDate);
-              const showTime = message.created_at ? isSameDay(messageDate, now) : false;
               const isLastMine =
                 isMe &&
                 messages
                   .filter((m) => (m.sender_id ?? m.user_id ?? null) === currentUserId)
                   .at(-1)?.id === message.id;
+              const readByOthers = (message.read_by ?? []).filter((id) => id && id !== currentUserId);
+              const readTimeLabel = message.read_at ? formatMessageTimeLabel(message.read_at, now) : "";
               const readIndicator =
-                isLastMine && (message.read_by ?? []).length > 0 ? "Přečteno" : "";
+                isLastMine && readByOthers.length > 0
+                  ? readTimeLabel
+                    ? `Přečteno ${readTimeLabel}`
+                    : "Přečteno"
+                  : "";
               const canReport = Boolean(
                 senderId &&
                   currentUserId &&
@@ -276,7 +290,7 @@ export function ChatThread({
                     <div className="flex items-center gap-3 py-2">
                       <div className="h-px flex-1 bg-neutral-200" />
                       <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
-                        {formatDateSeparatorLabel(messageDate, now)}
+                        {formatDateSeparatorLabel(messageDate, nowDate)}
                       </span>
                       <div className="h-px flex-1 bg-neutral-200" />
                     </div>
@@ -304,10 +318,8 @@ export function ChatThread({
                         ) : null}
                       </div>
                       <div>{message.content}</div>
-                      {isMe ? (
-                        showTime ? <div className="mt-1 text-[10px] text-white/50">{timeLabel}</div> : null
-                      ) : showTime ? (
-                        <div className="mt-1 text-[10px] text-neutral-400">{timeLabel}</div>
+                      {isLastMessage && isMe ? (
+                        <div className="mt-1 text-right text-[10px] text-white/50">{timeLabel}</div>
                       ) : null}
                       {openMenuId === message.id && showMenu ? (
                         <div
@@ -332,7 +344,7 @@ export function ChatThread({
                   </div>
                   {isMe && readIndicator ? (
                     <div className="flex justify-end">
-                      <div className="mt-1 flex items-center gap-2 text-[10px] text-neutral-400">
+                      <div className="mt-1 text-[10px] text-neutral-400">
                         {readIndicator ? <span>{readIndicator}</span> : null}
                       </div>
                     </div>

@@ -11,6 +11,7 @@ export type ChatMessage = {
   content: string;
   created_at: string;
   read_by: string[];
+  read_at?: string | null;
 };
 
 export function useRealtimeChatMessages(chatId?: string | null) {

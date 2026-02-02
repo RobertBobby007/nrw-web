@@ -194,7 +194,7 @@ export default function CreatePage() {
             <span className="font-semibold text-neutral-900">Nadpis</span>
             <input
               type="text"
-              className="w-full rounded-lg border border-neutral-200/70 px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-500 outline-none focus:border-neutral-400"
+              className="w-full rounded-lg border border-neutral-200/70 px-3 py-2 text-base text-neutral-900 placeholder:text-neutral-500 outline-none focus:border-neutral-400 md:text-sm"
               placeholder="Krátký titulek příspěvku"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -203,7 +203,7 @@ export default function CreatePage() {
           <label className="space-y-2 text-sm text-neutral-700">
             <span className="font-semibold text-neutral-900">Typ obsahu</span>
             <select
-              className="w-full rounded-lg border border-neutral-200/70 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-400"
+              className="w-full rounded-lg border border-neutral-200/70 px-3 py-2 text-base text-neutral-900 outline-none focus:border-neutral-400 md:text-sm"
               value={contentType}
               onChange={(e) => setContentType(e.target.value)}
             >
@@ -218,7 +218,7 @@ export default function CreatePage() {
           <span className="font-semibold text-neutral-900">Obsah</span>
           <textarea
             rows={6}
-            className="w-full resize-none rounded-lg border border-neutral-200/70 px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-500 outline-none focus:border-neutral-400"
+            className="w-full resize-none rounded-lg border border-neutral-200/70 px-3 py-2 text-base text-neutral-900 placeholder:text-neutral-500 outline-none focus:border-neutral-400 md:text-sm"
             placeholder="Napiš, co chceš sdílet..."
             value={body}
             onChange={(e) => setBody(e.target.value)}

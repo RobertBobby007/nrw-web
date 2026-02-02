@@ -19,16 +19,8 @@ import { PostCard } from "../real/PostCard";
 import { getFollowCounts, getPostsCount, peekFollowCounts, peekPostsCount } from "@/lib/follows";
 import { containsBlockedContent } from "@/lib/content-filter";
 import { requestAuth } from "@/lib/auth-required";
+import { parseMediaUrls } from "@/lib/media";
 
-const media = [
-  { id: "m1", label: "Golden hour crew", gradient: "from-amber-300 via-orange-200 to-rose-200" },
-  { id: "m2", label: "NRW meetup", gradient: "from-indigo-300 via-blue-200 to-cyan-200" },
-  { id: "m3", label: "Studio moment", gradient: "from-slate-800 via-slate-700 to-slate-900" },
-  { id: "m4", label: "City run", gradient: "from-emerald-200 via-teal-200 to-cyan-200" },
-  { id: "m5", label: "Afterparty", gradient: "from-rose-200 via-fuchsia-200 to-purple-200" },
-  { id: "m6", label: "nReal live", gradient: "from-amber-200 via-yellow-200 to-lime-200" },
-];
-const PROFILE_TAB_KEY = "nrw:profile-tab";
 
 export default function IdPage() {
   const router = useRouter();
@@ -58,6 +50,9 @@ export default function IdPage() {
   const previewRef = useRef<HTMLDivElement | null>(null);
   const [posts, setPosts] = useState<NrealPost[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
+  const [postsError, setPostsError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"posts" | "reels" | "tags" | "threads">("posts");
+  const [showAllPosts, setShowAllPosts] = useState(false);
   const [showVerificationInfo, setShowVerificationInfo] = useState(false);
   const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
   const [stats, setStats] = useState<{ followers: number; following: number; posts: number }>(() => {
@@ -155,6 +150,7 @@ export default function IdPage() {
     if (!supabase || !profile?.id) return;
 
     setPostsLoading(true);
+    setPostsError(null);
 
     (async () => {
       const { data: userData } = await supabase.auth.getUser();
@@ -224,8 +220,10 @@ export default function IdPage() {
         }));
 
         setPosts(withCounts.filter((p) => !p.is_deleted));
+        setPostsError(null);
       } else {
         setPosts([]);
+        setPostsError(error?.message ?? "Nepodařilo se načíst příspěvky.");
       }
 
       setPostsLoading(false);
@@ -403,8 +401,8 @@ export default function IdPage() {
     <main className="min-h-screen bg-gradient-to-b from-neutral-50 to-white pb-24">
       <section className="mx-auto w-full max-w-4xl px-4 py-8 space-y-6 sm:space-y-8 lg:max-w-6xl lg:py-12">
         <header className="flex flex-col gap-4 rounded-3xl border border-neutral-200 bg-white/90 p-4 shadow-sm backdrop-blur sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:p-6">
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-            <label className="group relative h-16 w-16 cursor-pointer rounded-full bg-gradient-to-br from-rose-400 via-amber-300 to-orange-300 ring-4 ring-white transition hover:scale-[1.02] sm:h-20 sm:w-20">
+          <div className="flex items-center gap-4 sm:gap-6">
+            <label className="group relative h-16 w-16 cursor-pointer overflow-hidden rounded-full ring-2 ring-neutral-200 transition hover:scale-[1.02] sm:h-20 sm:w-20">
               {avatarPreview ? (
                 <img
                   src={avatarPreview}
@@ -435,7 +433,7 @@ export default function IdPage() {
                 </div>
               )}
             </label>
-            <div className="space-y-1">
+            <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2 text-xl font-semibold text-neutral-900">
                 <span>{displayName}</span>
                 <div
@@ -458,7 +456,7 @@ export default function IdPage() {
                     {isVerified ? verificationLabel : "Neověřeno"}
                   </span>
                   {isVerified && showVerificationInfo && (
-                    <div className="absolute left-0 top-full z-20 mt-2 w-64 rounded-xl border border-neutral-200 bg-white p-3 text-[13px] text-neutral-700 shadow-lg">
+                    <div className="absolute right-0 top-full z-20 mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-neutral-200 bg-white p-3 text-[13px] text-neutral-700 shadow-lg sm:left-0 sm:right-auto">
                       <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-neutral-900">
                         <BadgeCheck className="h-4 w-4 text-emerald-600" />
                         Ověřený profil
@@ -710,18 +708,96 @@ export default function IdPage() {
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-6">
             <ProfileStories />
-            <ProfileTabs />
-            <InstagramGrid />
-            <TwitterFeed
-              displayName={displayName}
-              posts={posts}
-              loading={postsLoading}
-              sanitizeVerificationLabel={sanitizeVerificationLabel}
-              currentUserId={profile?.id ?? null}
-              currentUserProfile={profile}
-              onToggleLike={toggleLike}
-              likeDisabled={likingPostIds}
-            />
+            <ProfileTabs activeTab={activeTab} onChange={setActiveTab} />
+
+            {activeTab === "posts" ? (
+              <>
+                <PhotoGrid
+                  items={posts
+                    .filter((p) => Boolean(p.media_url))
+                    .slice(0, 9)
+                    .map((p) => ({
+                      id: p.id,
+                      url: parseMediaUrls(p.media_url as string)[0] ?? "",
+                      type: (p.media_type as "image" | "video" | null) ?? "image",
+                    }))}
+                />
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-neutral-900">Krátké posty</h2>
+                    {posts.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllPosts((prev) => !prev)}
+                        className="rounded-full px-3 py-1 text-xs font-semibold text-neutral-600 transition hover:bg-neutral-100"
+                      >
+                        {showAllPosts ? "Skrýt" : "Zobrazit všechno"}
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {postsError ? (
+                    <div className="rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">
+                      Nepodařilo se načíst příspěvky: {postsError}
+                    </div>
+                  ) : postsLoading ? (
+                    <div className="rounded-3xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
+                      Načítám příspěvky…
+                    </div>
+                  ) : posts.length === 0 ? (
+                    <div className="rounded-3xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
+                      Zatím žádné příspěvky.
+                    </div>
+                  ) : (
+                    (showAllPosts ? posts : posts.slice(0, 3)).map((post) => {
+                      const author = post.profiles?.[0] ?? null;
+                      const authorName = author?.display_name || author?.username || displayName;
+                      const authorUsername = author?.username ? `@${author.username}` : null;
+                      const verificationLabel = author?.verified
+                        ? sanitizeVerificationLabel(author.verification_label) || "NRW Verified"
+                        : null;
+
+                      return (
+                        <PostCard
+                          key={post.id}
+                          postId={post.id}
+                          postUserId={post.user_id}
+                          isDeleted={post.is_deleted ?? null}
+                          author={{
+                            displayName: authorName,
+                            username: authorUsername,
+                            avatarUrl: author?.avatar_url ?? null,
+                            isCurrentUser: Boolean(profile?.id && post.user_id === profile.id),
+                            verified: Boolean(author?.verified),
+                            verificationLabel,
+                          }}
+                          content={post.content ?? ""}
+                          createdAt={post.created_at}
+                          status={post.status}
+                          mediaUrl={post.media_url ?? null}
+                          mediaType={post.media_type ?? null}
+                          likesCount={post.likesCount ?? 0}
+                          likedByCurrentUser={post.likedByCurrentUser ?? false}
+                          commentsCount={post.commentsCount ?? 0}
+                          onToggleLike={toggleLike}
+                          likeDisabled={likingPostIds.has(post.id)}
+                          currentUserProfile={profile}
+                        />
+                      );
+                    })
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="rounded-3xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
+                {activeTab === "reels"
+                  ? "Klipy se zobrazí brzy."
+                  : activeTab === "tags"
+                    ? "Označené příspěvky se zobrazí brzy."
+                    : "Vlákna se zobrazí brzy."}
+              </div>
+            )}
           </div>
 
           <aside className="hidden space-y-3 lg:block lg:sticky lg:top-10 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto lg:pr-1">
@@ -769,22 +845,14 @@ function ProfileStories() {
   );
 }
 
-function ProfileTabs() {
-  const [activeTab, setActiveTab] = useState<"posts" | "reels" | "tags" | "threads">("posts");
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const saved = window.localStorage.getItem(PROFILE_TAB_KEY);
-    if (saved === "posts" || saved === "reels" || saved === "tags" || saved === "threads") {
-      setActiveTab(saved);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(PROFILE_TAB_KEY, activeTab);
-  }, [activeTab]);
-
-  const tabs = [
+function ProfileTabs({
+  activeTab,
+  onChange,
+}: {
+  activeTab: "posts" | "reels" | "tags" | "threads";
+  onChange: (tab: "posts" | "reels" | "tags" | "threads") => void;
+}) {
+  const tabs: Array<{ id: "posts" | "reels" | "tags" | "threads"; label: string }> = [
     { id: "posts", label: "Příspěvky" },
     { id: "reels", label: "Klipy" },
     { id: "tags", label: "Označení" },
@@ -798,7 +866,7 @@ function ProfileTabs() {
           <button
             key={tab.id}
             type="button"
-            onClick={() => setActiveTab(tab.id as "posts" | "reels" | "tags" | "threads")}
+            onClick={() => onChange(tab.id)}
             className={`rounded-full border px-4 py-2 transition ${
               isActive
                 ? "border-neutral-900 bg-neutral-900 text-white"
@@ -813,115 +881,41 @@ function ProfileTabs() {
   );
 }
 
-function InstagramGrid() {
+function PhotoGrid({ items }: { items: Array<{ id: string; url: string; type: "image" | "video" | null }> }) {
   return (
     <div className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-base font-semibold text-neutral-900">Foto grid</h2>
-        <button className="rounded-full px-3 py-1 text-xs font-semibold text-neutral-600 transition hover:bg-neutral-100">
+        <button
+          type="button"
+          className="rounded-full px-3 py-1 text-xs font-semibold text-neutral-600 transition hover:bg-neutral-100"
+        >
           Archiv
         </button>
       </div>
 
       <div className="grid grid-cols-3 gap-1 overflow-hidden rounded-2xl border border-neutral-100 sm:gap-2">
-        {media.map((item) => (
-          <div
-            key={item.id}
-            className="group relative aspect-square overflow-hidden bg-neutral-100"
-          >
-            <div className={`absolute inset-0 bg-gradient-to-br ${item.gradient}`} />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.28),transparent_42%),radial-gradient(circle_at_80%_70%,rgba(255,255,255,0.22),transparent_38%)] mix-blend-screen" />
-            <div className="absolute inset-0 bg-black/0 transition group-hover:bg-black/10" />
-          </div>
-        ))}
+        {(items.length ? items : Array.from({ length: 9 }).map((_, i) => ({ id: `ph-${i}`, url: "", type: null }))).map(
+          (item) => (
+            <div key={item.id} className="group relative aspect-square overflow-hidden bg-neutral-100">
+              {item.url ? (
+                item.type === "video" ? (
+                  <video src={item.url} muted playsInline className="absolute inset-0 h-full w-full object-cover" />
+                ) : (
+                  <img src={item.url} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                )
+              ) : (
+                <div className="absolute inset-0 bg-gradient-to-br from-neutral-100 via-white to-neutral-200" />
+              )}
+              <div className="absolute inset-0 bg-black/0 transition group-hover:bg-black/10" />
+            </div>
+          ),
+        )}
       </div>
     </div>
   );
 }
 
-function TwitterFeed({
-  displayName,
-  posts,
-  loading,
-  sanitizeVerificationLabel,
-  currentUserId,
-  currentUserProfile,
-  onToggleLike,
-  likeDisabled,
-}: {
-  displayName: string;
-  posts: NrealPost[];
-  loading: boolean;
-  sanitizeVerificationLabel: (value: string | null | undefined) => string | null;
-  currentUserId: string | null;
-  currentUserProfile: Profile | null;
-  onToggleLike: (postId: string) => void;
-  likeDisabled: Set<string>;
-}) {
-  const [showAll, setShowAll] = useState(false);
-
-  const hasPosts = posts.length > 0;
-  const visiblePosts = showAll ? posts : posts.slice(0, 3);
-
-  return (
-    <div className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-neutral-900">Krátké posty</h2>
-        {hasPosts ? (
-          <button
-            className="rounded-full px-3 py-1 text-xs font-semibold text-neutral-600 transition hover:bg-neutral-100"
-            onClick={() => setShowAll((prev) => !prev)}
-          >
-            {showAll ? "Skrýt" : "Zobrazit všechno"}
-          </button>
-        ) : null}
-      </div>
-      <div className="space-y-4">
-        {loading ? (
-          <div className="py-3 text-sm text-neutral-600">Načítám příspěvky…</div>
-        ) : hasPosts ? (
-          visiblePosts.map((post) => {
-            const author = post.profiles?.[0] ?? null;
-            const authorName = author?.display_name || author?.username || displayName;
-            const authorUsername = author?.username ? `@${author.username}` : null;
-            const verificationLabel =
-              author?.verified ? sanitizeVerificationLabel(author.verification_label) || "Ověřený profil" : null;
-
-            return (
-              <PostCard
-                key={post.id}
-                postId={post.id}
-                postUserId={post.user_id}
-                isDeleted={post.is_deleted ?? null}
-                author={{
-                  displayName: authorName,
-                  username: authorUsername,
-                  avatarUrl: author?.avatar_url ?? null,
-                  isCurrentUser: Boolean(currentUserId && post.user_id === currentUserId),
-                  verified: Boolean(author?.verified),
-                  verificationLabel,
-                }}
-                content={post.content ?? ""}
-                createdAt={post.created_at}
-                status={post.status}
-                mediaUrl={post.media_url ?? null}
-                mediaType={post.media_type ?? null}
-                likesCount={post.likesCount ?? 0}
-                likedByCurrentUser={post.likedByCurrentUser ?? false}
-                commentsCount={post.commentsCount ?? 0}
-                onToggleLike={onToggleLike}
-                likeDisabled={likeDisabled.has(post.id)}
-                currentUserProfile={currentUserProfile}
-              />
-            );
-          })
-        ) : (
-          <div className="py-3 text-sm text-neutral-600">Zatím nemáš žádné příspěvky.</div>
-        )}        
-      </div>
-    </div>
-  );
-}
 
 function Widget({ title, children }: { title: string; children: React.ReactNode }) {
   return (

@@ -22,6 +22,15 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Prevent iOS Safari zoom on focus by keeping form text >= 16px on touch devices. */
+@media (hover: none) and (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 @keyframes globe-spin {
   0% {
     transform: rotate(0deg);

@@ -8,6 +8,16 @@ const MESSAGE_LIMIT = 50;
 const CHAT_MESSAGES_CACHE_TTL_MS = 60000;
 const chatMessagesCache = new Map<string, { messages: ChatMessage[]; fetchedAt: number }>();
 
+function pickLatestTimestamp(a?: string | null, b?: string | null) {
+  if (!a) return b ?? null;
+  if (!b) return a ?? null;
+  const aTime = new Date(a).getTime();
+  const bTime = new Date(b).getTime();
+  if (Number.isNaN(aTime)) return b ?? null;
+  if (Number.isNaN(bTime)) return a ?? null;
+  return bTime > aTime ? b : a;
+}
+
 function mergeMessages(existing: ChatMessage[], incoming: ChatMessage[]) {
   if (incoming.length === 0) {
     return existing;
@@ -21,7 +31,18 @@ function mergeMessages(existing: ChatMessage[], incoming: ChatMessage[]) {
   });
   incoming.forEach((message) => {
     if (message?.id) {
-      map.set(message.id, message);
+      const prev = map.get(message.id);
+      if (prev) {
+        const readBy = Array.from(new Set([...(prev.read_by ?? []), ...(message.read_by ?? [])]));
+        map.set(message.id, {
+          ...prev,
+          ...message,
+          read_by: readBy,
+          read_at: pickLatestTimestamp(prev.read_at, message.read_at),
+        });
+      } else {
+        map.set(message.id, message);
+      }
     }
   });
 
@@ -29,6 +50,7 @@ function mergeMessages(existing: ChatMessage[], incoming: ChatMessage[]) {
     .map((message) => ({
       ...message,
       read_by: Array.from(new Set(message.read_by ?? [])),
+      read_at: message.read_at ?? null,
     }))
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 }
@@ -39,6 +61,7 @@ export function useChatMessages(chatId?: string | null, currentUserId?: string |
   const [loading, setLoading] = useState(false);
   const hasLoadedRef = useRef(false);
   const readSentRef = useRef<Set<string>>(new Set());
+  const readReceiptsDisabledRef = useRef(false);
 
   useEffect(() => {
     hasLoadedRef.current = false;
@@ -92,21 +115,28 @@ export function useChatMessages(chatId?: string | null, currentUserId?: string |
       if (messageIds.length > 0) {
         const { data: reads, error: readsError } = await supabase
           .from("chat_message_reads")
-          .select("message_id, user_id")
+          .select("message_id, user_id, read_at")
           .in("message_id", messageIds);
         if (!readsError) {
           const readMap = new Map<string, Set<string>>();
+          const readAtMap = new Map<string, string>();
           (reads ?? []).forEach((row) => {
             const messageId = (row as { message_id?: string | null }).message_id;
             const userId = (row as { user_id?: string | null }).user_id;
+            const readAt = (row as { read_at?: string | null }).read_at ?? null;
             if (!messageId || !userId) return;
             const set = readMap.get(messageId) ?? new Set<string>();
             set.add(userId);
             readMap.set(messageId, set);
+            if (readAt) {
+              const existing = readAtMap.get(messageId);
+              readAtMap.set(messageId, pickLatestTimestamp(existing, readAt) ?? readAt);
+            }
           });
           merged = merged.map((message) => ({
             ...message,
             read_by: Array.from(readMap.get(message.id) ?? new Set(message.read_by ?? [])),
+            read_at: readAtMap.get(message.id) ?? message.read_at ?? null,
           }));
         }
       }
@@ -139,15 +169,27 @@ export function useChatMessages(chatId?: string | null, currentUserId?: string |
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_message_reads" },
         (payload) => {
-          const row = payload.new as { message_id?: string | null; user_id?: string | null };
+          const row = payload.new as {
+            message_id?: string | null;
+            user_id?: string | null;
+            read_at?: string | null;
+          };
           const messageId = row?.message_id ?? null;
           const userId = row?.user_id ?? null;
+          const readAt = row?.read_at ?? null;
           if (!messageId || !userId) return;
           setMessages((prev) =>
             prev.map((message) => {
               if (message.id !== messageId) return message;
-              if (message.read_by?.includes(userId)) return message;
-              return { ...message, read_by: [...(message.read_by ?? []), userId] };
+              const nextReadAt = pickLatestTimestamp(message.read_at, readAt);
+              if (message.read_by?.includes(userId)) {
+                return nextReadAt ? { ...message, read_at: nextReadAt } : message;
+              }
+              return {
+                ...message,
+                read_by: [...(message.read_by ?? []), userId],
+                read_at: nextReadAt,
+              };
             }),
           );
         },
@@ -161,6 +203,7 @@ export function useChatMessages(chatId?: string | null, currentUserId?: string |
 
   useEffect(() => {
     if (!chatId || !currentUserId) return;
+    if (readReceiptsDisabledRef.current) return;
     const unread = messages.filter((message) => {
       const senderId = message.sender_id ?? message.user_id ?? null;
       if (!senderId || senderId === currentUserId) return false;
@@ -169,21 +212,53 @@ export function useChatMessages(chatId?: string | null, currentUserId?: string |
       return true;
     });
     if (unread.length === 0) return;
-    unread.forEach((message) => readSentRef.current.add(message.id));
-    void supabase
-      .from("chat_message_reads")
-      .upsert(
-        unread.map((message) => ({
-          message_id: message.id,
-          user_id: currentUserId,
-        })),
-        { onConflict: "message_id,user_id" },
-      )
-      .then(({ error }) => {
+    const payload = unread.map((message) => ({
+      message_id: message.id,
+      user_id: currentUserId,
+      read_at: new Date().toISOString(),
+    }));
+    const unreadIds = unread.map((message) => message.id);
+
+    const markSent = () => {
+      unreadIds.forEach((id) => readSentRef.current.add(id));
+    };
+    const unmarkSent = () => {
+      unreadIds.forEach((id) => readSentRef.current.delete(id));
+    };
+
+    void (async () => {
+        const { error } = await supabase
+          .from("chat_message_reads")
+          .upsert(payload, { onConflict: "message_id,user_id" });
+
         if (error) {
-          console.error("chat_message_reads upsert failed", error);
+          const code = (error as { code?: string }).code ?? "";
+          if (code === "42P10") {
+            const { error: insertError } = await supabase.from("chat_message_reads").insert(payload);
+            if (insertError) {
+              const insertCode = (insertError as { code?: string }).code ?? "";
+              if (insertCode !== "23505") {
+                readReceiptsDisabledRef.current = true;
+                unmarkSent();
+                return;
+              }
+            }
+            markSent();
+            return;
+          }
+
+          if (code === "23505") {
+            markSent();
+            return;
+          }
+
+          readReceiptsDisabledRef.current = true;
+          unmarkSent();
+          return;
         }
-      });
+
+        markSent();
+    })();
   }, [chatId, currentUserId, messages, supabase]);
 
   return { messages, setMessages, loading };

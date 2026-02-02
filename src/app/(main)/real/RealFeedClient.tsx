@@ -639,7 +639,7 @@ export function RealFeedClient() {
             maxLength={MAX_POST_CHARS}
             onChange={(e) => setContent(e.target.value.slice(0, MAX_POST_CHARS))}
             placeholder="Co se děje v NRW?"
-            className="min-h-[120px] w-full resize-none border-none bg-transparent text-sm outline-none placeholder:text-neutral-400"
+            className="min-h-[120px] w-full resize-none border-none bg-transparent text-base outline-none placeholder:text-neutral-400 md:text-sm"
           />
           <div className="flex items-center justify-between text-xs text-neutral-500">
             <span>{content.length}/{MAX_POST_CHARS}</span>
@@ -647,7 +647,7 @@ export function RealFeedClient() {
               <span className="font-semibold text-red-600">Limit dosažen</span>
             ) : null}
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3">
             <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:border-neutral-500">
               <input
                 type="file"
@@ -663,7 +663,16 @@ export function RealFeedClient() {
               )}
               {mediaPreviews.length > 0 ? "Přidat další" : "Přidat foto/video"}
             </label>
-            {mediaPreviews.length > 0 && (
+            <button
+              type="submit"
+              disabled={posting || (!content.trim() && mediaFiles.length === 0) || !userId}
+              className="ml-auto rounded-full bg-black px-5 py-2 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {posting ? "Odesílám…" : "Přidat příspěvek"}
+            </button>
+          </div>
+          {mediaPreviews.length > 0 && (
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={resetMedia}
@@ -671,13 +680,11 @@ export function RealFeedClient() {
               >
                 Odebrat
               </button>
-            )}
-            {mediaPreviews.length > 0 && (
               <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
                 {mediaType === "video" ? "Video" : "Foto"}
               </span>
-            )}
-          </div>
+            </div>
+          )}
           {mediaPreviews.length > 0 && (
             <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
               <div className="mb-2 text-xs font-semibold text-neutral-700">Náhled</div>
@@ -722,15 +729,6 @@ export function RealFeedClient() {
           {error && (
             <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
           )}
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={posting || (!content.trim() && mediaFiles.length === 0) || !userId}
-              className="rounded-full bg-black px-5 py-2 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {posting ? "Odesílám…" : "Přidat příspěvek"}
-            </button>
-          </div>
         </form>
       </div>
 

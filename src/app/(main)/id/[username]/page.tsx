@@ -417,9 +417,9 @@ export default function PublicProfilePage() {
               </div>
             </div>
           ) : (
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="flex min-w-0 items-start gap-4">
-                <div className="relative h-20 w-20 overflow-hidden rounded-full ring-2 ring-neutral-200">
+            <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+              <div className="flex items-center gap-4 sm:gap-6">
+                <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-full ring-2 ring-neutral-200 sm:h-20 sm:w-20">
                   {profile.avatar_url ? (
                     <img
                       src={profile.avatar_url}
@@ -440,8 +440,8 @@ export default function PublicProfilePage() {
                 </div>
 
                 <div className="min-w-0 space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="truncate text-2xl font-semibold tracking-tight text-neutral-900">
+                  <div className="flex flex-wrap items-center gap-2 text-xl font-semibold text-neutral-900">
+                    <h1 className="text-xl font-semibold text-neutral-900">
                       {safeIdentityLabel(
                         profile.display_name,
                         safeIdentityLabel(profile.username, "Uživatel"),
@@ -455,21 +455,21 @@ export default function PublicProfilePage() {
                     ) : null}
                   </div>
 
-                  <div className="truncate text-sm text-neutral-600">
+                  <p className="text-sm text-neutral-600">
                     @{safeIdentityLabel(profile.username, usernameParam)}
-                  </div>
+                  </p>
 
-                  <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-neutral-700">
+                  <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-neutral-700">
                     <span className="whitespace-nowrap">{formatCount(counts.followers)} sledujících</span>
                     <span className="whitespace-nowrap">· {formatCount(counts.following)} sleduje</span>
                     <span className="whitespace-nowrap">· {formatCount(counts.posts)} postů</span>
                   </div>
 
-                  <p className="max-w-2xl text-sm text-neutral-700">{profile.bio?.trim() ? profile.bio : "—"}</p>
+                  <p className="text-sm text-neutral-700">{profile.bio?.trim() ? profile.bio : "—"}</p>
                 </div>
               </div>
 
-              <div className="ml-auto flex items-center justify-end gap-2">
+              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                 {currentUserId && isOwnProfile ? (
                   <Link
                     href="/id"

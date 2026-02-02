@@ -856,7 +856,7 @@ export function PostCard({
                 {showFollowButton ? (
                   isFollowingAuthor === null && currentUserId ? (
                     <div className="h-6 w-16 animate-pulse rounded-full bg-neutral-100" />
-                  ) : (
+                  ) : !isFollowingAuthor ? (
                     <button
                       type="button"
                       disabled={followBusy}
@@ -865,16 +865,12 @@ export function PostCard({
                         e.stopPropagation();
                         void toggleFollowAuthor();
                       }}
-                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-70 ${
-                        isFollowingAuthor
-                          ? "border border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-50"
-                          : "bg-neutral-900 text-white hover:bg-neutral-800"
-                      }`}
+                      className="inline-flex items-center gap-1 rounded-full bg-neutral-900 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-70"
                     >
-                      {!isFollowingAuthor ? <Plus className="h-3.5 w-3.5" /> : null}
-                      <span>{isFollowingAuthor ? "Sleduji" : "Sledovat"}</span>
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Sledovat</span>
                     </button>
-                  )
+                  ) : null
                 ) : null}
               </div>
               <div className="flex items-center gap-2 text-xs text-neutral-500">
