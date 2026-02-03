@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="NRW">
+  <rect width="128" height="128" fill="#000" />
+  <text
+    x="64"
+    y="82"
+    text-anchor="middle"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="76"
+    font-weight="700"
+    letter-spacing="2"
+    fill="#f5f1ea"
+  >
+    NRW
+  </text>
+</svg>
