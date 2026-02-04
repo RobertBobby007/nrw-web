@@ -2,6 +2,7 @@
 
 import { getSupabaseBrowserClient } from "./supabase-browser";
 import { containsBlockedContent, containsBlockedIdentityContent } from "./content-filter";
+import { canHydrateFromSession, readSessionCache, writeSessionCache } from "./session-cache";
 
 export type Profile = {
   id: string;
@@ -21,12 +22,22 @@ export type Profile = {
 const TABLE = "profiles";
 const AVATAR_BUCKET = "avatars";
 const PROFILE_CACHE_TTL_MS = 60000;
+const PROFILE_SESSION_KEY = "nrw.profile.current";
 let cachedProfile: Profile | null = null;
 let cachedAt = 0;
 let inflightProfile: Promise<Profile | null> | null = null;
 
 export function getCachedProfile(): Profile | null {
-  return cachedProfile;
+  if (cachedProfile) return cachedProfile;
+  if (canHydrateFromSession()) {
+    const cached = readSessionCache<Profile>(PROFILE_SESSION_KEY, PROFILE_CACHE_TTL_MS);
+    if (cached) {
+      cachedProfile = cached;
+      cachedAt = Date.now();
+      return cachedProfile;
+    }
+  }
+  return null;
 }
 
 // Vrátí profil přihlášeného uživatele (nebo null)
@@ -56,6 +67,7 @@ export async function fetchCurrentProfile(options?: { force?: boolean }): Promis
       if (profile) {
         cachedProfile = profile;
         cachedAt = Date.now();
+        writeSessionCache(PROFILE_SESSION_KEY, profile);
         return profile;
       }
       cachedAt = Date.now();

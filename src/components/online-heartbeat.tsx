@@ -4,8 +4,14 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { ensureOnlinePresence } from "@/lib/presence/useUserPresence";
+import { AUTH_SESSION_KEY, writeSessionCache } from "@/lib/session-cache";
 
 export function OnlineHeartbeat() {
+  const HEARTBEAT_ENABLED = false;
+  if (!HEARTBEAT_ENABLED) {
+    return null;
+  }
+
   const supabase = getSupabaseBrowserClient();
   const pathname = usePathname();
 
@@ -20,6 +26,7 @@ export function OnlineHeartbeat() {
       try {
         const { data } = await supabase.auth.getUser();
         userId = data.user?.id ?? null;
+        writeSessionCache(AUTH_SESSION_KEY, userId, userId ?? null);
         ensureOnlinePresence(userId);
       } catch (e) {
         console.error("heartbeat getUser failed", e);

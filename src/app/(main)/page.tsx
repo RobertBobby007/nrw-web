@@ -19,6 +19,13 @@ import type { NrealPost, NrealProfile } from "@/types/nreal";
 import { useWeather } from "@/hooks/useWeather";
 import { useRealtimeNRealFeed } from "@/hooks/useRealtimeNRealFeed";
 import { getFeedVariant, rankPosts } from "@/lib/nreal-feed-ranking";
+import {
+  AUTH_SESSION_KEY,
+  AUTH_SESSION_TTL_MS,
+  canHydrateFromSession,
+  readSessionCache,
+  writeSessionCache,
+} from "@/lib/session-cache";
 
 type FeedItem = {
   id: string;
@@ -48,6 +55,8 @@ type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentU
 const MAIN_FEED_CACHE_TTL_MS = 30000;
 const MAIN_FEED_CACHE_LIMIT = 30;
 let nrealFeedCache: { userId: string | null; posts: NrealPost[]; fetchedAt: number } | null = null;
+const MAIN_FEED_SESSION_KEY = "nrw.feed.main";
+const MAIN_FEED_SESSION_TTL_MS = 30000;
 
 type StreamItem =
   | { kind: "nReal"; createdAt: string; post: NrealPost }
@@ -91,16 +100,24 @@ const normalizePost = (post: SupabasePost): NrealPost => {
 export default function HomePage() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const weather = useWeather();
+  const canHydrate = canHydrateFromSession();
+  const initialUserId = canHydrate
+    ? readSessionCache<string | null>(AUTH_SESSION_KEY, AUTH_SESSION_TTL_MS) ?? null
+    : null;
+  const initialFeed = canHydrate
+    ? readSessionCache<NrealPost[]>(MAIN_FEED_SESSION_KEY, MAIN_FEED_SESSION_TTL_MS, initialUserId)
+    : null;
+  const hasInitialFeed = initialFeed !== null;
   const [activeTab, setActiveTab] = useState<StreamTab>("Mix");
   const [today] = useState<Date>(() => new Date());
   const [isEditing, setIsEditing] = useState(false);
   const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(defaultWidgetOrder);
   const [hasHydrated, setHasHydrated] = useState(false);
   const [draggingId, setDraggingId] = useState<WidgetId | null>(null);
-  const [nrealPosts, setNrealPosts] = useState<NrealPost[]>([]);
-  const [nrealLoading, setNrealLoading] = useState(true);
+  const [nrealPosts, setNrealPosts] = useState<NrealPost[]>(() => initialFeed ?? []);
+  const [nrealLoading, setNrealLoading] = useState(() => !hasInitialFeed);
   const [nrealError, setNrealError] = useState<string | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(initialUserId);
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
 
@@ -110,6 +127,7 @@ export default function HomePage() {
       posts: nextPosts.slice(0, MAIN_FEED_CACHE_LIMIT),
       fetchedAt: Date.now(),
     };
+    writeSessionCache(MAIN_FEED_SESSION_KEY, nrealFeedCache.posts, cacheUserId);
   };
 
   const setNrealPostsWithCache = (updater: (prev: NrealPost[]) => NrealPost[], cacheUserId: string | null) => {
@@ -148,9 +166,34 @@ export default function HomePage() {
     let active = true;
     const loadNreal = async () => {
       setNrealError(null);
+      const cachedUserId = readSessionCache<string | null>(AUTH_SESSION_KEY, AUTH_SESSION_TTL_MS);
+      const optimisticUserId = cachedUserId ?? null;
+      if (optimisticUserId && optimisticUserId !== currentUserId) {
+        setCurrentUserId(optimisticUserId);
+      }
+
+      const cacheKey = optimisticUserId;
+      const cacheValid =
+        nrealFeedCache &&
+        nrealFeedCache.userId === cacheKey &&
+        Date.now() - nrealFeedCache.fetchedAt < MAIN_FEED_CACHE_TTL_MS;
+
+      const sessionCached = !cacheValid
+        ? readSessionCache<NrealPost[]>(MAIN_FEED_SESSION_KEY, MAIN_FEED_SESSION_TTL_MS, cacheKey)
+        : null;
+
+      if (sessionCached) {
+        setNrealPosts(sessionCached);
+        cacheNrealPosts(sessionCached, cacheKey);
+      }
+
+      setNrealLoading(!(cacheValid || Boolean(sessionCached)));
+
       const { data: userData } = await supabase.auth.getUser();
       const user = userData?.user ?? null;
-      setCurrentUserId(user?.id ?? null);
+      const resolvedUserId = user?.id ?? null;
+      setCurrentUserId(resolvedUserId);
+      writeSessionCache(AUTH_SESSION_KEY, resolvedUserId, resolvedUserId ?? null);
       const { variant: variantToUse } = getFeedVariant(user?.id ?? null);
       if (user?.id) {
         const profileData = await fetchCurrentProfile();
@@ -159,15 +202,13 @@ export default function HomePage() {
         setCurrentProfile(null);
       }
 
-      const cacheKey = user?.id ?? null;
-      const cacheValid =
+      const confirmedCacheKey = user?.id ?? null;
+      const confirmedCacheValid =
         nrealFeedCache &&
-        nrealFeedCache.userId === cacheKey &&
+        nrealFeedCache.userId === confirmedCacheKey &&
         Date.now() - nrealFeedCache.fetchedAt < MAIN_FEED_CACHE_TTL_MS;
 
-      setNrealLoading(!cacheValid);
-
-      if (cacheValid && active && nrealFeedCache) {
+      if (confirmedCacheValid && active && nrealFeedCache) {
         let followingSet = new Set<string>();
         if (user?.id) {
           const { data: followRows } = await supabase
@@ -183,7 +224,7 @@ export default function HomePage() {
         const now = new Date();
         const ranked = rankPosts(nrealFeedCache.posts, followingSet, variantToUse, now);
         setNrealPosts(ranked);
-        cacheNrealPosts(ranked, cacheKey);
+        cacheNrealPosts(ranked, confirmedCacheKey);
       }
 
       let query = supabase

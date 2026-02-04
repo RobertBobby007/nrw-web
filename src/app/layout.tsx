@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { HydrationFlag } from "@/components/hydration-flag";
+import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
   title: {
@@ -36,6 +38,8 @@ export default function RootLayout({
         className="antialiased bg-white text-neutral-900"
         suppressHydrationWarning
       >
+        <HydrationFlag />
+        <ThemeProvider />
         {children}
       </body>
     </html>

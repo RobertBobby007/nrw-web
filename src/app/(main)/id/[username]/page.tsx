@@ -22,6 +22,13 @@ import {
 import { fetchCurrentProfile, getCachedProfile, type Profile } from "@/lib/profiles";
 import type { NrealPost, NrealProfile } from "@/types/nreal";
 import { PostCard } from "../../real/PostCard";
+import {
+  AUTH_SESSION_KEY,
+  AUTH_SESSION_TTL_MS,
+  canHydrateFromSession,
+  readSessionCache,
+  writeSessionCache,
+} from "@/lib/session-cache";
 
 function toUsernameParam(value: string) {
   return decodeURIComponent(value).trim().replace(/^@+/, "");
@@ -33,6 +40,13 @@ function formatCount(value: number) {
 
 const PROFILE_CACHE_TTL_MS = 60000;
 const profileCache = new Map<string, { profile: Profile; fetchedAt: number }>();
+const PROFILE_SESSION_TTL_MS = 60000;
+const COUNTS_SESSION_TTL_MS = 60000;
+const POSTS_SESSION_TTL_MS = 30000;
+const profileSessionKey = (username: string) => `nrw.profile.by-username.${username}`;
+const countsSessionKey = (profileId: string) => `nrw.profile.counts.${profileId}`;
+const postsSessionKey = (username: string, viewerId: string | null) =>
+  `nrw.profile.posts.${username}.${viewerId ?? "anon"}`;
 
 export default function PublicProfilePage() {
   const params = useParams<{ username: string }>();
@@ -40,12 +54,23 @@ export default function PublicProfilePage() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
 
   const usernameParam = toUsernameParam(params?.username ?? "");
+  const canHydrate = canHydrateFromSession();
+  const initialViewerId = canHydrate
+    ? readSessionCache<string | null>(AUTH_SESSION_KEY, AUTH_SESSION_TTL_MS)
+    : null;
+  const initialPosts = canHydrate
+    ? readSessionCache<NrealPost[]>(
+        postsSessionKey(usernameParam, initialViewerId),
+        POSTS_SESSION_TTL_MS,
+      )
+    : null;
+  const hasInitialPosts = initialPosts !== null;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
 
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(initialViewerId);
   const [currentUserProfile, setCurrentUserProfile] = useState<Profile | null>(null);
   const [counts, setCounts] = useState<{ posts: number; followers: number; following: number }>({
     posts: 0,
@@ -53,8 +78,8 @@ export default function PublicProfilePage() {
     following: 0,
   });
 
-  const [posts, setPosts] = useState<NrealPost[]>([]);
-  const [postsLoading, setPostsLoading] = useState(false);
+  const [posts, setPosts] = useState<NrealPost[]>(() => initialPosts ?? []);
+  const [postsLoading, setPostsLoading] = useState(() => !hasInitialPosts);
   const [postsError, setPostsError] = useState<string | null>(null);
   const [showAllPosts, setShowAllPosts] = useState(false);
   const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
@@ -76,11 +101,20 @@ export default function PublicProfilePage() {
     const load = async () => {
       const cachedEntry = profileCache.get(usernameParam);
       const currentCached = getCachedProfile();
+      const sessionCached = readSessionCache<Profile>(profileSessionKey(usernameParam), PROFILE_SESSION_TTL_MS);
       const cachedProfile =
         (cachedEntry && Date.now() - cachedEntry.fetchedAt < PROFILE_CACHE_TTL_MS ? cachedEntry.profile : null) ??
-        (currentCached && currentCached.username === usernameParam ? currentCached : null);
+        (currentCached && currentCached.username === usernameParam ? currentCached : null) ??
+        sessionCached;
       if (cachedProfile) {
         setProfile(cachedProfile);
+        const cachedCounts = readSessionCache<{ followers: number; following: number; posts: number }>(
+          countsSessionKey(cachedProfile.id),
+          COUNTS_SESSION_TTL_MS,
+        );
+        if (cachedCounts) {
+          setCounts(cachedCounts);
+        }
         const cachedFollow = peekFollowCounts(cachedProfile.id);
         const cachedPosts = peekPostsCount(cachedProfile.id);
         if (cachedFollow || cachedPosts !== null) {
@@ -103,6 +137,7 @@ export default function PublicProfilePage() {
 
       const uid = authData?.user?.id ?? null;
       setCurrentUserId(uid);
+      writeSessionCache(AUTH_SESSION_KEY, uid, uid ?? null);
       if (uid) {
         const viewerProfile = await fetchCurrentProfile();
         if (active) setCurrentUserProfile(viewerProfile);
@@ -126,9 +161,17 @@ export default function PublicProfilePage() {
 
       setProfile(profileData);
       profileCache.set(usernameParam, { profile: profileData, fetchedAt: Date.now() });
+      writeSessionCache(profileSessionKey(usernameParam), profileData);
 
       const cachedFollow = peekFollowCounts(profileData.id);
       const cachedPosts = peekPostsCount(profileData.id);
+      const cachedCounts = readSessionCache<{ followers: number; following: number; posts: number }>(
+        countsSessionKey(profileData.id),
+        COUNTS_SESSION_TTL_MS,
+      );
+      if (cachedCounts) {
+        setCounts(cachedCounts);
+      }
       if (cachedFollow || cachedPosts !== null) {
         setCounts((prev) => ({
           posts: cachedPosts ?? prev.posts,
@@ -154,7 +197,9 @@ export default function PublicProfilePage() {
       ]);
 
       if (!active) return;
-      setCounts({ posts, followers: followCounts.followers, following: followCounts.following });
+      const nextCounts = { posts, followers: followCounts.followers, following: followCounts.following };
+      setCounts(nextCounts);
+      writeSessionCache(countsSessionKey(profileData.id), nextCounts);
       setFollowing(isF);
       setLoading(false);
     };
@@ -200,7 +245,14 @@ export default function PublicProfilePage() {
     }
     let active = true;
     const loadPosts = async () => {
-      setPostsLoading(true);
+      const cacheKey = postsSessionKey(usernameParam, currentUserId);
+      const cachedPosts = readSessionCache<NrealPost[]>(cacheKey, POSTS_SESSION_TTL_MS);
+      if (cachedPosts) {
+        setPosts(cachedPosts);
+        setPostsLoading(false);
+      } else {
+        setPostsLoading(true);
+      }
       setPostsError(null);
 
       let query = supabase
@@ -286,7 +338,9 @@ export default function PublicProfilePage() {
         commentsCount: commentsCountMap[p.id] ?? 0,
       }));
 
-      setPosts(withCounts.filter((p) => !p.is_deleted));
+      const visible = withCounts.filter((p) => !p.is_deleted);
+      setPosts(visible);
+      writeSessionCache(cacheKey, visible);
       setPostsLoading(false);
     };
 

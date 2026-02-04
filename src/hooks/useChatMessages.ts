@@ -76,14 +76,15 @@ export function useChatMessages(chatId?: string | null, currentUserId?: string |
     }
 
     const cached = chatMessagesCache.get(chatId);
-    if (cached && Date.now() - cached.fetchedAt < CHAT_MESSAGES_CACHE_TTL_MS) {
+    const cacheValid = cached && Date.now() - cached.fetchedAt < CHAT_MESSAGES_CACHE_TTL_MS;
+    if (cacheValid && cached.messages.length > 0) {
       setMessages(cached.messages);
       setLoading(false);
       hasLoadedRef.current = true;
       return;
     }
 
-    setMessages([]);
+    setMessages(cacheValid ? cached?.messages ?? [] : []);
     setLoading(true);
     let active = true;
 

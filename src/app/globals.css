@@ -9,17 +9,303 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root.dark {
+  --background: #0c0c0d;
+  --foreground: #f5f6f7;
+  --surface-0: #0c0c0d;
+  --surface-1: #131316;
+  --surface-2: #1b1c20;
+  --surface-3: #23242a;
+  --border: #2a2c33;
+  --border-muted: #22242a;
+  --text-1: #f5f6f7;
+  --text-2: #d7d9dd;
+  --text-3: #a7abb3;
+  --text-4: #7f8694;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+html.dark body {
+  background: var(--surface-0);
+  color: var(--text-1);
+}
+
+html.dark .bg-white {
+  background-color: var(--surface-1);
+}
+
+html.dark .bg-neutral-50 {
+  background-color: var(--surface-0);
+}
+
+html.dark .bg-neutral-100 {
+  background-color: var(--surface-1);
+}
+
+html.dark .bg-neutral-200 {
+  background-color: var(--surface-2);
+}
+
+html.dark .bg-neutral-300 {
+  background-color: var(--surface-3);
+}
+
+html.dark .bg-slate-50 {
+  background-color: var(--surface-0);
+}
+
+html.dark .bg-slate-100 {
+  background-color: var(--surface-1);
+}
+
+html.dark .bg-slate-200 {
+  background-color: var(--surface-2);
+}
+
+html.dark .bg-slate-300 {
+  background-color: var(--surface-3);
+}
+
+html.dark .bg-white\/95 {
+  background-color: rgba(19, 19, 22, 0.95);
+}
+
+html.dark .bg-white\/90 {
+  background-color: rgba(19, 19, 22, 0.9);
+}
+
+html.dark .bg-white\/85 {
+  background-color: rgba(19, 19, 22, 0.85);
+}
+
+html.dark .bg-white\/80 {
+  background-color: rgba(19, 19, 22, 0.8);
+}
+
+html.dark .bg-white\/75 {
+  background-color: rgba(19, 19, 22, 0.75);
+}
+
+html.dark .bg-white\/70 {
+  background-color: rgba(19, 19, 22, 0.7);
+}
+
+html.dark .text-neutral-900 {
+  color: var(--text-1);
+}
+
+html.dark .text-neutral-800 {
+  color: var(--text-1);
+}
+
+html.dark .text-neutral-700 {
+  color: var(--text-2);
+}
+
+html.dark .text-neutral-600 {
+  color: var(--text-3);
+}
+
+html.dark .text-neutral-500 {
+  color: var(--text-4);
+}
+
+html.dark .text-neutral-400 {
+  color: var(--text-4);
+}
+
+html.dark .text-neutral-300 {
+  color: #6f7581;
+}
+
+html.dark .text-slate-900 {
+  color: var(--text-1);
+}
+
+html.dark .text-slate-800 {
+  color: var(--text-1);
+}
+
+html.dark .text-slate-700 {
+  color: var(--text-2);
+}
+
+html.dark .text-slate-600 {
+  color: var(--text-3);
+}
+
+html.dark .text-slate-500 {
+  color: var(--text-4);
+}
+
+html.dark .text-slate-400 {
+  color: #6f7581;
+}
+
+html.dark .border-neutral-200 {
+  border-color: var(--border);
+}
+
+html.dark .border-neutral-100 {
+  border-color: var(--border-muted);
+}
+
+html.dark .border-neutral-300 {
+  border-color: #333741;
+}
+
+html.dark .border-slate-200 {
+  border-color: var(--border);
+}
+
+html.dark .border-slate-200\/70 {
+  border-color: rgba(42, 44, 51, 0.7);
+}
+
+html.dark .border-slate-200\/80 {
+  border-color: rgba(42, 44, 51, 0.8);
+}
+
+html.dark .border-white\/20 {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+html.dark .from-white {
+  --tw-gradient-from: #14151a var(--tw-gradient-from-position);
+  --tw-gradient-to: rgba(20, 21, 26, 0) var(--tw-gradient-to-position);
+}
+
+html.dark .from-neutral-50 {
+  --tw-gradient-from: #14151a var(--tw-gradient-from-position);
+  --tw-gradient-to: rgba(20, 21, 26, 0) var(--tw-gradient-to-position);
+}
+
+html.dark .from-neutral-100 {
+  --tw-gradient-from: #181a1f var(--tw-gradient-from-position);
+  --tw-gradient-to: rgba(24, 26, 31, 0) var(--tw-gradient-to-position);
+}
+
+html.dark .via-white {
+  --tw-gradient-stops: var(--tw-gradient-from), #1a1b20 var(--tw-gradient-via-position), var(--tw-gradient-to);
+}
+
+html.dark .via-neutral-50 {
+  --tw-gradient-stops: var(--tw-gradient-from), #1a1b20 var(--tw-gradient-via-position), var(--tw-gradient-to);
+}
+
+html.dark .via-neutral-100 {
+  --tw-gradient-stops: var(--tw-gradient-from), #1c1e24 var(--tw-gradient-via-position), var(--tw-gradient-to);
+}
+
+html.dark .via-slate-50 {
+  --tw-gradient-stops: var(--tw-gradient-from), #1a1b20 var(--tw-gradient-via-position), var(--tw-gradient-to);
+}
+
+html.dark .from-slate-50 {
+  --tw-gradient-from: #14151a var(--tw-gradient-from-position);
+  --tw-gradient-to: rgba(20, 21, 26, 0) var(--tw-gradient-to-position);
+}
+
+html.dark .to-amber-50 {
+  --tw-gradient-to: #1d1f26 var(--tw-gradient-to-position);
+}
+
+html.dark .to-white {
+  --tw-gradient-to: #14151a var(--tw-gradient-to-position);
+}
+
+html.dark .to-neutral-200 {
+  --tw-gradient-to: #1f2127 var(--tw-gradient-to-position);
+}
+
+html.dark .from-rose-50 {
+  --tw-gradient-from: #14151a var(--tw-gradient-from-position);
+  --tw-gradient-to: rgba(20, 21, 26, 0) var(--tw-gradient-to-position);
+}
+
+html.dark .border-neutral-200\/70 {
+  border-color: rgba(42, 44, 51, 0.7);
+}
+
+html.dark .border-neutral-200\/80 {
+  border-color: rgba(42, 44, 51, 0.8);
+}
+
+html.dark .ring-neutral-200 {
+  --tw-ring-color: var(--border);
+}
+
+html.dark .hover\:bg-neutral-50:hover {
+  background-color: var(--surface-1);
+}
+
+html.dark .hover\:bg-neutral-100:hover {
+  background-color: var(--surface-2);
+}
+
+html.dark .hover\:bg-neutral-200:hover {
+  background-color: var(--surface-2);
+}
+
+html.dark .hover\:bg-white:hover {
+  background-color: var(--surface-2);
+}
+
+html.dark .hover\:bg-white\/10:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+html.dark .hover\:bg-white\/15:hover {
+  background-color: rgba(255, 255, 255, 0.16);
+}
+
+html.dark .hover\:bg-white\/20:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+html.dark .hover\:bg-white\/25:hover {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
+html.dark .hover\:bg-white\/30:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+html.dark .hover\:bg-slate-50:hover {
+  background-color: var(--surface-1);
+}
+
+html.dark .hover\:bg-slate-100:hover {
+  background-color: var(--surface-2);
+}
+
+html.dark .hover\:text-neutral-900:hover {
+  color: var(--text-1);
+}
+
+html.dark .hover\:text-neutral-800:hover {
+  color: var(--text-1);
+}
+
+html.dark .hover\:text-neutral-700:hover {
+  color: var(--text-2);
+}
+
+html.dark .hover\:text-neutral-600:hover {
+  color: var(--text-2);
+}
+
+html.dark .hover\:border-neutral-300:hover {
+  border-color: #3a3f4a;
+}
+
+html.dark .hover\:border-neutral-200:hover {
+  border-color: var(--border);
 }
 
 /* Prevent iOS Safari zoom on focus by keeping form text >= 16px on touch devices. */

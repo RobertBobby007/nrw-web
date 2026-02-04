@@ -10,6 +10,13 @@ import { getOrCreateDirectChat } from "@/lib/chat";
 import { ChatThread } from "@/components/ChatThread";
 import { useOnlineUsers, useUserPresence } from "@/lib/presence/useUserPresence";
 import { formatLastSeen, getLastSeenTone } from "@/lib/time/formatLastSeen";
+import {
+  AUTH_SESSION_KEY,
+  AUTH_SESSION_TTL_MS,
+  canHydrateFromSession,
+  readSessionCache,
+  writeSessionCache,
+} from "@/lib/session-cache";
 
 type ProfileLite = {
   id: string;
@@ -24,6 +31,9 @@ type ChatSummary = {
   other: ProfileLite | null;
   lastMessageAt?: string | null;
 };
+
+const CHAT_CACHE_KEY = "nrw.chat.threads";
+const CHAT_CACHE_TTL_MS = 30000;
 
 function profileLabel(profile: ProfileLite | null) {
   const name = profile?.display_name?.trim() || profile?.username?.trim() || "nChat";
@@ -75,13 +85,22 @@ function sortChatsByRecent(a: ChatSummary, b: ChatSummary) {
 export default function ChatPage() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const searchParams = useSearchParams();
+  const canHydrate = canHydrateFromSession();
+  const initialUserId = canHydrate
+    ? readSessionCache<string | null>(AUTH_SESSION_KEY, AUTH_SESSION_TTL_MS)
+    : null;
+  const initialChats =
+    canHydrate && initialUserId
+      ? readSessionCache<ChatSummary[]>(CHAT_CACHE_KEY, CHAT_CACHE_TTL_MS, initialUserId)
+      : null;
+  const hasInitialChats = initialChats !== null;
   const requestedChatId = searchParams.get("chatId");
   const appliedChatIdRef = useRef(false);
 
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [chats, setChats] = useState<ChatSummary[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(initialUserId);
+  const [chats, setChats] = useState<ChatSummary[]>(() => initialChats ?? []);
   const [activeChatId, setActiveChatId] = useState<string>("");
-  const [loadingChats, setLoadingChats] = useState(true);
+  const [loadingChats, setLoadingChats] = useState(() => !hasInitialChats);
   const [chatError, setChatError] = useState<string | null>(null);
   const [isDesktop, setIsDesktop] = useState(false);
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
@@ -103,7 +122,9 @@ export default function ChatPage() {
         setCurrentUserId(null);
         return;
       }
-      setCurrentUserId(data.user?.id ?? null);
+      const resolvedUserId = data.user?.id ?? null;
+      setCurrentUserId(resolvedUserId);
+      writeSessionCache(AUTH_SESSION_KEY, resolvedUserId, resolvedUserId ?? null);
     });
 
     return () => {
@@ -127,7 +148,13 @@ export default function ChatPage() {
       return;
     }
 
-    setLoadingChats(true);
+    const cached = readSessionCache<ChatSummary[]>(CHAT_CACHE_KEY, CHAT_CACHE_TTL_MS, currentUserId);
+    if (cached) {
+      setChats(cached);
+      setLoadingChats(false);
+    } else {
+      setLoadingChats(true);
+    }
     setChatError(null);
 
     const response = await fetch("/api/chat/threads", {
@@ -140,13 +167,16 @@ export default function ChatPage() {
 
     if (!response.ok || !payload?.chats) {
       console.error("Failed to fetch chats", payload?.error);
-      setChatError("Nepodarilo se nacist chaty.");
+      if (!cached) {
+        setChatError("Nepodarilo se nacist chaty.");
+      }
       setLoadingChats(false);
       return;
     }
 
     const sorted = [...payload.chats].sort(sortChatsByRecent);
     setChats(sorted);
+    writeSessionCache(CHAT_CACHE_KEY, sorted, currentUserId);
     setLoadingChats(false);
   }, [currentUserId]);
 
@@ -173,15 +203,10 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!isDesktop) return;
-    if (!chats.length) {
-      if (activeChatId) {
-        setActiveChatId("");
-      }
-      return;
+    if (!chats.length && activeChatId) {
+      setActiveChatId("");
     }
-    if (activeChatId) return;
-    setActiveChatId(chats[0]?.id ?? "");
-  }, [activeChatId, chats, isDesktop]);
+  }, [activeChatId, chats.length, isDesktop]);
 
   useEffect(() => {
     if (!newChatOpen) {
@@ -334,8 +359,25 @@ export default function ChatPage() {
                 )}
               </div>
             ) : (
-              <div className="flex min-h-0 flex-1 items-center justify-center bg-white text-sm text-neutral-500 md:rounded-2xl md:border md:border-dashed md:border-neutral-200">
-                Začni nový chat.
+              <div className="flex min-h-0 flex-1 items-center justify-center bg-white md:rounded-2xl md:border md:border-dashed md:border-neutral-200">
+                <div className="flex max-w-sm flex-col items-center gap-4 px-6 py-10 text-center">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-neutral-900 text-neutral-900">
+                    <MessageCircle className="h-8 w-8" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold text-neutral-900">Vaše zprávy</p>
+                    <p className="mt-1 text-sm text-neutral-500">
+                      Pošlete příteli nebo skupině soukromé fotky a zprávy.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleOpenNewChat}
+                    className="rounded-full bg-neutral-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
+                  >
+                    Odeslat zprávu
+                  </button>
+                </div>
               </div>
             )}
           </section>

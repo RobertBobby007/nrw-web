@@ -20,14 +20,21 @@ import { getFollowCounts, getPostsCount, peekFollowCounts, peekPostsCount } from
 import { containsBlockedContent } from "@/lib/content-filter";
 import { requestAuth } from "@/lib/auth-required";
 import { parseMediaUrls } from "@/lib/media";
+import { canHydrateFromSession, readSessionCache, writeSessionCache } from "@/lib/session-cache";
 
 
 export default function IdPage() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [profile, setProfile] = useState<Profile | null>(() => getCachedProfile());
+  const canHydrate = canHydrateFromSession();
+  const initialProfile = getCachedProfile();
+  const initialPosts =
+    canHydrate && initialProfile?.id
+      ? readSessionCache<NrealPost[]>("nrw.profile.self.posts", 30000, initialProfile.id)
+      : null;
+  const [profile, setProfile] = useState<Profile | null>(initialProfile);
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(() => !getCachedProfile());
+  const [loading, setLoading] = useState(() => !initialProfile);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [bioInput, setBioInput] = useState("");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -48,15 +55,23 @@ export default function IdPage() {
   const offsetStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [cropSize, setCropSize] = useState(600);
   const previewRef = useRef<HTMLDivElement | null>(null);
-  const [posts, setPosts] = useState<NrealPost[]>([]);
-  const [postsLoading, setPostsLoading] = useState(false);
+  const [posts, setPosts] = useState<NrealPost[]>(() => initialPosts ?? []);
+  const [postsLoading, setPostsLoading] = useState(() => initialPosts === null);
   const [postsError, setPostsError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"posts" | "reels" | "tags" | "threads">("posts");
   const [showAllPosts, setShowAllPosts] = useState(false);
   const [showVerificationInfo, setShowVerificationInfo] = useState(false);
   const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
   const [stats, setStats] = useState<{ followers: number; following: number; posts: number }>(() => {
-    const cached = getCachedProfile();
+    if (canHydrate && initialProfile?.id) {
+      const cachedStats = readSessionCache<{ followers: number; following: number; posts: number }>(
+        "nrw.profile.self.stats",
+        60000,
+        initialProfile.id,
+      );
+      if (cachedStats) return cachedStats;
+    }
+    const cached = initialProfile;
     const cachedFollow = cached ? peekFollowCounts(cached.id) : null;
     const cachedPosts = cached ? peekPostsCount(cached.id) : null;
     return {
@@ -149,7 +164,13 @@ export default function IdPage() {
   useEffect(() => {
     if (!supabase || !profile?.id) return;
 
-    setPostsLoading(true);
+    const cachedPosts = readSessionCache<NrealPost[]>("nrw.profile.self.posts", 30000, profile.id);
+    if (cachedPosts) {
+      setPosts(cachedPosts);
+      setPostsLoading(false);
+    } else {
+      setPostsLoading(true);
+    }
     setPostsError(null);
 
     (async () => {
@@ -220,6 +241,7 @@ export default function IdPage() {
         }));
 
         setPosts(withCounts.filter((p) => !p.is_deleted));
+        writeSessionCache("nrw.profile.self.posts", withCounts.filter((p) => !p.is_deleted), profile.id);
         setPostsError(null);
       } else {
         setPosts([]);
@@ -235,6 +257,14 @@ export default function IdPage() {
     let active = true;
     const cachedFollow = peekFollowCounts(profile.id);
     const cachedPosts = peekPostsCount(profile.id);
+    const cachedStats = readSessionCache<{ followers: number; following: number; posts: number }>(
+      "nrw.profile.self.stats",
+      60000,
+      profile.id,
+    );
+    if (cachedStats) {
+      setStats(cachedStats);
+    }
     if (cachedFollow || cachedPosts !== null) {
       setStats((prev) => ({
         followers: cachedFollow?.followers ?? prev.followers,
@@ -242,11 +272,13 @@ export default function IdPage() {
         posts: cachedPosts ?? prev.posts,
       }));
     }
-    setStatsLoading(!(cachedFollow || cachedPosts !== null));
+    setStatsLoading(!(cachedStats || cachedFollow || cachedPosts !== null));
     Promise.all([getFollowCounts(profile.id), getPostsCount(profile.id)])
       .then(([followCounts, postsCount]) => {
         if (!active) return;
-        setStats({ followers: followCounts.followers, following: followCounts.following, posts: postsCount });
+        const nextStats = { followers: followCounts.followers, following: followCounts.following, posts: postsCount };
+        setStats(nextStats);
+        writeSessionCache("nrw.profile.self.stats", nextStats, profile.id);
       })
       .finally(() => {
         if (active) setStatsLoading(false);

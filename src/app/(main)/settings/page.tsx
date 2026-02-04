@@ -21,8 +21,11 @@ import {
   Crown,
   CreditCard,
   Sparkles,
+  Moon,
+  Sun,
   ToggleLeft,
   ToggleRight,
+  LogOut,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
@@ -36,9 +39,11 @@ import {
 } from "@/lib/profiles";
 import { containsBlockedContent, containsBlockedIdentityContent } from "@/lib/content-filter";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { getStoredTheme, setThemePreference, type ThemePreference } from "@/lib/theme";
 
 type SectionKey =
   | "profile"
+  | "appearance"
   | "notifications"
   | "pro"
   | "creator"
@@ -63,6 +68,7 @@ const navSections: NavSection[] = [
     title: "Jak používáš NRW",
     items: [
       { key: "profile", label: "Upravit profil", icon: User },
+      { key: "appearance", label: "Vzhled", icon: Moon },
       { key: "notifications", label: "Upozornění", icon: Bell },
       { key: "pro", label: "Pro účet a značky", icon: BriefcaseBusiness },
       { key: "creator", label: "Nástroje tvůrců", icon: Shield },
@@ -125,6 +131,7 @@ export default function SettingsPage() {
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const offsetStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [themePreference, setThemePreferenceState] = useState<ThemePreference>("system");
 
   const sanitizeVerificationLabel = (value: string | null | undefined) => {
     const trimmed = (value ?? "").trim();
@@ -183,6 +190,15 @@ export default function SettingsPage() {
       mounted = false;
     };
   }, [supabase]);
+
+  useEffect(() => {
+    setThemePreferenceState(getStoredTheme());
+  }, []);
+
+  const handleThemeChange = (value: ThemePreference) => {
+    setThemePreferenceState(value);
+    setThemePreference(value);
+  };
 
   const handleAvatarChange = (file?: File | null) => {
     setProfileMessage(null);
@@ -350,6 +366,13 @@ export default function SettingsPage() {
                   <LifeBuoy className="h-5 w-5" />
                   <span className="flex-1 text-left">Podpora</span>
                 </Link>
+                <Link
+                  href="/auth/logout"
+                  className="mt-2 flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm text-red-600 transition hover:bg-red-50"
+                >
+                  <LogOut className="h-5 w-5" />
+                  <span className="flex-1 text-left">Odhlásit se</span>
+                </Link>
                 <div className="ml-11 mt-2 space-y-1 text-xs text-neutral-500">
                   <Link href="/privacy" className="block transition-colors hover:text-neutral-900">
                     Ochrana soukromí
@@ -378,6 +401,8 @@ export default function SettingsPage() {
               initials,
               profile,
               sanitizeVerificationLabel,
+              themePreference,
+              onThemeChange: handleThemeChange,
               onAvatarPick: () => fileInputRef.current?.click(),
               onSaveProfile: handleSaveProfile,
               savingProfile,
@@ -464,6 +489,8 @@ function renderSection(
     offsetStart,
     profile,
     sanitizeVerificationLabel,
+    themePreference,
+    onThemeChange,
   }: {
     bio: string;
     bioCount: number;
@@ -478,6 +505,8 @@ function renderSection(
     initials: string;
     profile: Profile | null;
     sanitizeVerificationLabel: (value: string | null | undefined) => string | null;
+    themePreference: ThemePreference;
+    onThemeChange: (value: ThemePreference) => void;
     onAvatarPick: () => void;
     onSaveProfile: () => void;
     savingProfile: boolean;
@@ -793,6 +822,76 @@ function renderSection(
             </div>
           )}
         </>
+      );
+    case "appearance":
+      return (
+        <div className="space-y-4 rounded-2xl border border-neutral-200/70 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-700">
+              <Moon className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-neutral-900">Vzhled aplikace</div>
+              <p className="text-xs text-neutral-500">Vyber, jestli má být NRW světlé nebo tmavé.</p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            {([
+              {
+                value: "system",
+                title: "Podle zařízení",
+                description: "Respektuje systémové nastavení.",
+                icon: Sun,
+              },
+              {
+                value: "light",
+                title: "Světlý režim",
+                description: "Vždy světlý vzhled.",
+                icon: Sun,
+              },
+              {
+                value: "dark",
+                title: "Tmavý režim",
+                description: "Vždy tmavý vzhled.",
+                icon: Moon,
+              },
+            ] as const).map((option) => {
+              const active = themePreference === option.value;
+              const Icon = option.icon;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onThemeChange(option.value)}
+                  className={`flex flex-col gap-2 rounded-2xl border px-4 py-4 text-left transition ${
+                    active
+                      ? "border-neutral-900 bg-neutral-900 text-white shadow-sm"
+                      : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`flex h-9 w-9 items-center justify-center rounded-full ${
+                        active ? "bg-white/15 text-white" : "bg-neutral-100 text-neutral-600"
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <div className={`text-sm font-semibold ${active ? "text-white" : "text-neutral-900"}`}>
+                        {option.title}
+                      </div>
+                      <div className={`text-xs ${active ? "text-white/70" : "text-neutral-500"}`}>
+                        {option.description}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       );
     case "security":
       return (
