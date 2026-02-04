@@ -430,8 +430,8 @@ export default function IdPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-neutral-50 to-white pb-24">
-      <section className="mx-auto w-full max-w-4xl px-4 py-8 space-y-6 sm:space-y-8 lg:max-w-6xl lg:py-12">
+    <main className="min-h-screen bg-gradient-to-b from-neutral-50 to-white pb-24 lg:h-screen lg:overflow-hidden lg:pb-0">
+      <section className="mx-auto w-full max-w-4xl px-4 py-8 space-y-6 sm:space-y-8 lg:flex lg:h-full lg:min-h-0 lg:max-w-6xl lg:flex-col lg:py-12">
         <header className="flex flex-col gap-4 rounded-3xl border border-neutral-200 bg-white/90 p-4 shadow-sm backdrop-blur sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:p-6">
           <div className="flex items-center gap-4 sm:gap-6">
             <label className="group relative h-16 w-16 cursor-pointer overflow-hidden rounded-full ring-2 ring-neutral-200 transition hover:scale-[1.02] sm:h-20 sm:w-20">
@@ -737,8 +737,8 @@ export default function IdPage() {
           </div>
         )}
 
-        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-6">
+        <div className="mt-8 grid grid-cols-1 gap-6 lg:flex-1 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-6 lg:min-h-0 lg:overflow-y-auto lg:pr-2">
             <ProfileStories />
             <ProfileTabs activeTab={activeTab} onChange={setActiveTab} />
 
@@ -832,7 +832,7 @@ export default function IdPage() {
             )}
           </div>
 
-          <aside className="hidden space-y-3 lg:block lg:sticky lg:top-10 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto lg:pr-1">
+          <aside className="hidden space-y-3 lg:block lg:sticky lg:top-10 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">
             <Widget title="Highlighy">
               <Highlights />
             </Widget>

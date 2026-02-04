@@ -93,8 +93,8 @@ export default function LovePage() {
   const activeProfile = visibleCards[0];
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-rose-50 via-white to-amber-50">
-      <section className="mx-auto max-w-6xl px-4 py-10 lg:py-14 lg:px-8 xl:px-10">
+    <main className="min-h-screen bg-gradient-to-b from-rose-50 via-white to-amber-50 lg:h-screen lg:overflow-hidden">
+      <section className="mx-auto max-w-6xl px-4 py-10 lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:py-14 lg:px-8 xl:px-10">
         <header className="flex flex-col gap-2">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <div>
@@ -104,13 +104,13 @@ export default function LovePage() {
             </div>
         </header>
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-4">
+        <div className="mt-8 grid gap-6 lg:flex-1 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-4 lg:min-h-0 lg:overflow-y-auto lg:pr-2">
             <CardStack cards={visibleCards} />
             <SwipeControls onAction={handleAction} />
           </div>
 
-          <aside className="hidden space-y-3 lg:block lg:sticky lg:top-10 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto lg:pr-1">
+          <aside className="hidden space-y-3 lg:block lg:sticky lg:top-10 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">
             <Widget title="Match queue">
               <MatchQueue currentIndex={currentIndex} />
             </Widget>

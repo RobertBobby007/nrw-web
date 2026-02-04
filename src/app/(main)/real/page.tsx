@@ -52,8 +52,8 @@ export default function RealPage() {
   };
 
   return (
-    <main className="min-h-screen bg-neutral-50 pb-24">
-      <section className="mx-auto w-full max-w-4xl px-4 py-6 space-y-6 sm:space-y-8 sm:py-8 lg:max-w-6xl">
+    <main className="min-h-screen bg-neutral-50 pb-24 lg:h-screen lg:overflow-hidden lg:pb-0">
+      <section className="mx-auto w-full max-w-4xl px-4 py-6 space-y-6 sm:space-y-8 sm:py-8 lg:flex lg:h-full lg:min-h-0 lg:max-w-6xl lg:flex-col">
         <header className="space-y-1 sm:space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">nReal feed</h1>
           <p className="max-w-2xl text-sm text-neutral-700 sm:text-base">
@@ -61,13 +61,13 @@ export default function RealPage() {
           </p>
         </header>
 
-        <div className="grid grid-cols-1 gap-5 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-4 sm:space-y-6">
+        <div className="grid grid-cols-1 gap-5 sm:gap-6 lg:flex-1 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-4 sm:space-y-6 lg:min-h-0 lg:overflow-y-auto lg:pr-2">
             <StoriesRail stories={storyList} onAddStory={handleAddStory} />
             <RealFeedClient />
           </div>
 
-          <aside className="hidden space-y-3 lg:sticky lg:top-6 lg:max-h-[calc(100vh-96px)] lg:overflow-y-auto lg:pr-1 lg:block">
+          <aside className="hidden space-y-3 lg:sticky lg:top-6 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1 lg:block">
             <WidgetCard title="Trendy dnes">
               <TrendingWidget />
             </WidgetCard>

@@ -40,8 +40,8 @@ export default function NewsPage() {
   const activeCategory = "Vše";
 
   return (
-    <main className="min-h-screen bg-neutral-50">
-      <section className="mx-auto max-w-6xl px-4 py-8 space-y-8">
+    <main className="min-h-screen bg-neutral-50 lg:h-screen lg:overflow-hidden">
+      <section className="mx-auto max-w-6xl px-4 py-8 space-y-8 lg:flex lg:h-full lg:min-h-0 lg:flex-col">
         <header className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight">NRW News – přehled novinek</h1>
           <p className="max-w-xl text-sm text-neutral-600">
@@ -69,8 +69,8 @@ export default function NewsPage() {
           })}
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="space-y-3">
+        <div className="grid gap-6 lg:flex-1 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="space-y-3 lg:min-h-0 lg:overflow-y-auto lg:pr-2">
             {demoNews.map((item) => (
               <article
                 key={item.id}
@@ -86,7 +86,7 @@ export default function NewsPage() {
             ))}
           </div>
 
-          <aside className="hidden space-y-3 lg:block lg:sticky lg:top-6 lg:max-h-[calc(100vh-96px)] lg:overflow-y-auto lg:pr-1">
+          <aside className="hidden space-y-3 lg:block lg:sticky lg:top-6 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">
             <CategoryWidget />
             <TagWidget />
           </aside>

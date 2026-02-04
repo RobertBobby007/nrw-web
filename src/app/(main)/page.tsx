@@ -421,13 +421,13 @@ export default function HomePage() {
   };
 
   return (
-    <main className="min-h-screen bg-neutral-50 pb-24">
-      <section className="mx-auto max-w-6xl px-4 py-8 space-y-8">
+    <main className="min-h-screen bg-neutral-50 pb-24 lg:h-screen lg:overflow-hidden lg:pb-0">
+      <section className="mx-auto max-w-6xl px-4 py-8 space-y-8 lg:flex lg:h-full lg:min-h-0 lg:flex-col">
         <h1 className="sr-only">NRStream</h1>
 
         <MobileWeatherCard today={today} weather={weather} />
 
-        <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-700">
+        <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-700 lg:self-start">
           {tabs.map((tab) => {
             const isActive = tab === activeTab;
             return (
@@ -445,8 +445,8 @@ export default function HomePage() {
           })}
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-3">
+        <div className="grid gap-6 lg:flex-1 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-3 lg:min-h-0 lg:overflow-y-auto lg:pr-2">
             {nrealError && (activeTab === "Mix" || activeTab === "nReal") ? (
               <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                 Nepodařilo se načíst nReal příspěvky: {nrealError}
@@ -514,7 +514,7 @@ export default function HomePage() {
             })}
           </div>
 
-          <aside className="hidden space-y-3 lg:block lg:sticky lg:top-6 lg:max-h-[calc(100vh-96px)] lg:overflow-y-auto lg:pr-1">
+          <aside className="hidden space-y-3 lg:block lg:sticky lg:top-6 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">
             {isEditing && (
               <div className="flex justify-end">
                 <button
@@ -744,9 +744,14 @@ function WeatherWidget({ today, weather }: { today?: Date; weather: WeatherSnaps
             ) : (
               <Sun className="h-5 w-5 text-amber-500" />
             )}
-            <span className="font-semibold">
-              {weather.description ? `Dnes bude ${weather.description}` : "Dnes bude jasno"}
-            </span>
+            <div className="flex flex-col">
+              <span className="font-semibold">
+                {weather.description ? `Dnes bude ${weather.description}` : "Dnes bude jasno"}
+              </span>
+              <span className="text-xs text-neutral-500">
+                {typeof weather.temp === "number" ? `Aktuálně ${weather.temp}°C` : "Aktuálně —"}
+              </span>
+            </div>
           </div>
         </>
       )}

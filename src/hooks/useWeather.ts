@@ -77,6 +77,11 @@ const DESCRIPTION_MAP: Record<string, string> = {
   "shower drizzle": "mrholivé přeháňky",
 };
 
+const DEFAULT_REFRESH_MS = 10 * 60 * 1000;
+const refreshMsRaw = Number(process.env.NEXT_PUBLIC_WEATHER_REFRESH_MS);
+const WEATHER_REFRESH_MS =
+  Number.isFinite(refreshMsRaw) && refreshMsRaw > 0 ? refreshMsRaw : DEFAULT_REFRESH_MS;
+
 const toCzech = (value: string | null) => {
   if (!value) return value;
   const key = value.toLowerCase().trim();
@@ -96,7 +101,7 @@ export function useWeather() {
   });
   const hasFetchedRef = useRef(false);
 
-  const fetchWeather = useCallback(async (url: string) => {
+  const fetchWeather = useCallback(async (url: string, preserveForecast = false) => {
     const response = await fetch(url);
     if (!response.ok) {
       const errText = await response.text().catch(() => "");
@@ -108,7 +113,7 @@ export function useWeather() {
     const icon = data?.weather?.[0]?.icon ?? null;
     const city = data?.name ?? null;
     const updatedAt = data?.dt ? new Date(data.dt * 1000).toISOString() : null;
-    setState({
+    setState((prev) => ({
       loading: false,
       error: false,
       temp,
@@ -116,12 +121,12 @@ export function useWeather() {
       icon,
       city,
       updatedAt,
-      forecast: [],
-    });
+      forecast: preserveForecast ? prev.forecast : [],
+    }));
   }, []);
 
   const loadWeather = useCallback(
-    async (mode: "geo" | "city") => {
+    async (mode: "geo" | "city", showLoading = true) => {
       const apiKey = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY;
       if (!apiKey) {
         setState((prev) => ({ ...prev, loading: false, error: true }));
@@ -183,7 +188,7 @@ export function useWeather() {
 
       const fallback = async () => {
         try {
-          await fetchWeather(buildUrl(`q=${encodeURIComponent(DEFAULT_CITY)}`));
+          await fetchWeather(buildUrl(`q=${encodeURIComponent(DEFAULT_CITY)}`), !showLoading);
           await fetchForecast(buildForecastUrl(`q=${encodeURIComponent(DEFAULT_CITY)}`));
         } catch (err) {
           console.error("weather fallback failed", err);
@@ -191,7 +196,11 @@ export function useWeather() {
         }
       };
 
-      setState((prev) => ({ ...prev, loading: true, error: false }));
+      setState((prev) => ({
+        ...prev,
+        loading: showLoading ? true : prev.loading,
+        error: false,
+      }));
 
       if (mode === "city") {
         await fallback();
@@ -206,7 +215,7 @@ export function useWeather() {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const { latitude, longitude } = pos.coords;
-          void fetchWeather(buildUrl(`lat=${latitude}&lon=${longitude}`))
+          void fetchWeather(buildUrl(`lat=${latitude}&lon=${longitude}`), !showLoading)
             .then(() => fetchForecast(buildForecastUrl(`lat=${latitude}&lon=${longitude}`)))
             .catch(() => fallback());
         },
@@ -220,9 +229,17 @@ export function useWeather() {
   );
 
   useEffect(() => {
-    if (hasFetchedRef.current) return;
-    hasFetchedRef.current = true;
-    void loadWeather("geo");
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      void loadWeather("geo", true);
+    }
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void loadWeather("geo", false);
+    }, WEATHER_REFRESH_MS);
+
+    return () => window.clearInterval(interval);
   }, [loadWeather]);
 
   return { ...state, refreshWithLocation: () => loadWeather("geo") };
