@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import { HydrationFlag } from "@/components/hydration-flag";
 import { ThemeProvider } from "@/components/theme-provider";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: {
@@ -41,6 +42,7 @@ export default function RootLayout({
         <HydrationFlag />
         <ThemeProvider />
         {children}
+        <SpeedInsights />
       </body>
     </html>
   );
