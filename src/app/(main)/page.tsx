@@ -1211,7 +1211,6 @@ function WeatherWidget({ today, weather }: { today?: Date; weather: WeatherSnaps
               <AlertTriangle
                 className={`h-4 w-4 ${alertIconStyle(topAlert.severity)}`}
                 aria-label="Aktivní výstraha Meteoalarm"
-                title="Aktivní výstraha Meteoalarm"
               />
             ) : null}
             <button
