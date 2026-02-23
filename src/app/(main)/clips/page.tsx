@@ -118,16 +118,18 @@ export default function ClipsPage() {
     let active = true;
     setClipsLoading(true);
     setClipsError(null);
-    supabase
-      .from("nreal_posts")
-      .select(
-        "id, content, media_url, media_type, created_at, status, is_deleted, views_count, profiles (username, display_name)",
-      )
-      .eq("media_type", "video")
-      .eq("status", "approved")
-      .order("created_at", { ascending: false })
-      .limit(20)
-      .then(({ data, error }) => {
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("nreal_posts")
+          .select(
+            "id, content, media_url, media_type, created_at, status, is_deleted, views_count, profiles (username, display_name)",
+          )
+          .eq("media_type", "video")
+          .eq("status", "approved")
+          .order("created_at", { ascending: false })
+          .limit(20);
+
         if (!active) return;
         if (error || !data) {
           setClipsError("Klipy se nepodařilo načíst.");
@@ -165,10 +167,10 @@ export default function ClipsPage() {
           })
           .filter((clip) => Boolean(clip.mediaUrl));
         setClips(mapped);
-      })
-      .finally(() => {
+      } finally {
         if (active) setClipsLoading(false);
-      });
+      }
+    })();
     return () => {
       active = false;
     };
@@ -295,12 +297,14 @@ export default function ClipsPage() {
     let active = true;
     setClipLoading(true);
     setClipError(null);
-    supabase
-      .from("nreal_posts")
-      .select("id, content, media_url, media_type")
-      .eq("id", clipPostId)
-      .maybeSingle()
-      .then(({ data, error }) => {
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("nreal_posts")
+          .select("id, content, media_url, media_type")
+          .eq("id", clipPostId)
+          .maybeSingle();
+
         if (!active) return;
         if (error || !data) {
           setSelectedClip(null);
@@ -324,10 +328,10 @@ export default function ClipsPage() {
           content: data.content ?? null,
           mediaUrl: firstUrl,
         });
-      })
-      .finally(() => {
+      } finally {
         if (active) setClipLoading(false);
-      });
+      }
+    })();
     return () => {
       active = false;
     };
