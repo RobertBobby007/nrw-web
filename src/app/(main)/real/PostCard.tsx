@@ -3,7 +3,8 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { BadgeCheck, Heart, MessageCircle, MoreHorizontal, Plus, Send, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { BadgeCheck, Heart, MessageCircle, MoreHorizontal, Play, Plus, Send, X } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import type { Profile } from "@/lib/profiles";
@@ -152,6 +153,18 @@ function formatTimeLabel(createdAt?: string | null) {
   });
 }
 
+function localizeVerificationLabel(label?: string | null) {
+  const value = (label ?? "").trim();
+  if (!value) return "Ověřený profil";
+
+  const normalized = value.toLowerCase();
+  if (normalized === "nrw verified" || normalized === "verified" || normalized === "ověřeno") {
+    return "Ověřený profil";
+  }
+
+  return value;
+}
+
 function normalizeAuthor(value?: CommentAuthor | CommentAuthor[] | null): CommentAuthor | null {
   if (!value) return null;
   return Array.isArray(value) ? value[0] ?? null : value;
@@ -179,6 +192,7 @@ export function PostCard({
   currentUserProfile,
 }: PostCardProps) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
   const [comments, setComments] = useState<RealComment[]>([]);
   const [commentCount, setCommentCount] = useState<number>(commentsCount ?? 0);
@@ -204,10 +218,13 @@ export function PostCard({
   const [isContentExpanded, setIsContentExpanded] = useState(false);
   const name = safeIdentityLabel(author.displayName, author.isCurrentUser ? "Ty" : "NRW uživatel");
   const initial = name.charAt(0).toUpperCase() || "N";
-  const badgeLabel = author.verified ? author.verificationLabel || "Ověřený profil" : null;
+  const badgeLabel = author.verified ? localizeVerificationLabel(author.verificationLabel) : null;
+  const verificationBadgeClassName =
+    "inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-200 dark:ring-emerald-400/40";
   const contentTrimmed = content.trim();
   const hasContent = Boolean(contentTrimmed);
   const isVideoMedia = mediaType === "video";
+  const isVideoOnly = isVideoMedia && !hasContent;
   const mediaUrls = useMemo(() => (!isVideoMedia ? parseMediaUrls(mediaUrl) : []), [isVideoMedia, mediaUrl]);
   const hasMedia = isVideoMedia ? Boolean(mediaUrl) : mediaUrls.length > 0;
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
@@ -218,6 +235,14 @@ export function PostCard({
   const authorProfileHref = profileHrefFromUsername(author.username);
   const shouldTruncateContent = contentTrimmed.length > CONTENT_PREVIEW_CHARS;
   const canSubmitComment = Boolean(session?.user?.id);
+
+  const handleOpenVideo = useCallback(() => {
+    if (isVideoOnly) {
+      router.push(`/clips?post=${encodeURIComponent(postId)}`);
+      return;
+    }
+    setShowFullMedia(true);
+  }, [isVideoOnly, postId, router]);
   const visibleContent =
     shouldTruncateContent && !isContentExpanded
       ? `${contentTrimmed.slice(0, CONTENT_PREVIEW_CHARS)}…`
@@ -848,7 +873,7 @@ export function PostCard({
               <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
                 <span className="font-medium text-neutral-900">{name}</span>
                 {badgeLabel ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                  <span className={verificationBadgeClassName}>
                     <BadgeCheck className="h-3.5 w-3.5" />
                     {badgeLabel}
                   </span>
@@ -901,7 +926,7 @@ export function PostCard({
               <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
                 <span className="font-medium text-neutral-900">{name}</span>
                 {badgeLabel ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                  <span className={verificationBadgeClassName}>
                     <BadgeCheck className="h-3.5 w-3.5" />
                     {badgeLabel}
                   </span>
@@ -1005,13 +1030,36 @@ export function PostCard({
         ) : null}
         {hasMedia ? (
           isVideoMedia ? (
-            <div className="mx-auto aspect-square w-[280px] max-w-full overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50">
-              <video
-                src={mediaUrl ?? undefined}
-                controls
-                className="h-full w-full object-cover bg-black"
-                onClick={() => setShowFullMedia(true)}
-              />
+            <div className="mx-auto w-full max-w-[320px] overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50">
+              {isVideoOnly ? (
+                <button
+                  type="button"
+                  onClick={handleOpenVideo}
+                  className="group relative w-full"
+                  aria-label="Pustit v nClips"
+                >
+                  <video
+                    src={mediaUrl ?? undefined}
+                    preload="metadata"
+                    playsInline
+                    muted
+                    className="pointer-events-none h-auto max-h-[520px] w-full object-contain bg-black"
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-black/60 px-4 py-2 text-sm font-semibold text-white backdrop-blur transition group-hover:bg-black/75">
+                      <Play className="h-4 w-4" />
+                      Pustit v nClips
+                    </span>
+                  </span>
+                </button>
+              ) : (
+                <video
+                  src={mediaUrl ?? undefined}
+                  controls
+                  className="h-auto max-h-[520px] w-full object-contain bg-black"
+                  onClick={handleOpenVideo}
+                />
+              )}
             </div>
           ) : (
             <div className="mx-auto aspect-square w-[280px] max-w-full overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-100">
@@ -1123,15 +1171,15 @@ export function PostCard({
       ) : null}
 
       {/* spodní akce */}
-      <footer className="flex items-center gap-3 border-t border-neutral-100 px-4 py-3 text-xs text-neutral-500">
+      <footer className="flex items-center gap-3 border-t border-neutral-100 px-4 py-3 text-xs text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
         <button
           type="button"
           disabled={likeActionDisabled}
           onClick={() => onToggleLike?.(postId)}
-          className={`flex items-center gap-1 rounded-full px-3 py-1 transition ${
+          className={`flex items-center gap-1 rounded-full px-3 py-1 transition-colors ${
             likedByCurrentUser
-              ? "bg-rose-50 text-rose-600 ring-1 ring-rose-100"
-              : "hover:bg-neutral-100 text-neutral-600"
+              ? "bg-rose-50 text-rose-600 ring-1 ring-rose-100 dark:bg-rose-500/20 dark:text-rose-200 dark:ring-rose-400/40"
+              : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
           } ${likeActionDisabled ? "cursor-not-allowed opacity-60" : ""}`}
         >
           <Heart className="h-4 w-4" fill={likedByCurrentUser ? "currentColor" : "none"} />
@@ -1140,12 +1188,12 @@ export function PostCard({
         <button
           type="button"
           onClick={handleToggleComments}
-          className="flex items-center gap-1 rounded-full px-3 py-1 text-neutral-600 transition hover:bg-neutral-100 hover:text-neutral-900"
+          className="flex items-center gap-1 rounded-full px-3 py-1 text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white"
         >
           <MessageCircle className="h-4 w-4" />
           <span>Komentáře ({commentCount})</span>
         </button>
-        <button className="ml-auto flex items-center gap-1 rounded-full px-3 py-1 text-neutral-600 transition hover:bg-neutral-100">
+        <button className="ml-auto flex items-center gap-1 rounded-full px-3 py-1 text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white">
           <Send className="h-4 w-4" />
           <span>Poslat</span>
         </button>
@@ -1232,9 +1280,9 @@ export function PostCard({
                               <span className="font-semibold text-neutral-900">{authorName}</span>
                             )}
                             {author?.verified ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                              <span className={verificationBadgeClassName}>
                                 <BadgeCheck className="h-3.5 w-3.5" />
-                                NRW Verified
+                                Ověřený profil
                               </span>
                             ) : null}
                             <span className="text-xs font-normal text-neutral-500">{createdLabel}</span>
@@ -1380,9 +1428,9 @@ export function PostCard({
                                   <span className="font-semibold text-neutral-900">{replyAuthorName}</span>
                                 )}
                                 {replyAuthor?.verified ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                                  <span className={verificationBadgeClassName}>
                                     <BadgeCheck className="h-3.5 w-3.5" />
-                                    NRW Verified
+                                    Ověřený profil
                                   </span>
                                 ) : null}
                                 <span className="text-xs font-normal text-neutral-500">{replyCreatedLabel}</span>

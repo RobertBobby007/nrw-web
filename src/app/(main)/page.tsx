@@ -1,16 +1,21 @@
 "use client";
 
 import {
+  AlertTriangle,
   CalendarDays,
+  Check,
+  ChevronDown,
   Flame,
   GripVertical,
   MapPin,
   LocateFixed,
   Moon,
   Sun,
+  X,
   Users,
 } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { requestAuth } from "@/lib/auth-required";
 import { PostCard } from "./real/PostCard";
@@ -26,6 +31,9 @@ import {
   readSessionCache,
   writeSessionCache,
 } from "@/lib/session-cache";
+import type { NNewsFeedItem } from "@/lib/nnews";
+import { detectNewsTopics, NEWS_TOPICS, topicLabel, type NewsTopicId } from "@/lib/news-topics";
+import { NewsPreviewModal } from "@/components/news/NewsPreviewModal";
 
 type FeedItem = {
   id: string;
@@ -34,6 +42,10 @@ type FeedItem = {
   excerpt: string;
   meta: string;
   createdAt: string;
+  url?: string | null;
+  imageUrl?: string | null;
+  sourceName?: string | null;
+  topics?: NewsTopicId[];
 };
 
 type WidgetId = "weather" | "date" | "suggested" | "heatmap";
@@ -62,6 +74,12 @@ type StreamItem =
   | { kind: "nReal"; createdAt: string; post: NrealPost }
   | { kind: "nNews"; createdAt: string; item: FeedItem };
 
+type NewsFeedResponse = {
+  success?: boolean;
+  items?: NNewsFeedItem[];
+  error?: string;
+};
+
 const widgetConfig: Record<
   WidgetId,
   {
@@ -77,10 +95,304 @@ const widgetConfig: Record<
 
 const defaultWidgetOrder: WidgetId[] = ["weather", "date", "suggested", "heatmap"];
 
+function formatAlertValidity(validTo: string | null) {
+  if (!validTo) return "Platí do odvolání";
+  const parsed = new Date(validTo);
+  if (Number.isNaN(parsed.getTime())) return "Platnost neuvedena";
+  return `Platí do ${parsed.toLocaleString("cs-CZ", {
+    day: "numeric",
+    month: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`;
+}
+
+function alertStyle(severity: "low" | "moderate" | "high") {
+  if (severity === "high") {
+    return "border-red-300 bg-red-50/95 text-red-900 ring-1 ring-red-200";
+  }
+  if (severity === "moderate") {
+    return "border-amber-300 bg-amber-50/95 text-amber-900 ring-1 ring-amber-200";
+  }
+  return "border-sky-300 bg-sky-50/95 text-sky-900 ring-1 ring-sky-200";
+}
+
+function alertIconStyle(severity: "low" | "moderate" | "high") {
+  if (severity === "high") return "text-red-500";
+  if (severity === "moderate") return "text-amber-500";
+  return "text-sky-600";
+}
+
+function extractAlertWhatIsHappening(alert: { title: string; description: string | null }) {
+  if (!alert.description) return alert.title;
+
+  const czechBlock = alert.description.match(/Czech\(cs\):\s*([\s\S]*?)(?:English\(en-GB\):|Tomorrow|$)/i)?.[1];
+  const source = czechBlock ?? alert.description;
+  const cleaned = source.replace(/\s+/g, " ").trim();
+  if (!cleaned) return alert.title;
+
+  const firstSentence =
+    cleaned.match(/^(.+?[.!?])(?:\s|$)/)?.[1]?.trim() ??
+    cleaned.match(/^(.+?)(?:\.\s|$)/)?.[1]?.trim() ??
+    cleaned;
+
+  return firstSentence.length > 220 ? `${firstSentence.slice(0, 220).trimEnd()}...` : firstSentence;
+}
+
+function extractAlertLevel(alert: { title: string; description: string | null }) {
+  const text = `${alert.title} ${alert.description ?? ""}`;
+  const czechLevel = text.match(/(\d+)\.\s*\(?.{0,40}?\)?\s*stupe[nň]/i)?.[1];
+  if (czechLevel) return `${czechLevel}. stupeň`;
+
+  const rawLevel = text.match(/level\s*:\s*(\d+)/i)?.[1];
+  if (rawLevel) return `Stupeň ${rawLevel}`;
+
+  return null;
+}
+
+function severityLabel(severity: "low" | "moderate" | "high") {
+  if (severity === "high") return "vysoká";
+  if (severity === "moderate") return "střední";
+  return "nízká";
+}
+
+function severityImpact(severity: "low" | "moderate" | "high") {
+  if (severity === "high") return "Vysoké riziko vážných dopadů na zdraví nebo majetek.";
+  if (severity === "moderate") return "Možná hrozba života nebo majetku.";
+  return "Zvýšená opatrnost, sledujte další vývoj situace.";
+}
+
+function urgencyText(severity: "low" | "moderate" | "high") {
+  if (severity === "high") return "Okamžitě přijměte opatření.";
+  if (severity === "moderate") return "Připravte preventivní opatření.";
+  return "Situaci průběžně sledujte.";
+}
+
+function parseDateFromAlertText(text: string, label: "From" | "Until") {
+  const match = text.match(new RegExp(`${label}\\s*:\\s*([0-9T:+\\-.Z]+)`, "i"))?.[1];
+  if (!match) return null;
+  const parsed = new Date(match);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
+function formatAlertDateTime(value: string | null) {
+  if (!value) return "Neuvedeno";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Neuvedeno";
+  return parsed.toLocaleString("cs-CZ", {
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function extractAlertDetails(alert: { title: string; description: string | null }) {
+  if (!alert.description) return "Detail výstrahy není dostupný.";
+  const czechBlock = alert.description.match(/Czech\(cs\):\s*([\s\S]*?)(?:English\(en-GB\):|$)/i)?.[1];
+  const source = czechBlock ?? alert.description;
+  return source.replace(/\s+/g, " ").trim();
+}
+
+function extractAlertDescription(details: string) {
+  return (
+    details.match(/^(.+?[.!?])(?:\s|$)/)?.[1]?.trim() ??
+    details.match(/^(.+?)(?:\.\s|$)/)?.[1]?.trim() ??
+    details
+  );
+}
+
+function extractAlertRecommendedActions(details: string) {
+  const actions = details.match(/(Doporučuje se[^.]*\.)/i)?.[1];
+  const avoid = details.match(/(Vyvarovat se[^.]*\.)/i)?.[1];
+  const merged = [actions, avoid].filter(Boolean).join(" ");
+  return merged || "Sledujte vývoj situace a řiďte se pokyny záchranných složek.";
+}
+
+function WeatherAlerts({ weather, compact = false }: { weather: WeatherSnapshot; compact?: boolean }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isOpen]);
+
+  if (weather.alertsError) {
+    return (
+      <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
+        Výstrahy Meteoalarm se teď nepodařilo načíst.
+      </div>
+    );
+  }
+
+  if (!weather.alerts.length) return null;
+  const alert = weather.alerts[0];
+  const whatIsHappening = extractAlertWhatIsHappening(alert);
+  const level = extractAlertLevel(alert);
+  const details = extractAlertDetails(alert);
+  const startAt = parseDateFromAlertText(`${alert.title} ${alert.description ?? ""}`, "From") ?? alert.validFrom;
+  const endAt = parseDateFromAlertText(`${alert.title} ${alert.description ?? ""}`, "Until") ?? alert.validTo;
+  const sourceUrl = alert.description?.match(/https?:\/\/[^\s)]+/i)?.[0] ?? "https://www.meteoalarm.org/";
+  const description = extractAlertDescription(details);
+  const recommendedActions = extractAlertRecommendedActions(details);
+
+  return (
+    <div className={compact ? "" : "space-y-2"}>
+      <button
+        type="button"
+        key={alert.id}
+        onClick={() => setIsOpen(true)}
+        className={`w-full rounded-lg border px-3 py-2 text-left transition hover:brightness-[0.98] ${alertStyle(alert.severity)}`}
+      >
+        <div className="flex items-center gap-2 text-xs font-semibold">
+          <AlertTriangle className="h-4 w-4" />
+          <span>Meteoalarm výstraha{weather.region ? ` • ${weather.region}` : ""}</span>
+        </div>
+        {level ? <p className="mt-1 text-xs font-semibold">{level}</p> : null}
+        <p className="mt-1 text-sm font-medium">{whatIsHappening}</p>
+        <p className="mt-1 text-[11px] opacity-80">{formatAlertValidity(alert.validTo)}</p>
+      </button>
+
+      {isMounted && isOpen
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[9999] bg-[#070a12]/95"
+              onClick={() => setIsOpen(false)}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Detail výstrahy Meteoalarm"
+            >
+              <div
+                className="h-full w-full overflow-y-auto p-3 text-slate-100 sm:p-5"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="mx-auto w-full max-w-3xl rounded-3xl border border-slate-700/80 bg-[#121620] shadow-2xl">
+                  <div className="flex items-start justify-between gap-3 border-b border-slate-700/80 px-4 py-4 sm:px-5">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+                        Detail výstrahy
+                      </p>
+                      <h4 className="mt-1.5 text-2xl font-semibold leading-tight text-slate-100">{whatIsHappening}</h4>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsOpen(false)}
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-600 text-slate-300 transition hover:border-slate-500 hover:bg-slate-800"
+                      aria-label="Zavřít detail výstrahy"
+                      title="Zavřít"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="divide-y divide-slate-700/70 px-4 sm:px-5">
+                    <section className="py-4">
+                      <p className="text-xl font-semibold text-slate-100">
+                        Závažnost: <span className="font-normal">{level ?? severityLabel(alert.severity)}</span>
+                      </p>
+                      <p className="mt-1.5 text-base text-slate-400">{severityImpact(alert.severity)}</p>
+                    </section>
+
+                    <section className="py-4">
+                      <p className="text-xl font-semibold text-slate-100">Začínající meteorologická událost</p>
+                      <p className="mt-1.5 text-base text-slate-400">{formatAlertDateTime(startAt)}</p>
+                    </section>
+
+                    <section className="py-4">
+                      <p className="text-xl font-semibold text-slate-100">Platnost</p>
+                      <p className="mt-1.5 text-base text-slate-400">
+                        {endAt ? `Do ${formatAlertDateTime(endAt)}` : "Platí do odvolání"}
+                      </p>
+                    </section>
+
+                    <section className="py-4">
+                      <p className="text-xl font-semibold text-slate-100">Popis</p>
+                      <p className="mt-1.5 text-base leading-relaxed text-slate-300">{description}</p>
+                    </section>
+
+                    <section className="py-4">
+                      <p className="text-xl font-semibold text-slate-100">Doporučené akce</p>
+                      <p className="mt-1.5 text-base leading-relaxed text-slate-300">{recommendedActions}</p>
+                    </section>
+
+                    <section className="py-4">
+                      <p className="text-xl font-semibold text-slate-100">Naléhavost</p>
+                      <p className="mt-1.5 text-base text-slate-300">{urgencyText(alert.severity)}</p>
+                    </section>
+
+                    <section className="py-4">
+                      <p className="text-xl font-semibold text-slate-100">Vyhlašovatel</p>
+                      <p className="mt-1.5 text-base text-slate-400">
+                        ČHMÚ prostřednictvím EUMETNET-Meteoalarm
+                      </p>
+                      <a
+                        href={sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1.5 inline-block text-base text-sky-400 hover:text-sky-300"
+                      >
+                        Zobrazit zdroj upozornění
+                      </a>
+                    </section>
+
+                    <section className="py-4">
+                      <p className="text-xl font-semibold text-slate-100">Upozornění</p>
+                      <p className="mt-1.5 text-base leading-relaxed text-slate-400">
+                        Mezi tímto přehledem a webem Meteoalarm může docházet k časovým prodlevám. Pro nejnovější
+                        informace sledujte oficiální zdroj.
+                      </p>
+                    </section>
+                  </div>
+
+                  <div className="flex items-center justify-end border-t border-slate-700/80 px-4 py-4 sm:px-5">
+                    <button
+                      type="button"
+                      onClick={() => setIsOpen(false)}
+                      className="rounded-full border border-slate-600 px-4 py-2 text-sm text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
+                    >
+                      Zavřít
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
 function formatStreamDate(iso: string) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "neznámé datum";
   return date.toLocaleDateString("cs-CZ", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function getFaviconUrl(link?: string | null) {
+  if (!link) return null;
+  try {
+    const hostname = new URL(link).hostname;
+    if (!hostname) return null;
+    return `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
+  } catch {
+    return null;
+  }
 }
 
 const normalizePost = (post: SupabasePost): NrealPost => {
@@ -117,6 +429,13 @@ export default function HomePage() {
   const [nrealPosts, setNrealPosts] = useState<NrealPost[]>(() => initialFeed ?? []);
   const [nrealLoading, setNrealLoading] = useState(() => !hasInitialFeed);
   const [nrealError, setNrealError] = useState<string | null>(null);
+  const [nnewsItems, setNnewsItems] = useState<FeedItem[]>([]);
+  const [nnewsLoading, setNnewsLoading] = useState(false);
+  const [nnewsError, setNnewsError] = useState<string | null>(null);
+  const [selectedNnewsTopics, setSelectedNnewsTopics] = useState<NewsTopicId[]>([]);
+  const [isTopicMenuOpen, setIsTopicMenuOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewTitle, setPreviewTitle] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(initialUserId);
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
@@ -335,17 +654,67 @@ export default function HomePage() {
     };
   }, [supabase]);
 
+  useEffect(() => {
+    let active = true;
+    const loadNnews = async () => {
+      setNnewsLoading(true);
+      setNnewsError(null);
+      try {
+        const res = await fetch("/api/news/feed?limit=40", { cache: "no-store" });
+        const payload = (await res.json()) as NewsFeedResponse;
+        if (!res.ok || payload.success === false) {
+          throw new Error(payload.error ?? "Nepodařilo se načíst nNews.");
+        }
+        if (!active) return;
+        setNnewsItems(
+          (payload.items ?? []).map((item) => ({
+            ...item,
+            type: "nNews",
+            topics: detectNewsTopics(item),
+          })),
+        );
+      } catch (error) {
+        if (!active) return;
+        setNnewsItems([]);
+        setNnewsError(error instanceof Error ? error.message : "Nepodařilo se načíst nNews.");
+      } finally {
+        if (active) setNnewsLoading(false);
+      }
+    };
+    void loadNnews();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   useRealtimeNRealFeed({ currentUserId, setPosts: applyNrealRealtimeUpdate });
+
+  const availableNnewsTopics = useMemo(
+    () =>
+      NEWS_TOPICS.filter((topic) =>
+        nnewsItems.some((item) => (item.topics ?? []).includes(topic.id)),
+      ),
+    [nnewsItems],
+  );
+
+  const filteredNnewsItems = useMemo(() => {
+    if (selectedNnewsTopics.length === 0) return nnewsItems;
+    return nnewsItems.filter((item) => (item.topics ?? []).some((topic) => selectedNnewsTopics.includes(topic)));
+  }, [nnewsItems, selectedNnewsTopics]);
 
   const visibleItems = useMemo<StreamItem[]>(() => {
     if (activeTab === "nReal") {
       return nrealPosts.map((post) => ({ kind: "nReal", createdAt: post.created_at, post }));
     }
     if (activeTab === "nNews") {
-      return [];
+      return filteredNnewsItems.map((item) => ({ kind: "nNews", createdAt: item.createdAt, item }));
     }
-    return nrealPosts.map((post) => ({ kind: "nReal" as const, createdAt: post.created_at, post }));
-  }, [activeTab, nrealPosts]);
+    const nreal = nrealPosts.map((post) => ({ kind: "nReal" as const, createdAt: post.created_at, post }));
+    const nnews = filteredNnewsItems.map((item) => ({ kind: "nNews" as const, createdAt: item.createdAt, item }));
+    return [...nreal, ...nnews].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  }, [activeTab, filteredNnewsItems, nrealPosts]);
 
   const toggleLike = async (postId: string) => {
     if (!currentUserId) {
@@ -445,6 +814,56 @@ export default function HomePage() {
           })}
         </div>
 
+        {activeTab !== "nReal" && availableNnewsTopics.length > 0 ? (
+          <div className="relative inline-flex items-center lg:self-start">
+            <button
+              type="button"
+              onClick={() => setIsTopicMenuOpen((prev) => !prev)}
+              className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[11px] font-medium text-neutral-700 shadow-sm hover:bg-neutral-50"
+            >
+              Témata
+              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600">
+                {selectedNnewsTopics.length === 0 ? "Vše" : selectedNnewsTopics.length}
+              </span>
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+
+            {isTopicMenuOpen ? (
+              <div className="absolute left-0 top-full z-20 mt-2 w-72 rounded-xl border border-neutral-200 bg-white p-2 shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => setSelectedNnewsTopics([])}
+                  className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs text-neutral-700 hover:bg-neutral-50"
+                >
+                  <span>Všechna témata</span>
+                  {selectedNnewsTopics.length === 0 ? <Check className="h-4 w-4" /> : null}
+                </button>
+                <div className="my-1 h-px bg-neutral-100" />
+                <div className="max-h-64 overflow-y-auto">
+                  {availableNnewsTopics.map((topic) => {
+                    const isActive = selectedNnewsTopics.includes(topic.id);
+                    return (
+                      <button
+                        key={topic.id}
+                        type="button"
+                        onClick={() =>
+                          setSelectedNnewsTopics((prev) =>
+                            prev.includes(topic.id) ? prev.filter((entry) => entry !== topic.id) : [...prev, topic.id],
+                          )
+                        }
+                        className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs text-neutral-700 hover:bg-neutral-50"
+                      >
+                        <span className="truncate">{topicLabel(topic.id)}</span>
+                        {isActive ? <Check className="h-4 w-4" /> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="grid gap-6 lg:flex-1 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-3 lg:min-h-0 lg:overflow-y-auto lg:pr-2">
             {nrealError && (activeTab === "Mix" || activeTab === "nReal") ? (
@@ -452,12 +871,22 @@ export default function HomePage() {
                 Nepodařilo se načíst nReal příspěvky: {nrealError}
               </div>
             ) : null}
+            {nnewsError && (activeTab === "Mix" || activeTab === "nNews") ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                Nepodařilo se načíst nNews: {nnewsError}
+              </div>
+            ) : null}
             {nrealLoading && (activeTab === "Mix" || activeTab === "nReal") ? (
               <div className="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
                 Načítám nReal feed…
               </div>
             ) : null}
-            {!nrealLoading && !nrealError && visibleItems.length === 0 ? (
+            {nnewsLoading && (activeTab === "Mix" || activeTab === "nNews") ? (
+              <div className="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
+                Načítám nNews feed…
+              </div>
+            ) : null}
+            {!nrealLoading && !nnewsLoading && !nrealError && !nnewsError && visibleItems.length === 0 ? (
               <div className="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
                 Zatím tu nic není.
               </div>
@@ -498,17 +927,58 @@ export default function HomePage() {
               }
 
               const item = streamItem.item;
+              const favicon = getFaviconUrl(item.url);
               return (
                 <article
                   key={`nnews-${item.id}`}
                   className="rounded-xl border border-neutral-200 bg-white p-4 text-sm shadow-sm"
                 >
-                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
-                    NNEWS
+                  <div className="grid grid-cols-[1fr_88px] gap-4 sm:grid-cols-[1fr_104px]">
+                    <div className="min-w-0">
+                      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                        NNEWS
+                      </div>
+                      <h2 className="line-clamp-2 text-base font-semibold text-neutral-900">{item.title}</h2>
+                      {item.excerpt ? <p className="mt-1 line-clamp-3 text-xs text-neutral-600">{item.excerpt}</p> : null}
+                    </div>
+                    {item.imageUrl ? (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.title}
+                        className="h-[88px] w-[88px] rounded-lg object-cover sm:h-[104px] sm:w-[104px]"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="h-[88px] w-[88px] rounded-lg border border-neutral-200 bg-neutral-100 sm:h-[104px] sm:w-[104px]" />
+                    )}
                   </div>
-                  <h2 className="text-base font-semibold text-neutral-900">{item.title}</h2>
-                  {item.excerpt ? <p className="mt-1 text-xs text-neutral-600">{item.excerpt}</p> : null}
-                  <p className="mt-3 text-[11px] text-neutral-400">{item.meta}</p>
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-1.5 text-[11px] text-neutral-400">
+                      {favicon ? (
+                        <img
+                          src={favicon}
+                          alt=""
+                          className="h-4 w-4 rounded-sm"
+                          loading="lazy"
+                        />
+                      ) : null}
+                      <span className="truncate">{item.sourceName ?? "nNews"}</span>
+                      <span>·</span>
+                      <span>{formatStreamDate(item.createdAt)}</span>
+                    </div>
+                    {item.url ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPreviewUrl(item.url ?? null);
+                          setPreviewTitle(item.title);
+                        }}
+                        className="text-[11px] font-medium text-neutral-700 hover:text-neutral-900"
+                      >
+                        Otevřít
+                      </button>
+                    ) : null}
+                  </div>
                 </article>
               );
             })}
@@ -561,6 +1031,15 @@ export default function HomePage() {
           </aside>
         </div>
       </section>
+      <NewsPreviewModal
+        open={Boolean(previewUrl)}
+        url={previewUrl}
+        title={previewTitle}
+        onClose={() => {
+          setPreviewUrl(null);
+          setPreviewTitle(null);
+        }}
+      />
     </main>
   );
 }
@@ -691,12 +1170,16 @@ function MobileWeatherCard({ today, weather }: { today?: Date; weather: WeatherS
             </div>
           )}
         </div>
+        <div className="mt-2">
+          <WeatherAlerts weather={weather} compact />
+        </div>
       </div>
     </div>
   );
 }
 
 function WeatherWidget({ today, weather }: { today?: Date; weather: WeatherSnapshot }) {
+  const topAlert = weather.alerts[0];
   const lastUpdate = weather.updatedAt
     ? new Date(weather.updatedAt).toLocaleTimeString("cs-CZ", {
         hour: "2-digit",
@@ -724,6 +1207,13 @@ function WeatherWidget({ today, weather }: { today?: Date; weather: WeatherSnaps
           <div className="flex items-center gap-2 text-neutral-500">
             <MapPin className="h-4 w-4" />
             <span>{weather.city ?? "Praha, Česko"}</span>
+            {topAlert ? (
+              <AlertTriangle
+                className={`h-4 w-4 ${alertIconStyle(topAlert.severity)}`}
+                aria-label="Aktivní výstraha Meteoalarm"
+                title="Aktivní výstraha Meteoalarm"
+              />
+            ) : null}
             <button
               type="button"
               onClick={() => weather.refreshWithLocation()}
@@ -753,6 +1243,7 @@ function WeatherWidget({ today, weather }: { today?: Date; weather: WeatherSnaps
               </span>
             </div>
           </div>
+          <WeatherAlerts weather={weather} />
         </>
       )}
       <div className="grid grid-cols-5 gap-2 text-xs text-neutral-600">

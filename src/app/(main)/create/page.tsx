@@ -251,7 +251,11 @@ export default function CreatePage() {
           <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-700">
             <div className="mb-2 font-semibold">Náhled</div>
             {mediaType === "video" ? (
-              <video src={mediaPreviews[0]} controls className="w-full max-h-[320px] rounded-lg" />
+              <video
+                src={mediaPreviews[0]}
+                controls
+                className="w-full max-h-[520px] rounded-lg bg-black object-contain"
+              />
             ) : (
               <div className="grid grid-cols-2 gap-2">
                 {mediaPreviews.map((preview, index) => (

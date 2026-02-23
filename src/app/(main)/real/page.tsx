@@ -1,7 +1,8 @@
 "use client";
 
 import { Flame, MessageCircle, MapPin, Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { RealFeedClient } from "./RealFeedClient";
 
 type Story = { 
@@ -155,30 +156,98 @@ function WidgetCard({ title, children }: { title: string; children: React.ReactN
 }
 
 function TrendingWidget() {
-  const tags = [
-    { id: "t1", label: "#nreal", boost: "+182%", volume: "4.2k" },
-    { id: "t2", label: "#nightvibes", boost: "+96%", volume: "2.1k" },
-    { id: "t3", label: "#nrwmeetup", boost: "+54%", volume: "1.3k" },
-  ];
+  const [items, setItems] = useState<
+    Array<{ token: string; recentCount: number; prevCount: number; growthPercent: number | null }>
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+
+  const fetchTrends = useMemo(() => {
+    return () => {
+      setLoading(true);
+      setError(null);
+      fetch("/api/nreal/trends")
+        .then((res) => res.json())
+        .then((payload) => {
+          const next = Array.isArray(payload?.items) ? payload.items : [];
+          setItems(next);
+        })
+        .catch(() => {
+          setError("Trendy se nepodařilo načíst.");
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    };
+  }, []);
+
+  useEffect(() => {
+    fetchTrends();
+  }, [fetchTrends]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("nreal-token-trends")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "nreal_token_hourly_counts" },
+        () => {
+          fetchTrends();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchTrends, supabase]);
+
+  const formatVolume = useMemo(() => {
+    return (count: number) => {
+      if (count < 1000) return `${count}`;
+      if (count < 1_000_000) return `${(count / 1000).toFixed(1).replace(/\\.0$/, "")}k`;
+      return `${(count / 1_000_000).toFixed(1).replace(/\\.0$/, "")}m`;
+    };
+  }, []);
+
   return (
     <div className="space-y-2 text-sm text-neutral-700">
-      {tags.map((tag) => (
-        <div
-          key={tag.id}
-          className="flex items-center justify-between rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2"
-        >
-          <div className="flex items-center gap-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-red-50 text-xs font-semibold text-red-500">
-              <Flame className="h-4 w-4" />
-            </span>
-            <div>
-              <div className="font-semibold text-neutral-900">{tag.label}</div>
-              <div className="text-[11px] text-neutral-500">Objem {tag.volume}</div>
-            </div>
-          </div>
-          <span className="text-xs font-semibold text-red-500">{tag.boost}</span>
+      {loading ? (
+        <div className="rounded-lg border border-dashed border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-500">
+          Načítám trendy…
         </div>
-      ))}
+      ) : error ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          {error}
+        </div>
+      ) : items.length === 0 ? (
+        <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-500">
+          Zatím žádné trendy.
+        </div>
+      ) : (
+        items.map((item) => {
+          const boostLabel =
+            item.growthPercent === null ? "NEW" : `${item.growthPercent > 0 ? "+" : ""}${item.growthPercent}%`;
+          return (
+            <div
+              key={item.token}
+              className="flex items-center justify-between rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-red-50 text-xs font-semibold text-red-500">
+                  <Flame className="h-4 w-4" />
+                </span>
+                <div>
+                  <div className="font-semibold text-neutral-900">{item.token}</div>
+                  <div className="text-[11px] text-neutral-500">Objem {formatVolume(item.recentCount)}</div>
+                </div>
+              </div>
+              <span className="text-xs font-semibold text-red-500">{boostLabel}</span>
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }
