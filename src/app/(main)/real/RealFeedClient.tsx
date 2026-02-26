@@ -30,9 +30,346 @@ type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentU
 const MAX_POST_CHARS = 3000;
 const POST_CACHE_TTL_MS = 30000;
 const POST_CACHE_LIMIT = 60;
+const IMAGE_MAX_DIMENSION = 1600;
+const IMAGE_QUALITY = 0.8;
+const VIDEO_COMPRESS_TRIGGER_BYTES = 55 * 1024 * 1024;
+const VIDEO_SOFT_UPLOAD_LIMIT_BYTES = 95 * 1024 * 1024;
+const VIDEO_TARGET_BITRATE = 1_500_000;
+const AUDIO_TARGET_BITRATE = 128_000;
+const VIDEO_MAX_DURATION_DIFF_SECONDS = 0.75;
+
+type CropPreset = "4:5" | "1:1" | "16:9";
+type CropRect = { x: number; y: number; width: number; height: number };
+type EditablePhotoAsset = {
+  localId: string;
+  originalFile: File;
+  previewUrl: string;
+  cropPreset: CropPreset;
+  cropRect: CropRect | null;
+  processedFile: File | null;
+  zoom: number;
+  offsetX: number;
+  offsetY: number;
+  width: number;
+  height: number;
+};
+type CropGestureState =
+  | {
+      mode: "drag";
+      startOffsetX: number;
+      startOffsetY: number;
+      startClientX: number;
+      startClientY: number;
+      frameWidth: number;
+      frameHeight: number;
+    }
+  | {
+      mode: "pinch";
+      startZoom: number;
+      startOffsetX: number;
+      startOffsetY: number;
+      startDistance: number;
+      startCenterX: number;
+      startCenterY: number;
+      frameWidth: number;
+      frameHeight: number;
+    }
+  | { mode: "none" };
+
+const DEFAULT_CROP_PRESET: CropPreset = "4:5";
+const CROP_PRESETS: CropPreset[] = ["4:5", "1:1", "16:9"];
 let nrealPostsCache: { userId: string | null; posts: NrealPost[]; fetchedAt: number } | null = null;
 const POST_SESSION_KEY = "nrw.feed.nreal";
 const POST_SESSION_TTL_MS = 30000;
+
+function replaceFileExtension(fileName: string, nextExt: string) {
+  const base = fileName.replace(/\.[^/.]+$/, "");
+  return `${base}.${nextExt}`;
+}
+
+function loadImageElement(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Nepodařilo se načíst obrázek pro kompresi."));
+    image.src = src;
+  });
+}
+
+function cropPresetRatio(preset: CropPreset) {
+  if (preset === "1:1") return 1;
+  if (preset === "16:9") return 16 / 9;
+  return 4 / 5;
+}
+
+function computeCropRect(
+  imageWidth: number,
+  imageHeight: number,
+  preset: CropPreset,
+  zoom: number,
+  offsetX: number,
+  offsetY: number,
+): CropRect {
+  const safeZoom = Math.max(1, Math.min(3, zoom));
+  const safeOffsetX = Math.max(-1, Math.min(1, offsetX));
+  const safeOffsetY = Math.max(-1, Math.min(1, offsetY));
+  const targetRatio = cropPresetRatio(preset);
+  const imageRatio = imageWidth / imageHeight;
+
+  let baseCropWidth = imageWidth;
+  let baseCropHeight = imageHeight;
+  if (imageRatio > targetRatio) {
+    baseCropWidth = imageHeight * targetRatio;
+  } else {
+    baseCropHeight = imageWidth / targetRatio;
+  }
+
+  const cropWidth = baseCropWidth / safeZoom;
+  const cropHeight = baseCropHeight / safeZoom;
+  const maxX = Math.max(0, (imageWidth - cropWidth) / 2);
+  const maxY = Math.max(0, (imageHeight - cropHeight) / 2);
+  const centerX = imageWidth / 2 + safeOffsetX * maxX;
+  const centerY = imageHeight / 2 + safeOffsetY * maxY;
+  const x = Math.round(Math.max(0, Math.min(imageWidth - cropWidth, centerX - cropWidth / 2)));
+  const y = Math.round(Math.max(0, Math.min(imageHeight - cropHeight, centerY - cropHeight / 2)));
+
+  return {
+    x,
+    y,
+    width: Math.round(cropWidth),
+    height: Math.round(cropHeight),
+  };
+}
+
+function withComputedCrop(asset: EditablePhotoAsset): EditablePhotoAsset {
+  if (!asset.width || !asset.height) return asset;
+  return {
+    ...asset,
+    cropRect: computeCropRect(asset.width, asset.height, asset.cropPreset, asset.zoom, asset.offsetX, asset.offsetY),
+    processedFile: null,
+  };
+}
+
+async function compressImageFile(file: File) {
+  if (!file.type.startsWith("image/")) return file;
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await loadImageElement(objectUrl);
+    const scale = Math.min(1, IMAGE_MAX_DIMENSION / Math.max(image.naturalWidth, image.naturalHeight));
+    const targetWidth = Math.max(1, Math.round(image.naturalWidth * scale));
+    const targetHeight = Math.max(1, Math.round(image.naturalHeight * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+    const compressedBlob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, "image/webp", IMAGE_QUALITY);
+    });
+    if (!compressedBlob) return file;
+    if (compressedBlob.size >= file.size) return file;
+    return new File([compressedBlob], replaceFileExtension(file.name, "webp"), {
+      type: "image/webp",
+      lastModified: Date.now(),
+    });
+  } catch {
+    return file;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function createPhotoAsset(file: File, indexSeed: number, preset: CropPreset = DEFAULT_CROP_PRESET) {
+  const previewUrl = URL.createObjectURL(file);
+  try {
+    const image = await loadImageElement(previewUrl);
+    const asset: EditablePhotoAsset = {
+      localId: `${Date.now()}-${indexSeed}-${Math.random().toString(36).slice(2, 8)}`,
+      originalFile: file,
+      previewUrl,
+      cropPreset: preset,
+      cropRect: null,
+      processedFile: null,
+      zoom: 1,
+      offsetX: 0,
+      offsetY: 0,
+      width: image.naturalWidth || 0,
+      height: image.naturalHeight || 0,
+    };
+    return withComputedCrop(asset);
+  } catch {
+    const fallback: EditablePhotoAsset = {
+      localId: `${Date.now()}-${indexSeed}-${Math.random().toString(36).slice(2, 8)}`,
+      originalFile: file,
+      previewUrl,
+      cropPreset: preset,
+      cropRect: null,
+      processedFile: null,
+      zoom: 1,
+      offsetX: 0,
+      offsetY: 0,
+      width: 0,
+      height: 0,
+    };
+    return fallback;
+  }
+}
+
+async function renderCroppedPhotoFile(asset: EditablePhotoAsset) {
+  const objectUrl = URL.createObjectURL(asset.originalFile);
+  try {
+    const image = await loadImageElement(objectUrl);
+    const width = image.naturalWidth || asset.width || 0;
+    const height = image.naturalHeight || asset.height || 0;
+    if (!width || !height) return asset.originalFile;
+
+    const cropRect =
+      asset.cropRect ??
+      computeCropRect(width, height, asset.cropPreset, asset.zoom ?? 1, asset.offsetX ?? 0, asset.offsetY ?? 0);
+
+    const scale = Math.min(1, IMAGE_MAX_DIMENSION / Math.max(cropRect.width, cropRect.height));
+    const outWidth = Math.max(1, Math.round(cropRect.width * scale));
+    const outHeight = Math.max(1, Math.round(cropRect.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = outWidth;
+    canvas.height = outHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return asset.originalFile;
+
+    ctx.drawImage(
+      image,
+      cropRect.x,
+      cropRect.y,
+      cropRect.width,
+      cropRect.height,
+      0,
+      0,
+      outWidth,
+      outHeight,
+    );
+
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", IMAGE_QUALITY));
+    if (!blob) return asset.originalFile;
+    return new File([blob], replaceFileExtension(asset.originalFile.name, "webp"), {
+      type: "image/webp",
+      lastModified: Date.now(),
+    });
+  } catch {
+    return asset.originalFile;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function getVideoDuration(file: File) {
+  const objectUrl = URL.createObjectURL(file);
+  const video = document.createElement("video");
+  video.preload = "metadata";
+  video.src = objectUrl;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error("Nepodařilo se načíst metadata videa."));
+    });
+    return Number.isFinite(video.duration) ? video.duration : null;
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function compressVideoFilePreserveAudio(file: File, onProgress?: (progress: number) => void) {
+  if (!file.type.startsWith("video/")) return file;
+  if (file.size < VIDEO_COMPRESS_TRIGGER_BYTES) return file;
+  if (typeof MediaRecorder === "undefined") return file;
+
+  const objectUrl = URL.createObjectURL(file);
+  const video = document.createElement("video");
+  video.src = objectUrl;
+  video.preload = "auto";
+  video.playsInline = true;
+  video.muted = false;
+  video.volume = 1;
+
+  const sourceDuration = await getVideoDuration(file);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error("Nepodařilo se načíst video pro kompresi."));
+    });
+
+    const captureStreamFn =
+      (video as HTMLVideoElement & { captureStream?: () => MediaStream; mozCaptureStream?: () => MediaStream })
+        .captureStream ??
+      (video as HTMLVideoElement & { mozCaptureStream?: () => MediaStream }).mozCaptureStream;
+    if (!captureStreamFn) return file;
+
+    const sourceStream = captureStreamFn.call(video);
+    const hasAudioTrack = sourceStream.getAudioTracks().length > 0;
+    const mimeCandidates = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+    const supportedMimeType = mimeCandidates.find((type) => MediaRecorder.isTypeSupported(type));
+    if (!supportedMimeType) return file;
+
+    const chunks: BlobPart[] = [];
+    const recorder = new MediaRecorder(sourceStream, {
+      mimeType: supportedMimeType,
+      videoBitsPerSecond: VIDEO_TARGET_BITRATE,
+      audioBitsPerSecond: hasAudioTrack ? AUDIO_TARGET_BITRATE : undefined,
+    });
+
+    const blobPromise = new Promise<Blob>((resolve, reject) => {
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data);
+      };
+      recorder.onerror = () => reject(new Error("Kompresní rekordér videa selhal."));
+      recorder.onstop = () => resolve(new Blob(chunks, { type: supportedMimeType }));
+    });
+
+    video.ontimeupdate = () => {
+      if (video.duration > 0) {
+        onProgress?.(Math.min(1, video.currentTime / video.duration));
+      }
+    };
+
+    recorder.start(500);
+    await video.play();
+
+    await new Promise<void>((resolve, reject) => {
+      video.onended = () => resolve();
+      video.onerror = () => reject(new Error("Přehrávání videa selhalo při kompresi."));
+    });
+
+    if (recorder.state !== "inactive") recorder.stop();
+    const compressedBlob = await blobPromise;
+    sourceStream.getTracks().forEach((track) => track.stop());
+
+    if (compressedBlob.size >= file.size) return file;
+    const compressedFile = new File([compressedBlob], replaceFileExtension(file.name, "webm"), {
+      type: compressedBlob.type || "video/webm",
+      lastModified: Date.now(),
+    });
+
+    const compressedDuration = await getVideoDuration(compressedFile);
+    if (
+      sourceDuration !== null &&
+      compressedDuration !== null &&
+      Math.abs(sourceDuration - compressedDuration) > VIDEO_MAX_DURATION_DIFF_SECONDS
+    ) {
+      return file;
+    }
+
+    return compressedFile;
+  } catch {
+    return file;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+    onProgress?.(1);
+  }
+}
 
 export function RealFeedClient() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
@@ -55,9 +392,15 @@ export function RealFeedClient() {
   const [currentUserMetaProfile, setCurrentUserMetaProfile] = useState<NrealProfile | null>(null);
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
   const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
+  const [photoAssets, setPhotoAssets] = useState<EditablePhotoAsset[]>([]);
+  const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
+  const [photoCropPreset, setPhotoCropPreset] = useState<CropPreset>(DEFAULT_CROP_PRESET);
   const [mediaType, setMediaType] = useState<"image" | "video" | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
   const deletedPostsRef = useRef<Map<string, NrealPost>>(new Map());
+  const cropGestureRef = useRef<CropGestureState>({ mode: "none" });
 
   const cachePosts = (nextPosts: NrealPost[], cacheUserId: string | null) => {
     nrealPostsCache = {
@@ -409,13 +752,165 @@ export function RealFeedClient() {
   }, [currentProfile, currentUserId, currentUserMetaProfile, supabase]);
 
   const resetMedia = () => {
-    mediaPreviews.forEach((url) => URL.revokeObjectURL(url));
+    const allUrls = new Set<string>([...mediaPreviews, ...photoAssets.map((asset) => asset.previewUrl)]);
+    allUrls.forEach((url) => URL.revokeObjectURL(url));
     setMediaFiles([]);
     setMediaPreviews([]);
+    setPhotoAssets([]);
+    setActivePhotoId(null);
+    setPhotoCropPreset(DEFAULT_CROP_PRESET);
     setMediaType(null);
   };
 
-  const handleFileChange = (fileList?: FileList | null) => {
+  const syncPhotoAssets = (nextAssets: EditablePhotoAsset[]) => {
+    setPhotoAssets(nextAssets);
+    setMediaFiles(nextAssets.map((asset) => asset.originalFile));
+    setMediaPreviews(nextAssets.map((asset) => asset.previewUrl));
+    setMediaType(nextAssets.length > 0 ? "image" : null);
+    setActivePhotoId((prev) => {
+      if (nextAssets.length === 0) return null;
+      if (prev && nextAssets.some((asset) => asset.localId === prev)) return prev;
+      return nextAssets[0].localId;
+    });
+    if (nextAssets.length > 0) {
+      setPhotoCropPreset(nextAssets[0].cropPreset);
+    }
+  };
+
+  const updateActivePhotoAsset = (updater: (asset: EditablePhotoAsset) => EditablePhotoAsset) => {
+    setPhotoAssets((prev) => {
+      if (prev.length === 0) return prev;
+      const targetId = activePhotoId ?? prev[0].localId;
+      const next = prev.map((asset) =>
+        asset.localId === targetId ? withComputedCrop(updater(asset)) : asset,
+      );
+      setMediaFiles(next.map((asset) => asset.originalFile));
+      setMediaPreviews(next.map((asset) => asset.previewUrl));
+      return next;
+    });
+  };
+
+  const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+  const applyActivePhotoGesture = (nextZoom: number, nextOffsetX: number, nextOffsetY: number) => {
+    updateActivePhotoAsset((asset) => ({
+      ...asset,
+      zoom: clamp(nextZoom, 1, 3),
+      offsetX: clamp(nextOffsetX, -1, 1),
+      offsetY: clamp(nextOffsetY, -1, 1),
+      processedFile: null,
+    }));
+  };
+
+  const startDragGesture = (clientX: number, clientY: number, frameWidth: number, frameHeight: number) => {
+    const current = photoAssets.find((asset) => asset.localId === activePhotoId) ?? photoAssets[0] ?? null;
+    if (!current) return;
+    cropGestureRef.current = {
+      mode: "drag",
+      startOffsetX: current.offsetX,
+      startOffsetY: current.offsetY,
+      startClientX: clientX,
+      startClientY: clientY,
+      frameWidth,
+      frameHeight,
+    };
+  };
+
+  const updateDragGesture = (clientX: number, clientY: number) => {
+    const state = cropGestureRef.current;
+    if (state.mode !== "drag") return;
+    const deltaX = clientX - state.startClientX;
+    const deltaY = clientY - state.startClientY;
+    const nextOffsetX = state.startOffsetX + (deltaX / Math.max(1, state.frameWidth)) * 2;
+    const nextOffsetY = state.startOffsetY + (deltaY / Math.max(1, state.frameHeight)) * 2;
+    const current =
+      photoAssets.find((asset) => asset.localId === activePhotoId) ?? photoAssets[0] ?? null;
+    const currentZoom = current?.zoom ?? 1;
+    applyActivePhotoGesture(currentZoom, nextOffsetX, nextOffsetY);
+  };
+
+  const stopCropGesture = () => {
+    cropGestureRef.current = { mode: "none" };
+  };
+
+  useEffect(() => {
+    const onMouseMove = (event: MouseEvent) => {
+      updateDragGesture(event.clientX, event.clientY);
+    };
+    const onMouseUp = () => {
+      stopCropGesture();
+    };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  });
+
+  const removePhotoAsset = (localId: string) => {
+    setPhotoAssets((prev) => {
+      const target = prev.find((asset) => asset.localId === localId);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      const next = prev.filter((asset) => asset.localId !== localId);
+      setMediaFiles(next.map((asset) => asset.originalFile));
+      setMediaPreviews(next.map((asset) => asset.previewUrl));
+      setMediaType(next.length > 0 ? "image" : null);
+      setActivePhotoId((current) => {
+        if (next.length === 0) return null;
+        if (current && next.some((asset) => asset.localId === current)) return current;
+        return next[0].localId;
+      });
+      return next;
+    });
+  };
+
+  const uploadFileWithProgress = async (
+    file: File,
+    path: string,
+    accessToken: string,
+    onProgress: (progress: number) => void,
+  ) => {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error("Chybí konfigurace úložiště.");
+    }
+
+    const encodedPath = path
+      .split("/")
+      .map((segment) => encodeURIComponent(segment))
+      .join("/");
+    const endpoint = `${supabaseUrl}/storage/v1/object/nreal_media/${encodedPath}`;
+
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", endpoint);
+      xhr.setRequestHeader("apikey", supabaseAnonKey);
+      xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+      xhr.setRequestHeader("x-upsert", "true");
+      xhr.setRequestHeader("cache-control", "3600");
+      xhr.setRequestHeader("content-type", file.type || "application/octet-stream");
+
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable) return;
+        onProgress(event.total > 0 ? event.loaded / event.total : 0);
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          onProgress(1);
+          resolve();
+        } else {
+          const responseText = (xhr.responseText || "").slice(0, 220);
+          reject(new Error(`Nahrání selhalo (${xhr.status})${responseText ? `: ${responseText}` : ""}`));
+        }
+      };
+      xhr.onerror = () => reject(new Error("Nahrání selhalo (síť/chyba připojení)."));
+      xhr.send(file);
+    });
+  };
+
+  const handleFileChange = async (fileList?: FileList | null) => {
     setError(null);
     const files = fileList ? Array.from(fileList) : [];
     if (files.length === 0) {
@@ -423,7 +918,7 @@ export function RealFeedClient() {
       return;
     }
     const containsVideo = files.some((file) => file.type.startsWith("video"));
-    const hasExistingMedia = mediaFiles.length > 0;
+    const hasExistingMedia = mediaType === "image" ? photoAssets.length > 0 : mediaFiles.length > 0;
     if (containsVideo) {
       if (files.length > 1 || hasExistingMedia) {
         setError("Video nelze kombinovat s fotkami a jde nahrát jen jedno.");
@@ -437,32 +932,144 @@ export function RealFeedClient() {
       return;
     }
 
-    const nextFiles = [...(mediaType === "image" ? mediaFiles : []), ...files].slice(0, MAX_POST_MEDIA_IMAGES);
-    if (nextFiles.length < (mediaFiles.length + files.length)) {
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    if (imageFiles.length === 0) {
+      setError("Podporujeme jen obrázky nebo jedno video.");
+      return;
+    }
+
+    const existingAssets = mediaType === "image" ? photoAssets : [];
+    const availableSlots = Math.max(0, MAX_POST_MEDIA_IMAGES - existingAssets.length);
+    const filesToAdd = imageFiles.slice(0, availableSlots);
+
+    if (filesToAdd.length < imageFiles.length) {
       setError(`Maximálně ${MAX_POST_MEDIA_IMAGES} fotky.`);
     }
-    resetMedia();
-    setMediaFiles(nextFiles);
-    setMediaPreviews(nextFiles.map((file) => URL.createObjectURL(file)));
-    setMediaType("image");
+
+    if (filesToAdd.length === 0 && existingAssets.length > 0) return;
+    if (filesToAdd.length === 0) {
+      setError(`Maximálně ${MAX_POST_MEDIA_IMAGES} fotky.`);
+      return;
+    }
+
+    if (mediaType !== "image") {
+      mediaPreviews.forEach((url) => URL.revokeObjectURL(url));
+      setMediaFiles([]);
+      setMediaPreviews([]);
+      setPhotoAssets([]);
+      setActivePhotoId(null);
+    }
+
+    const created = await Promise.all(
+      filesToAdd.map((file, index) => createPhotoAsset(file, index, photoCropPreset)),
+    );
+    const nextAssets = [...(mediaType === "image" ? existingAssets : []), ...created].slice(0, MAX_POST_MEDIA_IMAGES);
+    syncPhotoAssets(nextAssets);
   };
 
-  const uploadMedia = async (files: File[], userId: string) => {
-    const uploaded: string[] = [];
+  const preparePhotoFilesForUpload = async (assets: EditablePhotoAsset[]) => {
+    const prepared: File[] = [];
+    if (assets.length === 0) return prepared;
+    setUploadStatus("Aplikuji crop…");
+    setUploadProgress(3);
+
+    for (const [index, asset] of assets.entries()) {
+      const cropProgress = 3 + ((index + 1) / assets.length) * 10;
+      let cropped = asset.processedFile;
+      if (!cropped) {
+        cropped = await renderCroppedPhotoFile(asset);
+        setPhotoAssets((prev) =>
+          prev.map((item) => (item.localId === asset.localId ? { ...item, processedFile: cropped ?? null } : item)),
+        );
+      }
+      const compressed = await compressImageFile(cropped ?? asset.originalFile);
+      prepared.push(compressed);
+      setUploadProgress(Math.round(cropProgress));
+    }
+
+    return prepared;
+  };
+
+  const uploadMedia = async (files: File[], userId: string, options?: { skipImageOptimization?: boolean }) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) {
+      setError("Musíš být přihlášený.");
+      return null;
+    }
+
+    const optimizedFiles: File[] = [];
+    if (options?.skipImageOptimization) {
+      setUploadStatus("Připravuji upload…");
+      setUploadProgress((prev) => Math.max(prev ?? 0, 15));
+    } else {
+      setUploadStatus("Optimalizuji média…");
+      setUploadProgress(3);
+    }
+
     for (const [index, file] of files.entries()) {
+      const fileProgressEnd = ((index + 1) / files.length) * 25;
+
+      let optimized = file;
+      if (file.type.startsWith("image/") && !options?.skipImageOptimization) {
+        setUploadStatus("Optimalizuji fotky…");
+        optimized = await compressImageFile(file);
+      } else if (file.type.startsWith("video/")) {
+        setUploadStatus(file.size >= VIDEO_COMPRESS_TRIGGER_BYTES ? "Komprimuji video…" : "Připravuji video…");
+        optimized = await compressVideoFilePreserveAudio(file, (progress) => {
+          const next = ((index + progress) / files.length) * 25;
+          setUploadProgress(Math.max(3, Math.round(next)));
+        });
+        if (optimized.size > VIDEO_SOFT_UPLOAD_LIMIT_BYTES) {
+          setError(
+            `Video je moc velké (${Math.round(optimized.size / 1024 / 1024)} MB). Zkus nižší kvalitu nebo kratší klip.`,
+          );
+          return null;
+        }
+      }
+
+      optimizedFiles.push(optimized);
+      setUploadProgress(Math.round(fileProgressEnd));
+    }
+
+    const uploaded: string[] = [];
+    const totalBytes = optimizedFiles.reduce((sum, file) => sum + file.size, 0) || 1;
+    let uploadedBytesDone = 0;
+    setUploadStatus("Nahrávám média…");
+    setUploadProgress((prev) => Math.max(prev ?? 0, 25));
+
+    for (const [index, file] of optimizedFiles.entries()) {
       const ext = file.name.split(".").pop() || "bin";
       const path = `${userId}/${Date.now()}-${index}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("nreal_media").upload(path, file, {
-        upsert: true,
-        cacheControl: "3600",
-      });
-      if (uploadError) {
-        setError("Nahrání souboru selhalo.");
-        return null;
+      let uploadFailed = false;
+      try {
+        await uploadFileWithProgress(file, path, accessToken, (progress) => {
+          const bytesUploaded = uploadedBytesDone + file.size * Math.max(0, Math.min(1, progress));
+          const uploadPart = bytesUploaded / totalBytes;
+          const totalProgress = 25 + uploadPart * 75;
+          setUploadProgress(Math.max(25, Math.round(totalProgress)));
+        });
+      } catch {
+        // Fallback for environments where XHR upload endpoint can fail (CORS/proxy/auth edge cases).
+        const { error: fallbackError } = await supabase.storage.from("nreal_media").upload(path, file, {
+          upsert: true,
+          cacheControl: "3600",
+          contentType: file.type || "application/octet-stream",
+        });
+        if (fallbackError) {
+          uploadFailed = true;
+          setError(`Nahrání souboru selhalo: ${fallbackError.message}`);
+        }
       }
+
+      if (uploadFailed) return null;
+
+      uploadedBytesDone += file.size;
       const { data } = supabase.storage.from("nreal_media").getPublicUrl(path);
       if (data.publicUrl) uploaded.push(data.publicUrl);
     }
+
+    setUploadProgress(100);
     return uploaded;
   };
 
@@ -474,7 +1081,8 @@ export function RealFeedClient() {
       return;
     }
     const trimmed = content.trim();
-    if (!trimmed && mediaFiles.length === 0) return;
+    const hasSelectedMedia = mediaType === "image" ? photoAssets.length > 0 : mediaFiles.length > 0;
+    if (!trimmed && !hasSelectedMedia) return;
     if (trimmed.length > MAX_POST_CHARS) {
       setError(`Text je moc dlouhý (max ${MAX_POST_CHARS} znaků).`);
       return;
@@ -489,14 +1097,26 @@ export function RealFeedClient() {
 
     setPosting(true);
     setError(null);
-    const mediaUrls = mediaFiles.length > 0 ? await uploadMedia(mediaFiles, userId) : null;
-    if (mediaFiles.length > 0 && !mediaUrls) {
+    setUploadProgress(hasSelectedMedia ? 1 : null);
+    setUploadStatus(hasSelectedMedia ? "Připravuji upload…" : null);
+    const preparedPhotoFiles =
+      mediaType === "image" && photoAssets.length > 0 ? await preparePhotoFilesForUpload(photoAssets) : [];
+    const sourceMediaFiles = mediaType === "image" ? preparedPhotoFiles : mediaFiles;
+    const mediaUrls =
+      hasSelectedMedia
+        ? await uploadMedia(sourceMediaFiles, userId, { skipImageOptimization: mediaType === "image" })
+        : null;
+    if (hasSelectedMedia && !mediaUrls) {
       setPosting(false);
+      setUploadProgress(null);
+      setUploadStatus(null);
       return;
     }
     const mediaUrl = mediaUrls ? serializeMediaUrls(mediaUrls) : null;
-    if (mediaFiles.length > 0 && !mediaUrl) {
+    if (hasSelectedMedia && !mediaUrl) {
       setPosting(false);
+      setUploadProgress(null);
+      setUploadStatus(null);
       return;
     }
     const optimisticId = `temp-${Date.now()}`;
@@ -545,12 +1165,16 @@ export function RealFeedClient() {
       payload = await response.json().catch(() => null);
     } catch (err) {
       setPosting(false);
+      setUploadProgress(null);
+      setUploadStatus(null);
       setPostsWithCache((prev) => prev.filter((post) => post.id !== optimisticId), userId);
       setError(err instanceof Error ? err.message : "Publikace selhala.");
       return;
     }
 
     setPosting(false);
+    setUploadProgress(null);
+    setUploadStatus(null);
 
     if (!response.ok) {
       setPosts((prev) => prev.filter((post) => post.id !== optimisticId));
@@ -670,6 +1294,14 @@ export function RealFeedClient() {
     if (lower === "null" || lower === "undefined") return null;
     return trimmed;
   };
+  const hasSelectedMedia = mediaType === "image" ? photoAssets.length > 0 : mediaFiles.length > 0;
+  const activePhotoAsset = photoAssets.find((asset) => asset.localId === activePhotoId) ?? photoAssets[0] ?? null;
+  const activeCropAspectClass =
+    photoCropPreset === "1:1"
+      ? "aspect-square"
+      : photoCropPreset === "16:9"
+        ? "aspect-video"
+        : "aspect-[4/5]";
 
   return (
     <div className="space-y-6">
@@ -702,17 +1334,35 @@ export function RealFeedClient() {
               ) : (
                 <ImageIcon className="h-4 w-4 text-neutral-500" />
               )}
-              {mediaPreviews.length > 0 ? "Přidat další" : "Přidat foto/video"}
+              {hasSelectedMedia ? "Přidat další" : "Přidat foto/video"}
             </label>
             <button
               type="submit"
-              disabled={posting || (!content.trim() && mediaFiles.length === 0) || !userId}
+              disabled={posting || (!content.trim() && !hasSelectedMedia) || !userId}
               className="ml-auto rounded-full bg-black px-5 py-2 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {posting ? "Odesílám…" : "Přidat příspěvek"}
+              {posting
+                ? uploadProgress !== null
+                  ? `Odesílám… ${Math.max(1, Math.min(100, Math.round(uploadProgress)))}%`
+                  : "Odesílám…"
+                : "Přidat příspěvek"}
             </button>
           </div>
-          {mediaPreviews.length > 0 && (
+          {posting && uploadProgress !== null ? (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs text-neutral-600">
+                <span>{uploadStatus ?? "Nahrávám…"}</span>
+                <span className="font-semibold">{Math.max(1, Math.min(100, Math.round(uploadProgress)))}%</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-neutral-200">
+                <div
+                  className="h-full rounded-full bg-black transition-all duration-200"
+                  style={{ width: `${Math.max(1, Math.min(100, Math.round(uploadProgress)))}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
+          {hasSelectedMedia && (
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
@@ -726,7 +1376,7 @@ export function RealFeedClient() {
               </span>
             </div>
           )}
-          {mediaPreviews.length > 0 && (
+          {hasSelectedMedia && (
             <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
               <div className="mb-2 text-xs font-semibold text-neutral-700">Náhled</div>
               {mediaType === "video" ? (
@@ -736,37 +1386,179 @@ export function RealFeedClient() {
                   className="w-full max-h-[480px] rounded-2xl border border-neutral-200 object-contain"
                 />
               ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {mediaPreviews.map((preview, index) => (
-                    <div key={preview} className="relative overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-100">
-                      <img
-                        src={preview}
-                        alt={`Náhled ${index + 1}`}
-                        className="h-full w-full object-cover"
-                        onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const nextFiles = mediaFiles.filter((_, i) => i !== index);
-                          const nextPreviews = mediaPreviews.filter((_, i) => i !== index);
-                          mediaPreviews.forEach((url, i) => {
-                            if (i === index) URL.revokeObjectURL(url);
-                          });
-                          setMediaFiles(nextFiles);
-                          setMediaPreviews(nextPreviews);
-                          if (nextFiles.length === 0) setMediaType(null);
+                <div className="space-y-3">
+                  {activePhotoAsset ? (
+                    <>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {CROP_PRESETS.map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => {
+                              setPhotoCropPreset(preset);
+                              setPhotoAssets((prev) =>
+                                prev.map((asset) =>
+                                  withComputedCrop({
+                                    ...asset,
+                                    cropPreset: preset,
+                                    zoom: 1,
+                                    offsetX: 0,
+                                    offsetY: 0,
+                                    processedFile: null,
+                                  }),
+                                ),
+                              );
+                            }}
+                            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                              photoCropPreset === preset
+                                ? "bg-black text-white"
+                                : "border border-neutral-300 text-neutral-700 hover:border-neutral-500"
+                            }`}
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                      <div
+                        className={`relative overflow-hidden rounded-2xl border border-neutral-200 bg-black ${activeCropAspectClass}`}
+                        onMouseDown={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          startDragGesture(e.clientX, e.clientY, rect.width, rect.height);
                         }}
-                        className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-1 text-[11px] font-semibold text-neutral-700 shadow-sm"
+                        onWheel={(e) => {
+                          e.preventDefault();
+                          const currentZoom = activePhotoAsset.zoom;
+                          const delta = e.deltaY > 0 ? -0.08 : 0.08;
+                          applyActivePhotoGesture(currentZoom + delta, activePhotoAsset.offsetX, activePhotoAsset.offsetY);
+                        }}
+                        onTouchStart={(e) => {
+                          if (!activePhotoAsset) return;
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          if (e.touches.length >= 2) {
+                            const t1 = e.touches[0];
+                            const t2 = e.touches[1];
+                            const centerX = (t1.clientX + t2.clientX) / 2;
+                            const centerY = (t1.clientY + t2.clientY) / 2;
+                            const distance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+                            cropGestureRef.current = {
+                              mode: "pinch",
+                              startZoom: activePhotoAsset.zoom,
+                              startOffsetX: activePhotoAsset.offsetX,
+                              startOffsetY: activePhotoAsset.offsetY,
+                              startDistance: Math.max(1, distance),
+                              startCenterX: centerX,
+                              startCenterY: centerY,
+                              frameWidth: rect.width,
+                              frameHeight: rect.height,
+                            };
+                            return;
+                          }
+                          if (e.touches.length === 1) {
+                            const t = e.touches[0];
+                            startDragGesture(t.clientX, t.clientY, rect.width, rect.height);
+                          }
+                        }}
+                        onTouchMove={(e) => {
+                          if (!activePhotoAsset) return;
+                          const state = cropGestureRef.current;
+                          if (state.mode === "pinch" && e.touches.length >= 2) {
+                            const t1 = e.touches[0];
+                            const t2 = e.touches[1];
+                            const centerX = (t1.clientX + t2.clientX) / 2;
+                            const centerY = (t1.clientY + t2.clientY) / 2;
+                            const distance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+                            const zoomRatio = Math.max(0.5, Math.min(2.5, distance / Math.max(1, state.startDistance)));
+                            const nextZoom = state.startZoom * zoomRatio;
+                            const centerDx = centerX - state.startCenterX;
+                            const centerDy = centerY - state.startCenterY;
+                            const nextOffsetX = state.startOffsetX + (centerDx / Math.max(1, state.frameWidth)) * 2;
+                            const nextOffsetY = state.startOffsetY + (centerDy / Math.max(1, state.frameHeight)) * 2;
+                            applyActivePhotoGesture(nextZoom, nextOffsetX, nextOffsetY);
+                            e.preventDefault();
+                            return;
+                          }
+                          if (state.mode === "drag" && e.touches.length === 1) {
+                            const t = e.touches[0];
+                            updateDragGesture(t.clientX, t.clientY);
+                            e.preventDefault();
+                          }
+                        }}
+                        onTouchEnd={() => {
+                          stopCropGesture();
+                        }}
+                        onTouchCancel={() => {
+                          stopCropGesture();
+                        }}
+                        style={{ touchAction: "none" }}
                       >
-                        Odebrat
-                      </button>
-                    </div>
-                  ))}
+                        <img
+                          src={activePhotoAsset.previewUrl}
+                          alt="Crop náhled"
+                          className="h-full w-full object-cover"
+                          style={{
+                            transform: `translate(${activePhotoAsset.offsetX * 22}%, ${activePhotoAsset.offsetY * 22}%) scale(${activePhotoAsset.zoom})`,
+                            transformOrigin: "center center",
+                          }}
+                        />
+                        <div className="pointer-events-none absolute inset-0">
+                          <div className="absolute left-1/3 top-0 h-full w-px bg-white/50" />
+                          <div className="absolute left-2/3 top-0 h-full w-px bg-white/50" />
+                          <div className="absolute left-0 top-1/3 h-px w-full bg-white/50" />
+                          <div className="absolute left-0 top-2/3 h-px w-full bg-white/50" />
+                        </div>
+                      </div>
+                      <div className="text-xs text-neutral-600">
+                        Drag pro posun. Pinch (2 prsty) nebo kolečko myši pro zoom.
+                      </div>
+                    </>
+                  ) : null}
+
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                    {photoAssets.map((asset, index) => (
+                      <div
+                        key={asset.localId}
+                        className={`relative overflow-hidden rounded-2xl border bg-neutral-100 ${
+                          activePhotoAsset?.localId === asset.localId ? "border-black" : "border-neutral-200"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setActivePhotoId(asset.localId)}
+                          className="absolute inset-0 z-10"
+                          aria-label={`Upravit náhled ${index + 1}`}
+                        />
+                        <img
+                          src={asset.previewUrl}
+                          alt={`Náhled ${index + 1}`}
+                          className="h-full w-full object-cover"
+                          onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
+                        />
+                        <span className="absolute left-2 top-2 rounded-full bg-black/65 px-2 py-0.5 text-[10px] font-semibold text-white">
+                          {asset.cropPreset}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            removePhotoAsset(asset.localId);
+                          }}
+                          className="absolute right-2 top-2 z-20 rounded-full bg-white/90 px-2 py-1 text-[11px] font-semibold text-neutral-700 shadow-sm"
+                        >
+                          Odebrat
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
           )}
+          {mediaType === "image" && photoAssets.length > 0 ? (
+            <div className="rounded-lg bg-neutral-100 px-3 py-2 text-xs text-neutral-600">
+              Crop se použije při publikaci. V carouselu bude výška stabilní, single foto se zobrazí v originálním poměru.
+            </div>
+          ) : null}
           {error && (
             <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
           )}

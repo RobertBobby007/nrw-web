@@ -157,7 +157,7 @@ function WidgetCard({ title, children }: { title: string; children: React.ReactN
 
 function TrendingWidget() {
   const [items, setItems] = useState<
-    Array<{ token: string; recentCount: number; prevCount: number; growthPercent: number | null }>
+    Array<{ token: string; recentCount: number; prevCount: number; growthPercent: number }>
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -227,8 +227,7 @@ function TrendingWidget() {
         </div>
       ) : (
         items.map((item) => {
-          const boostLabel =
-            item.growthPercent === null ? "NEW" : `${item.growthPercent > 0 ? "+" : ""}${item.growthPercent}%`;
+          const boostLabel = `${item.growthPercent > 0 ? "+" : ""}${item.growthPercent}%`;
           return (
             <div
               key={item.token}

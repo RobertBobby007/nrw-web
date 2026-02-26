@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { HydrationFlag } from "@/components/hydration-flag";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -41,6 +42,7 @@ export default function RootLayout({
         <HydrationFlag />
         <ThemeProvider />
         {children}
+        <SpeedInsights />
       </body>
     </html>
   );

@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BadgeCheck, Heart, MessageCircle, MoreHorizontal, Play, Plus, Send, X } from "lucide-react";
+import { BadgeCheck, ChevronLeft, ChevronRight, Heart, MessageCircle, MoreHorizontal, Play, Plus, Send, X } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import type { Profile } from "@/lib/profiles";
@@ -230,7 +230,6 @@ export function PostCard({
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
   const activeImageUrl = mediaUrls[activeMediaIndex] ?? mediaUrls[0] ?? null;
   const isMultiImage = mediaUrls.length > 1;
-  const mediaGridRows = mediaUrls.length > 2 ? "grid-rows-2" : "grid-rows-1";
   const likeActionDisabled = likeDisabled || !onToggleLike;
   const authorProfileHref = profileHrefFromUsername(author.username);
   const shouldTruncateContent = contentTrimmed.length > CONTENT_PREVIEW_CHARS;
@@ -254,6 +253,16 @@ export function PostCard({
       setCommentCount(commentsCount);
     }
   }, [commentsCount]);
+
+  useEffect(() => {
+    if (mediaUrls.length === 0) {
+      setActiveMediaIndex(0);
+      return;
+    }
+    if (activeMediaIndex >= mediaUrls.length) {
+      setActiveMediaIndex(0);
+    }
+  }, [activeMediaIndex, mediaUrls.length]);
 
   const currentUserAuthor = useMemo<CommentAuthor | null>(() => {
     if (currentUserProfile) {
@@ -1062,34 +1071,69 @@ export function PostCard({
               )}
             </div>
           ) : (
-            <div className="mx-auto aspect-square w-[280px] max-w-full overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-100">
+            <div className="-mx-4 w-[calc(100%+2rem)] overflow-hidden bg-black sm:mx-auto sm:w-full sm:max-w-[700px] sm:rounded-2xl sm:border sm:border-neutral-200">
               {isMultiImage ? (
-                <div className={`grid h-full w-full grid-cols-2 ${mediaGridRows} gap-1`}>
-                  {mediaUrls.slice(0, 3).map((url, index) => (
-                    <button
-                      key={`${url}-${index}`}
-                      type="button"
-                      className="relative h-full w-full overflow-hidden"
-                      onClick={() => {
-                        setActiveMediaIndex(index);
-                        setShowFullMedia(true);
-                      }}
-                    >
-                      <img
-                        src={url}
-                        alt={`Příloha ${index + 1}`}
-                        className="absolute inset-0 h-full w-full object-cover"
+                <div className="relative aspect-[4/5] w-full bg-black sm:aspect-[3/2]">
+                  <button
+                    type="button"
+                    className="relative block h-full w-full overflow-hidden"
+                    onClick={() => setShowFullMedia(true)}
+                    aria-label={`Otevřít fotku ${activeMediaIndex + 1}`}
+                  >
+                    <img
+                      src={activeImageUrl ?? undefined}
+                      alt={`Příloha ${activeMediaIndex + 1}`}
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setActiveMediaIndex((prev) => (prev - 1 + mediaUrls.length) % mediaUrls.length)
+                    }
+                    className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/45 p-1.5 text-white transition hover:bg-black/60"
+                    aria-label="Předchozí fotka"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveMediaIndex((prev) => (prev + 1) % mediaUrls.length)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/45 p-1.5 text-white transition hover:bg-black/60"
+                    aria-label="Další fotka"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                  <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1.5 rounded-full bg-black/35 px-2 py-1">
+                    {mediaUrls.map((url, index) => (
+                      <button
+                        key={`${url}-${index}`}
+                        type="button"
+                        onClick={() => setActiveMediaIndex(index)}
+                        className={`h-1.5 w-1.5 rounded-full transition ${
+                          index === activeMediaIndex ? "bg-white" : "bg-white/50"
+                        }`}
+                        aria-label={`Zobrazit fotku ${index + 1}`}
                       />
-                    </button>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               ) : (
-                <img
-                  src={mediaUrls[0] ?? undefined}
-                  alt="Příloha"
-                  className="h-full w-full cursor-zoom-in object-cover"
-                  onClick={() => setShowFullMedia(true)}
-                />
+                <button
+                  type="button"
+                  className="block w-full bg-black"
+                  onClick={() => {
+                    setActiveMediaIndex(0);
+                    setShowFullMedia(true);
+                  }}
+                  aria-label="Otevřít fotku"
+                >
+                  <img
+                    src={mediaUrls[0] ?? undefined}
+                    alt="Příloha"
+                    className="h-auto max-h-[75vh] w-full cursor-zoom-in object-contain"
+                  />
+                </button>
               )}
             </div>
           )
@@ -1220,7 +1264,7 @@ export function PostCard({
 
           <div className="mt-3 space-y-2">
             {comments.length === 0 ? (
-              <p className="mt-2 text-sm text-gray-400">Zatím žádné komentáře.</p>
+              <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">Zatím žádné komentáře.</p>
             ) : (
               <div className="mt-3 space-y-2">
                 {topLevelComments.map((comment) => {
@@ -1287,9 +1331,9 @@ export function PostCard({
                             ) : null}
                             <span className="text-xs font-normal text-neutral-500">{createdLabel}</span>
                           </div>
-                          <div className="text-sm text-gray-900">
+                          <div className="text-sm text-neutral-900 dark:text-neutral-100">
                             {comment.is_deleted ? (
-                              <span className="text-neutral-400">Komentář byl smazán</span>
+                              <span className="text-neutral-400 dark:text-neutral-500">Komentář byl smazán</span>
                             ) : (
                               renderContentWithMention(comment.content)
                             )}
@@ -1435,9 +1479,9 @@ export function PostCard({
                                 ) : null}
                                 <span className="text-xs font-normal text-neutral-500">{replyCreatedLabel}</span>
                               </div>
-                              <div className="text-sm text-gray-900">
+                              <div className="text-sm text-neutral-900 dark:text-neutral-100">
                                 {reply.is_deleted ? (
-                                  <span className="text-neutral-400">Komentář byl smazán</span>
+                                  <span className="text-neutral-400 dark:text-neutral-500">Komentář byl smazán</span>
                                 ) : (
                                   renderContentWithMention(reply.content)
                                 )}

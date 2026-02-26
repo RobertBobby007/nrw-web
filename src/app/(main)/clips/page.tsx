@@ -3,7 +3,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Play, Music2, TrendingUp, Bookmark, Flame, Heart } from "lucide-react";
+import {
+  Play,
+  Flame,
+  Heart,
+  MessageCircle,
+  Send,
+  Plus,
+  Bookmark,
+  MoreHorizontal,
+  Volume2,
+  VolumeX,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { parseMediaUrls } from "@/lib/media";
 import { requestAuth } from "@/lib/auth-required";
@@ -12,6 +25,7 @@ type Clip = {
   id: string;
   title: string;
   creator: string;
+  creatorAvatarUrl?: string | null;
   length: string;
   views: string;
   vibe: string;
@@ -22,49 +36,6 @@ type Clip = {
   viewsCount?: number | null;
 };
 
-const clipFeed: Clip[] = [
-  {
-    id: "clip-1",
-    title: "Noční ride přes město",
-    creator: "@nreal.urban",
-    length: "0:32",
-    views: "12,4 tis.",
-    vibe: "Night pulse",
-    gradient: "from-neutral-900 via-slate-800 to-indigo-800",
-    tags: ["city", "night", "crew"],
-  },
-  {
-    id: "clip-2",
-    title: "NRW backstage: první event",
-    creator: "@nrw.community",
-    length: "0:28",
-    views: "8,9 tis.",
-    vibe: "Live moment",
-    gradient: "from-amber-900 via-orange-700 to-pink-700",
-    tags: ["live", "community", "event"],
-  },
-  {
-    id: "clip-3",
-    title: "Ranní káva a roadmap",
-    creator: "@nrw.team",
-    length: "0:19",
-    views: "5,1 tis.",
-    vibe: "Build mode",
-    gradient: "from-sky-900 via-cyan-700 to-emerald-700",
-    tags: ["produkt", "update", "nnews"],
-  },
-  {
-    id: "clip-4",
-    title: "Sraz v parku",
-    creator: "@nreal.friends",
-    length: "0:24",
-    views: "6,7 tis.",
-    vibe: "Sunny vibe",
-    gradient: "from-rose-900 via-purple-700 to-indigo-700",
-    tags: ["friends", "irl", "summer"],
-  },
-];
-
 const clipFilters = ["Top", "Pro tebe", "Sleduješ", "Nové"];
 const trendingNow = [
   { id: "tr1", label: "Noční ride", stat: "🔥 2.4k" },
@@ -74,11 +45,11 @@ const trendingNow = [
 ];
 
 export default function ClipsPage() {
-  const activeFilter = "Top";
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const searchParams = useSearchParams();
   const router = useRouter();
   const clipPostId = searchParams.get("post");
+  const [activeFilter, setActiveFilter] = useState("Top");
   const [clips, setClips] = useState<Clip[]>([]);
   const [clipsLoading, setClipsLoading] = useState(false);
   const [clipsError, setClipsError] = useState<string | null>(null);
@@ -92,12 +63,26 @@ export default function ClipsPage() {
     content: string | null;
     mediaUrl: string | null;
   } | null>(null);
+  const [activeMobileClipId, setActiveMobileClipId] = useState<string | null>(null);
   const [clipError, setClipError] = useState<string | null>(null);
   const [clipLoading, setClipLoading] = useState(false);
+  const [overlayMuted, setOverlayMuted] = useState(true);
   const viewTimerRef = useRef<number | null>(null);
   const viewedClipIdsRef = useRef<Set<string>>(new Set());
+  const mobileFeedRef = useRef<HTMLDivElement | null>(null);
+  const mobileClipRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const mobileVideoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
+  const overlayVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const showClipOverlay = Boolean(clipPostId);
+  const activeOverlayClip = useMemo(
+    () => (selectedClip?.id ? clips.find((clip) => clip.id === selectedClip.id) ?? null : null),
+    [clips, selectedClip],
+  );
+  const selectedOverlayIndex = useMemo(
+    () => (selectedClip?.id ? clips.findIndex((clip) => clip.id === selectedClip.id) : -1),
+    [clips, selectedClip],
+  );
 
   useEffect(() => {
     let active = true;
@@ -123,7 +108,7 @@ export default function ClipsPage() {
         const { data, error } = await supabase
           .from("nreal_posts")
           .select(
-            "id, content, media_url, media_type, created_at, status, is_deleted, views_count, profiles (username, display_name)",
+            "id, content, media_url, media_type, created_at, status, is_deleted, views_count, profiles (username, display_name, avatar_url)",
           )
           .eq("media_type", "video")
           .eq("status", "approved")
@@ -141,8 +126,8 @@ export default function ClipsPage() {
           .map((post, index) => {
             const mediaUrls = parseMediaUrls(post.media_url);
             const mediaUrl = mediaUrls[0] ?? null;
-            const rawTitle = (post.content ?? "").trim();
-            const title = rawTitle ? rawTitle.split("\n")[0].slice(0, 60) : "Nový klip";
+            const rawDescription = (post.content ?? "").trim();
+            const title = rawDescription ? rawDescription.replace(/\s+/g, " ").slice(0, 120) : "Bez popisku";
             const profile = Array.isArray(post.profiles) ? post.profiles[0] : post.profiles;
             const creatorHandle = profile?.username ? `@${profile.username}` : "@nrw.clips";
             const gradients = [
@@ -156,6 +141,7 @@ export default function ClipsPage() {
               postId: post.id,
               title,
               creator: creatorHandle,
+              creatorAvatarUrl: profile?.avatar_url ?? null,
               length: "0:30",
               views: typeof post.views_count === "number" ? `${post.views_count}` : "—",
               vibe: "nClips",
@@ -288,6 +274,35 @@ export default function ClipsPage() {
     return `${(count / 1_000_000).toFixed(1).replace(/\\.0$/, "")}m`;
   }, []);
 
+  const openOverlayByIndex = useCallback(
+    (index: number) => {
+      const next = clips[index];
+      if (!next?.postId) return;
+      router.push(`/clips?post=${encodeURIComponent(next.postId)}`);
+    },
+    [clips, router],
+  );
+
+  const handleShareOverlayClip = useCallback(async () => {
+    const clipId = selectedClip?.id;
+    if (!clipId) return;
+    const shareUrl =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/clips?post=${encodeURIComponent(clipId)}`
+        : `/clips?post=${encodeURIComponent(clipId)}`;
+    try {
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({ title: "nClips", url: shareUrl });
+        return;
+      }
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      }
+    } catch {
+      // no-op
+    }
+  }, [selectedClip]);
+
   useEffect(() => {
     if (!clipPostId) {
       setSelectedClip(null);
@@ -337,32 +352,101 @@ export default function ClipsPage() {
     };
   }, [clipPostId, supabase]);
 
+  useEffect(() => {
+    setOverlayMuted(true);
+  }, [selectedClip?.id]);
+
+  useEffect(() => {
+    if (clips.length === 0) {
+      setActiveMobileClipId(null);
+      return;
+    }
+    setActiveMobileClipId((prev) => prev ?? clips[0]?.id ?? null);
+  }, [clips]);
+
+  useEffect(() => {
+    const root = mobileFeedRef.current;
+    if (!root || clips.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        const first = visible[0];
+        if (!first) return;
+        const clipId = (first.target as HTMLElement).dataset.clipId;
+        if (clipId) {
+          setActiveMobileClipId(clipId);
+        }
+      },
+      {
+        root,
+        threshold: [0.6, 0.75, 0.9],
+      },
+    );
+
+    clips.forEach((clip) => {
+      const element = mobileClipRefs.current[clip.id];
+      if (element) observer.observe(element);
+    });
+
+    return () => observer.disconnect();
+  }, [clips]);
+
+  useEffect(() => {
+    clips.forEach((clip) => {
+      const video = mobileVideoRefs.current[clip.id];
+      if (!video) return;
+      if (clip.id === activeMobileClipId) {
+        video.play().catch(() => null);
+      } else {
+        video.pause();
+      }
+    });
+  }, [activeMobileClipId, clips]);
+
   if (showClipOverlay) {
+    const overlayLikes = selectedClip?.id ? likesCountMap[selectedClip.id] ?? 0 : 0;
+    const overlayLiked = selectedClip?.id ? likedClipIds.has(selectedClip.id) : false;
+    const canGoPrev = selectedOverlayIndex > 0;
+    const canGoNext = selectedOverlayIndex >= 0 && selectedOverlayIndex < clips.length - 1;
+    const overlayCreator = activeOverlayClip?.creator ?? "@nrw.clips";
+    const overlayAvatar = activeOverlayClip?.creatorAvatarUrl ?? null;
+    const overlayInitial = overlayCreator.replace(/^@/, "").charAt(0).toUpperCase() || "N";
+    const overlayViews = formatViews(activeOverlayClip?.viewsCount);
+    const overlayCaption = selectedClip?.content?.trim() || activeOverlayClip?.title || "Bez popisku";
+
     return (
-      <main className="fixed inset-0 z-50 flex flex-col bg-black text-white">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">nClips</div>
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-white transition hover:bg-white/10"
-          >
-            Zpět
-          </button>
-        </div>
-        <div className="flex flex-1 items-center justify-center px-4 pb-6">
+      <main className="fixed inset-0 z-50 overflow-hidden bg-[#060b12] text-white">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_22%_38%,rgba(37,99,235,0.2),transparent_36%),radial-gradient(circle_at_74%_52%,rgba(6,182,212,0.16),transparent_40%)]" />
+        <div className="relative flex h-full flex-col">
+          <header className="flex items-center justify-between px-4 py-3 md:px-6">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">nClips</div>
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-white transition hover:bg-white/10"
+            >
+              Zpět
+            </button>
+          </header>
+
+          <div className="relative flex flex-1 items-center justify-center px-4 pb-6">
           {clipError ? (
             <div className="max-w-md rounded-xl bg-white/10 px-4 py-3 text-sm text-white/90">{clipError}</div>
           ) : clipLoading || !selectedClip ? (
             <div className="text-sm text-white/70">Načítám klip…</div>
           ) : (
-            <div className="flex w-full max-w-5xl flex-col items-center gap-4 lg:flex-row lg:items-start">
-              <div className="aspect-[9/16] w-full max-w-[520px] overflow-hidden rounded-2xl bg-black">
+            <div className="flex w-full max-w-6xl items-center justify-center gap-4 md:gap-6">
+              <div className="relative w-full max-w-[430px]">
+                <div className="absolute inset-0 -z-10 scale-105 rounded-[30px] bg-black/70 blur-2xl" />
+                <div className="relative aspect-[9/16] overflow-hidden rounded-[28px] border border-white/15 bg-black shadow-[0_24px_90px_rgba(0,0,0,0.7)]">
                 <video
+                  ref={overlayVideoRef}
                   src={selectedClip.mediaUrl ?? undefined}
-                  controls
                   autoPlay
-                  muted
+                  muted={overlayMuted}
                   loop
                   playsInline
                   onPlay={() => {
@@ -375,23 +459,144 @@ export default function ClipsPage() {
                   }}
                   onPause={clearViewTimer}
                   onEnded={clearViewTimer}
-                  className="h-full w-full object-contain"
+                  className="h-full w-full object-cover"
                 />
-              </div>
-              <div className="max-w-md space-y-3 text-left">
-                <div className="text-sm font-semibold text-white">Přehráváš klip</div>
-                {selectedClip.content ? (
-                  <p className="text-sm text-white/80 whitespace-pre-line">{selectedClip.content}</p>
-                ) : (
-                  <p className="text-sm text-white/60">Bez popisku.</p>
-                )}
-                <div className="flex flex-wrap gap-2 text-xs text-white/70">
-                  <span className="rounded-full border border-white/20 px-3 py-1">nClips</span>
-                  <span className="rounded-full border border-white/20 px-3 py-1">Video only</span>
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/45 to-transparent" />
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
+                  <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+14px)] left-4 right-4 flex items-end justify-between gap-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-9 w-9 overflow-hidden rounded-full border border-white/35 bg-white/10">
+                          {overlayAvatar ? (
+                            <img src={overlayAvatar} alt={overlayCreator} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-white/90">
+                              {overlayInitial}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-base font-semibold">{overlayCreator}</span>
+                        <button
+                          type="button"
+                          className="rounded-full border border-white/45 px-3 py-1 text-xs font-semibold text-white transition hover:bg-white/10"
+                        >
+                          Sledovat
+                        </button>
+                      </div>
+                      <p className="line-clamp-2 max-w-[280px] text-sm text-white/90">{overlayCaption}</p>
+                      <p className="text-xs text-white/70">{overlayViews} zhlédnutí</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setOverlayMuted((prev) => !prev)}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/70"
+                      aria-label={overlayMuted ? "Zapnout zvuk" : "Vypnout zvuk"}
+                    >
+                      {overlayMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-center justify-center gap-4 md:hidden">
+                  {selectedClip.id ? (
+                    <button
+                      type="button"
+                      onClick={() => handleToggleLike(selectedClip.id)}
+                      className="inline-flex items-center gap-2 rounded-full bg-black/55 px-3 py-2 text-sm font-semibold text-white"
+                    >
+                      <Heart className={`h-4 w-4 ${overlayLiked ? "fill-rose-500 text-rose-500" : ""}`} />
+                      {overlayLikes}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={handleShareOverlayClip}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white"
+                    aria-label="Sdílet"
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white"
+                    aria-label="Uložit"
+                  >
+                    <Bookmark className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
+
+              <aside className="hidden md:flex flex-col items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => canGoPrev && openOverlayByIndex(selectedOverlayIndex - 1)}
+                  disabled={!canGoPrev}
+                  className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-35"
+                  aria-label="Předchozí klip"
+                >
+                  <ChevronUp className="h-8 w-8" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => canGoNext && openOverlayByIndex(selectedOverlayIndex + 1)}
+                  disabled={!canGoNext}
+                  className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-35"
+                  aria-label="Další klip"
+                >
+                  <ChevronDown className="h-8 w-8" />
+                </button>
+
+                {selectedClip.id ? (
+                  <button
+                    type="button"
+                    onClick={() => handleToggleLike(selectedClip.id)}
+                    className="mt-2 flex flex-col items-center gap-1 text-white"
+                    aria-label={overlayLiked ? "Odebrat like" : "Dát like"}
+                  >
+                    <span
+                      className={`inline-flex h-12 w-12 items-center justify-center rounded-full ${
+                        overlayLiked ? "bg-rose-500" : "bg-black/55"
+                      }`}
+                    >
+                      <Heart className={`h-6 w-6 ${overlayLiked ? "fill-white" : ""}`} />
+                    </span>
+                    <span className="text-sm font-semibold">{overlayLikes}</span>
+                  </button>
+                ) : null}
+
+                <button
+                  type="button"
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/70"
+                  aria-label="Komentáře"
+                >
+                  <MessageCircle className="h-6 w-6" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShareOverlayClip}
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/70"
+                  aria-label="Sdílet"
+                >
+                  <Send className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/70"
+                  aria-label="Uložit"
+                >
+                  <Bookmark className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/70"
+                  aria-label="Další možnosti"
+                >
+                  <MoreHorizontal className="h-5 w-5" />
+                </button>
+              </aside>
             </div>
           )}
+          </div>
         </div>
       </main>
     );
@@ -399,7 +604,158 @@ export default function ClipsPage() {
 
   return (
     <main className="min-h-screen bg-neutral-50">
-      <section className="mx-auto max-w-7xl px-4 py-8 space-y-8">
+      <section className="fixed inset-x-0 top-0 bottom-[calc(env(safe-area-inset-bottom)+76px)] z-30 flex flex-col bg-black text-white md:hidden">
+        <div ref={mobileFeedRef} className="min-h-0 flex-1 snap-y snap-mandatory overflow-y-auto">
+          {clipsLoading ? (
+            <div className="flex h-full items-center justify-center px-6 text-sm text-white/70">Načítám klipy…</div>
+          ) : clipsError ? (
+            <div className="flex h-full items-center justify-center px-6 text-center text-sm text-amber-200">
+              {clipsError}
+            </div>
+          ) : clips.length === 0 ? (
+            <div className="flex h-full items-center justify-center px-6 text-sm text-white/70">
+              Zatím nejsou žádné klipy.
+            </div>
+          ) : (
+            clips.map((clip) => {
+              const likesCount = clip.postId ? likesCountMap[clip.postId] ?? 0 : 0;
+              const isLiked = clip.postId ? likedClipIds.has(clip.postId) : false;
+              const viewsLabel = formatViews(clip.viewsCount);
+              const href = clip.postId ? `/clips?post=${encodeURIComponent(clip.postId)}` : "/clips";
+              return (
+                <article
+                  key={clip.id}
+                  data-clip-id={clip.id}
+                  ref={(element) => {
+                    mobileClipRefs.current[clip.id] = element;
+                  }}
+                  className="relative h-full snap-start snap-always bg-black"
+                >
+                  <video
+                    ref={(element) => {
+                      mobileVideoRefs.current[clip.id] = element;
+                    }}
+                    src={clip.mediaUrl ?? undefined}
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                    onPlay={() => {
+                      if (!clip.postId) return;
+                      clearViewTimer();
+                      viewTimerRef.current = window.setTimeout(() => {
+                        recordView(clip.postId as string);
+                      }, 2500);
+                    }}
+                    onPause={clearViewTimer}
+                    onEnded={clearViewTimer}
+                    className="h-full w-full object-cover"
+                  />
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/55 to-transparent" />
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
+                  <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+14px)] left-4 right-20 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 overflow-hidden rounded-full border border-white/30 bg-white/10">
+                        {clip.creatorAvatarUrl ? (
+                          <img src={clip.creatorAvatarUrl} alt={clip.creator} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-white/90">
+                            {(clip.creator ?? "@n").replace(/^@/, "").charAt(0).toUpperCase() || "N"}
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-base font-semibold">{clip.creator}</p>
+                      <button
+                        type="button"
+                        className="rounded-full border border-white/40 px-3 py-1 text-xs font-semibold text-white"
+                      >
+                        Sledovat
+                      </button>
+                    </div>
+                    <p className="line-clamp-2 text-xs font-normal leading-snug text-white/90">{clip.title}</p>
+                    <p className="text-xs text-white/80">{viewsLabel} zhlédnutí</p>
+                  </div>
+                  <div className="absolute bottom-30 right-3 flex flex-col items-center gap-4">
+                    {clip.postId ? (
+                      <button
+                        type="button"
+                        aria-label={isLiked ? "Odebrat like" : "Dát like"}
+                        onClick={() => handleToggleLike(clip.postId as string)}
+                        className="flex flex-col items-center gap-1 text-white"
+                      >
+                        <span
+                          className={`inline-flex h-11 w-11 items-center justify-center rounded-full ${
+                            isLiked ? "bg-rose-500" : "bg-black/50"
+                          }`}
+                        >
+                          <Heart className={`h-6 w-6 ${isLiked ? "fill-white" : ""}`} />
+                        </span>
+                        <span className="text-xs font-semibold">{likesCount}</span>
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => router.push(href)}
+                      className="flex flex-col items-center gap-1 text-white"
+                      aria-label="Otevřít komentáře"
+                    >
+                      <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/50">
+                        <MessageCircle className="h-6 w-6" />
+                      </span>
+                      <span className="text-xs font-semibold">Komenty</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => router.push(href)}
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-white"
+                      aria-label="Sdílet"
+                    >
+                      <Send className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <div className="absolute bottom-6 right-4">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-black/55 px-3 py-1 text-sm font-semibold uppercase tracking-[0.14em]">
+                      <Play className="h-4 w-4" />
+                      {clip.length}
+                    </div>
+                  </div>
+                </article>
+              );
+            })
+          )}
+        </div>
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-40 px-4 pt-[calc(env(safe-area-inset-top)+10px)]">
+          <div className="pointer-events-auto flex items-center justify-between text-white">
+            <button
+              type="button"
+              onClick={() => router.push("/create")}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/45"
+              aria-label="Přidat klip"
+            >
+              <Plus className="h-6 w-6" />
+            </button>
+            <div className="text-3xl font-semibold tracking-tight">nClips</div>
+            <span className="text-sm font-semibold tracking-[0.16em] text-white/85">NRW</span>
+          </div>
+          <div className="pointer-events-auto mt-3 flex items-center justify-center gap-4 text-sm font-semibold">
+            {clipFilters.map((filter) => {
+              const isActive = filter === activeFilter;
+              return (
+                <button
+                  key={filter}
+                  type="button"
+                  onClick={() => setActiveFilter(filter)}
+                  className={isActive ? "text-white" : "text-white/55"}
+                >
+                  {filter}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto hidden max-w-7xl space-y-8 px-4 py-8 md:block">
         <header className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight text-neutral-900">Fresh Reels z NRW</h1>
           <p className="max-w-2xl text-sm text-neutral-600">
@@ -412,13 +768,14 @@ export default function ClipsPage() {
           {clipFilters.map((filter) => {
             const isActive = filter === activeFilter;
             return (
-              <button
-                key={filter}
-                type="button"
-                className={
-                  isActive
-                    ? "rounded-full bg-black px-3 py-1 text-[11px] font-medium text-white"
-                    : "rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] font-medium text-neutral-600"
+                <button
+                  key={filter}
+                  type="button"
+                  onClick={() => setActiveFilter(filter)}
+                  className={
+                    isActive
+                      ? "rounded-full bg-black px-3 py-1 text-[11px] font-medium text-white"
+                      : "rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] font-medium text-neutral-600"
                 }
               >
                 {filter}
@@ -456,11 +813,11 @@ export default function ClipsPage() {
                 return (
                   <article
                     key={clip.id}
-                    className="flex flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm"
+                    className="flex flex-col"
                   >
                   <Link
                     href={href}
-                    className="relative overflow-hidden rounded-2xl border border-neutral-200/60 bg-neutral-900"
+                    className="relative overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900"
                   >
                     <div className="relative flex flex-col gap-3 p-3 text-white">
                       {isRealVideo ? (
@@ -496,68 +853,75 @@ export default function ClipsPage() {
                             }}
                             className="h-full w-full object-cover"
                           />
-                          <div className="absolute bottom-3 left-3 inline-flex items-center gap-2 rounded-full bg-black/60 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]">
-                            <Play className="h-3.5 w-3.5" />
-                            {durationLabel}
-                          </div>
                           <div className="absolute right-3 top-3 rounded-full bg-black/60 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]">
                             nClips
                           </div>
-                          {clip.postId ? (
-                            <button
-                              type="button"
-                              aria-label={isLiked ? "Odebrat like" : "Dát like"}
-                              onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                handleToggleLike(clip.postId as string);
-                              }}
-                              className={`absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] transition ${
-                                isLiked ? "bg-rose-500/90 text-white" : "bg-black/60 text-white"
-                              }`}
-                            >
-                              <Heart className={`h-3.5 w-3.5 ${isLiked ? "fill-white" : ""}`} />
-                              {likesCount}
-                            </button>
-                          ) : null}
+                          <div className="absolute bottom-12 right-3 flex flex-col items-end gap-3">
+                            {clip.postId ? (
+                              <button
+                                type="button"
+                                aria-label={isLiked ? "Odebrat like" : "Dát like"}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  handleToggleLike(clip.postId as string);
+                                }}
+                                className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] transition ${
+                                  isLiked ? "bg-rose-500/90 text-white" : "bg-black/60 text-white"
+                                }`}
+                              >
+                                <Heart className={`h-3.5 w-3.5 ${isLiked ? "fill-white" : ""}`} />
+                                {likesCount}
+                              </button>
+                            ) : null}
+                            {clip.postId ? (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  router.push(href);
+                                }}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-black/70"
+                                aria-label="Otevřít komentáře"
+                              >
+                                <MessageCircle className="h-4 w-4" />
+                              </button>
+                            ) : null}
+                            {clip.postId ? (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  router.push(href);
+                                }}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-black/70"
+                                aria-label="Sdílet klip"
+                              >
+                                <Send className="h-4 w-4" />
+                              </button>
+                            ) : null}
+                            <div className="inline-flex items-center gap-2 rounded-full bg-black/60 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white">
+                              <Play className="h-3.5 w-3.5" />
+                              {durationLabel}
+                            </div>
+                          </div>
                         </div>
                       ) : null}
 
                       <div className="space-y-2">
-                        <div className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.14em]">
-                          <TrendingUp className="h-3.5 w-3.5" />
-                          {viewsLabel} shlédnutí
-                        </div>
-                        <h2 className="text-lg font-semibold leading-tight drop-shadow-sm">{clip.title}</h2>
                         <p className="text-sm text-neutral-100">{clip.creator}</p>
-                        <div className="flex flex-wrap gap-2 text-[11px]">
-                          {clip.tags.map((tag) => (
-                            <span
-                              key={tag}
-                              className="rounded-full bg-white/10 px-2 py-1 font-semibold uppercase tracking-[0.14em] text-neutral-100 backdrop-blur"
-                            >
-                              #{tag}
-                            </span>
-                          ))}
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="flex-1 text-sm font-normal leading-snug text-white/90">{clip.title}</p>
+                          <div className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.14em]">
+                            {viewsLabel} zhlédnutí
+                          </div>
                         </div>
                       </div>
                     </div>
                   </Link>
 
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="space-y-0.5">
-                      <p className="font-semibold text-neutral-900">{clip.title}</p>
-                      <p className="text-xs text-neutral-500">
-                        {clip.creator} · {viewsLabel}
-                      </p>
-                    </div>
-                    <Link
-                      href={href}
-                      className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-semibold text-neutral-700 transition hover:-translate-y-0.5 hover:bg-neutral-100"
-                    >
-                      Pustit
-                    </Link>
-                  </div>
                 </article>
               );
               })

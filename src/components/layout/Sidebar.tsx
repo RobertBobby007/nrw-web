@@ -44,7 +44,7 @@ export function Sidebar() {
     pathname === href || pathname.startsWith(`${href}/`);
 
   const mobileNavItems = NAV_ITEMS.filter((item) => item.href !== "/chat");
-  const hideMobileHeader = pathname?.startsWith("/chat");
+  const hideMobileHeader = pathname?.startsWith("/chat") || pathname?.startsWith("/clips");
 
   useEffect(() => {
     let active = true;

@@ -102,6 +102,9 @@ const DESCRIPTION_MAP: Record<string, string> = {
 };
 
 const DEFAULT_REFRESH_MS = 10 * 60 * 1000;
+const GEO_CACHE_KEY = "nrw.weather.geo";
+const GEO_DENIED_KEY = "nrw.weather.geo.denied";
+const GEO_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const refreshMsRaw = Number(process.env.NEXT_PUBLIC_WEATHER_REFRESH_MS);
 const WEATHER_REFRESH_MS =
   Number.isFinite(refreshMsRaw) && refreshMsRaw > 0 ? refreshMsRaw : DEFAULT_REFRESH_MS;
@@ -143,6 +146,52 @@ const resolveRegionLabel = (stateOrCity: string | null) => {
     entry.aliases.some((alias) => normalized.includes(normalizeText(alias))),
   );
   return match?.label ?? null;
+};
+
+type CachedGeo = {
+  lat: number;
+  lon: number;
+  ts: number;
+};
+
+const readCachedGeo = (): CachedGeo | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(GEO_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedGeo;
+    if (
+      typeof parsed?.lat !== "number" ||
+      typeof parsed?.lon !== "number" ||
+      typeof parsed?.ts !== "number"
+    ) {
+      return null;
+    }
+    if (Date.now() - parsed.ts > GEO_CACHE_TTL_MS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedGeo = (lat: number, lon: number) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(GEO_CACHE_KEY, JSON.stringify({ lat, lon, ts: Date.now() }));
+};
+
+const markGeoDenied = () => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(GEO_DENIED_KEY, "1");
+};
+
+const clearGeoDenied = () => {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(GEO_DENIED_KEY);
+};
+
+const isGeoDenied = () => {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(GEO_DENIED_KEY) === "1";
 };
 
 export function useWeather() {
@@ -206,12 +255,13 @@ export function useWeather() {
   }, []);
 
   const loadWeather = useCallback(
-    async (mode: "geo" | "city", showLoading = true) => {
+    async (mode: "geo" | "city", showLoading = true, options?: { forcePrompt?: boolean }) => {
       const apiKey = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY;
       if (!apiKey) {
         setState((prev) => ({ ...prev, loading: false, error: true }));
         return;
       }
+      const forcePrompt = options?.forcePrompt ?? false;
       const buildUrl = (params: string) =>
         `https://api.openweathermap.org/data/2.5/weather?${params}&units=metric&lang=cs&appid=${apiKey}`;
       const buildForecastUrl = (params: string) =>
@@ -377,18 +427,48 @@ export function useWeather() {
         return;
       }
 
+      const fetchByCoords = async (latitude: number, longitude: number) => {
+        await fetchWeather(buildUrl(`lat=${latitude}&lon=${longitude}`), !showLoading);
+        await fetchForecast(buildForecastUrl(`lat=${latitude}&lon=${longitude}`));
+        const region = await resolveRegion(latitude, longitude);
+        await fetchAlerts(region);
+      };
+
+      const cachedGeo = readCachedGeo();
+      if (cachedGeo && !forcePrompt) {
+        void fetchByCoords(cachedGeo.lat, cachedGeo.lon).catch(() => fallback());
+        return;
+      }
+
+      if (!forcePrompt && isGeoDenied()) {
+        await fallback();
+        return;
+      }
+
+      if (!forcePrompt && navigator.permissions?.query) {
+        try {
+          const permission = await navigator.permissions.query({ name: "geolocation" });
+          if (permission.state === "denied") {
+            markGeoDenied();
+            await fallback();
+            return;
+          }
+        } catch {
+          // Ignore permissions API failures and continue to geolocation request.
+        }
+      }
+
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const { latitude, longitude } = pos.coords;
-          void fetchWeather(buildUrl(`lat=${latitude}&lon=${longitude}`), !showLoading)
-            .then(async () => {
-              await fetchForecast(buildForecastUrl(`lat=${latitude}&lon=${longitude}`));
-              const region = await resolveRegion(latitude, longitude);
-              await fetchAlerts(region);
-            })
-            .catch(() => fallback());
+          writeCachedGeo(latitude, longitude);
+          clearGeoDenied();
+          void fetchByCoords(latitude, longitude).catch(() => fallback());
         },
-        () => {
+        (error) => {
+          if (error.code === 1) {
+            markGeoDenied();
+          }
           void fallback();
         },
         { timeout: 5000 },
@@ -411,5 +491,5 @@ export function useWeather() {
     return () => window.clearInterval(interval);
   }, [loadWeather]);
 
-  return { ...state, refreshWithLocation: () => loadWeather("geo") };
+  return { ...state, refreshWithLocation: () => loadWeather("geo", true, { forcePrompt: true }) };
 }
