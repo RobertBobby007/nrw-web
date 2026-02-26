@@ -70,7 +70,7 @@ export default function ClipsPage() {
   const viewTimerRef = useRef<number | null>(null);
   const viewedClipIdsRef = useRef<Set<string>>(new Set());
   const mobileFeedRef = useRef<HTMLDivElement | null>(null);
-  const mobileClipRefs = useRef<Record<string, HTMLArticleElement | null>>({});
+  const mobileClipRefs = useRef<Record<string, HTMLElement | null>>({});
   const mobileVideoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
   const overlayVideoRef = useRef<HTMLVideoElement | null>(null);
 
