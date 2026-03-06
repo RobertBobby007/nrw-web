@@ -27,6 +27,9 @@ export const metadata: Metadata = {
       },
     ],
   },
+  other: {
+    "google-adsense-account": "ca-pub-7637666188210157",
+  },
 };
 
 export default function RootLayout({
@@ -36,17 +39,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="cs">
-      <body
-        className="antialiased bg-white text-neutral-900"
-        suppressHydrationWarning
-      >
+      <head>
         <Script
           id="google-adsense"
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7637666188210157"
           crossOrigin="anonymous"
-          strategy="afterInteractive"
+          strategy="beforeInteractive"
         />
+      </head>
+      <body
+        className="antialiased bg-white text-neutral-900"
+        suppressHydrationWarning
+      >
         <HydrationFlag />
         <ThemeProvider />
         {children}
