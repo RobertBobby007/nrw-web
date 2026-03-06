@@ -27,7 +27,13 @@ type NewsFeedResponse = {
 function formatNewsDate(iso: string) {
   const parsed = new Date(iso);
   if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toLocaleDateString("cs-CZ", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return parsed.toLocaleString("cs-CZ", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function getFaviconUrl(link?: string | null) {

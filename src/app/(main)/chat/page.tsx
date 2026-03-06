@@ -258,6 +258,38 @@ export default function ChatPage() {
     };
   }, [currentUserId, newChatOpen, searchQuery, supabase]);
 
+  useEffect(() => {
+    const knownUserIds = new Set(chats.map((chat) => chat.other?.id).filter(Boolean) as string[]);
+    if (knownUserIds.size === 0) return;
+
+    const channel = supabase
+      .channel("profiles:last_seen")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles" }, (payload) => {
+        const row = payload.new as { id?: string | null; last_seen?: string | null };
+        const profileId = row?.id ?? null;
+        if (!profileId || !knownUserIds.has(profileId)) return;
+
+        setChats((prev) =>
+          prev.map((chat) =>
+            chat.other?.id === profileId
+              ? {
+                  ...chat,
+                  other: {
+                    ...chat.other,
+                    last_seen: row.last_seen ?? null,
+                  },
+                }
+              : chat,
+          ),
+        );
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [chats, supabase]);
+
   const activeChat = chats.find((chat) => chat.id === activeChatId) ?? null;
 
   const handleOpenNewChat = () => {

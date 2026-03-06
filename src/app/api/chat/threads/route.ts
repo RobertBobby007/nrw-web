@@ -54,7 +54,16 @@ export async function GET() {
   }
 
   const otherIds = Array.from(new Set((otherMembers ?? []).map((row) => row.user_id).filter(Boolean))) as string[];
-  const profilesById = new Map<string, { id: string; username: string | null; display_name: string | null; avatar_url: string | null }>();
+  const profilesById = new Map<
+    string,
+    {
+      id: string;
+      username: string | null;
+      display_name: string | null;
+      avatar_url: string | null;
+      last_seen: string | null;
+    }
+  >();
 
   if (otherIds.length > 0) {
     const { data: profiles, error: profileError } = await supabaseAdmin
@@ -75,7 +84,13 @@ export async function GET() {
 
   const othersByChatId = new Map<
     string,
-    { id: string; username: string | null; display_name: string | null; avatar_url: string | null }
+    {
+      id: string;
+      username: string | null;
+      display_name: string | null;
+      avatar_url: string | null;
+      last_seen: string | null;
+    }
   >();
   (otherMembers ?? []).forEach((row) => {
     if (!row.chat_id || !row.user_id) return;

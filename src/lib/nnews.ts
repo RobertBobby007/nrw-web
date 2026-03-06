@@ -81,10 +81,12 @@ function firstImageFromHtml(raw?: string | null): string | null {
 function mapRow(row: Row, i: number): NNewsFeedItem {
   const createdAt = iso(str(row, ["published_at", "created_at", "pub_date", "updated_at", "date"]));
   const sourceName = str(row, ["source_name", "source", "publisher", "author"]);
-  const dateLabel = new Date(createdAt).toLocaleDateString("cs-CZ", {
+  const dateLabel = new Date(createdAt).toLocaleString("cs-CZ", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
   return {
     id: str(row, ["id", "guid", "uuid", "slug"]) ?? `nnews-${i}`,
@@ -177,10 +179,12 @@ async function loadFromRss(client: Client, limit: number): Promise<NNewsFeedItem
       if (!res.ok) continue;
       const entries = parseFeed(await res.text()).slice(0, perSource);
       for (const entry of entries) {
-        const dateLabel = new Date(entry.publishedAt).toLocaleDateString("cs-CZ", {
+        const dateLabel = new Date(entry.publishedAt).toLocaleString("cs-CZ", {
           day: "2-digit",
           month: "2-digit",
           year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
         });
         items.push({
           id: `${source.id ?? source.name}:${entry.guid ?? entry.link ?? entry.title}`,

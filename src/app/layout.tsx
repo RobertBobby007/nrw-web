@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import Script from "next/script";
 import "./globals.css";
 import { HydrationFlag } from "@/components/hydration-flag";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -39,6 +40,13 @@ export default function RootLayout({
         className="antialiased bg-white text-neutral-900"
         suppressHydrationWarning
       >
+        <Script
+          id="google-adsense"
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7637666188210157"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
         <HydrationFlag />
         <ThemeProvider />
         {children}

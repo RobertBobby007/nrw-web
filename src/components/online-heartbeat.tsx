@@ -7,15 +7,13 @@ import { ensureOnlinePresence } from "@/lib/presence/useUserPresence";
 import { AUTH_SESSION_KEY, writeSessionCache } from "@/lib/session-cache";
 
 export function OnlineHeartbeat() {
-  const HEARTBEAT_ENABLED = false;
-  if (!HEARTBEAT_ENABLED) {
-    return null;
-  }
-
+  const HEARTBEAT_ENABLED = process.env.NEXT_PUBLIC_HEARTBEAT_ENABLED === "1";
   const supabase = getSupabaseBrowserClient();
   const pathname = usePathname();
 
   useEffect(() => {
+    if (!HEARTBEAT_ENABLED) return;
+
     let stopped = false;
     let userId: string | null = null;
     let userFetched = false;
@@ -36,6 +34,7 @@ export function OnlineHeartbeat() {
     async function sendPing() {
       try {
         await ensureUser();
+        if (!userId) return;
 
         await fetch("/api/ping", {
           method: "POST",
@@ -60,7 +59,7 @@ export function OnlineHeartbeat() {
     return () => {
       stopped = true;
     };
-  }, [supabase, pathname]);
+  }, [HEARTBEAT_ENABLED, supabase, pathname]);
 
   return null;
 }

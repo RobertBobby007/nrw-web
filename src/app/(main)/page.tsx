@@ -381,7 +381,13 @@ function WeatherAlerts({ weather, compact = false }: { weather: WeatherSnapshot;
 function formatStreamDate(iso: string) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "neznámé datum";
-  return date.toLocaleDateString("cs-CZ", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return date.toLocaleString("cs-CZ", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function getFaviconUrl(link?: string | null) {
