@@ -18,32 +18,36 @@ import {
   Clapperboard,
 } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { useTranslations } from "@/components/i18n/LocaleProvider";
 import { requestAuth } from "@/lib/auth-required";
 import { subscribeToTable } from "@/lib/realtime";
-
-const NAV_ITEMS = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/news", label: "nNews", icon: Newspaper },
-  { href: "/real", label: "nReal", icon: BookOpen },
-  { href: "/chat", label: "nChat", icon: MessageCircle },
-  { href: "/clips", label: "nClips", icon: Clapperboard },
-  { href: "/love", label: "nLove", icon: Heart },
-  { href: "/id", label: "nID", icon: User },
-];
 
 const PROTECTED_HREFS = new Set(["/create", "/notifications", "/settings", "/chat", "/id", "/love"]);
 
 export function Sidebar() {
   const pathname = usePathname();
+  const t = useTranslations();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const currentUserIdRef = useRef<string | null>(null);
+  const navItems = useMemo(
+    () => [
+      { href: "/", label: t("nav.home"), icon: Home },
+      { href: "/news", label: t("nav.news"), icon: Newspaper },
+      { href: "/real", label: t("nav.real"), icon: BookOpen },
+      { href: "/chat", label: t("nav.chat"), icon: MessageCircle },
+      { href: "/clips", label: t("nav.clips"), icon: Clapperboard },
+      { href: "/love", label: t("nav.love"), icon: Heart },
+      { href: "/id", label: t("nav.profile"), icon: User },
+    ],
+    [t],
+  );
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
 
-  const mobileNavItems = NAV_ITEMS.filter((item) => item.href !== "/chat");
+  const mobileNavItems = navItems.filter((item) => item.href !== "/chat");
   const hideMobileHeader = pathname?.startsWith("/chat") || pathname?.startsWith("/clips");
 
   useEffect(() => {
@@ -139,7 +143,7 @@ export function Sidebar() {
             href="/create"
             onClick={(event) => handleProtectedClick(event, "/create")}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200/70 bg-white text-neutral-600 shadow-sm transition hover:text-neutral-900"
-            aria-label="Přidat příspěvek nebo video"
+            aria-label={t("sidebar.addPostAria")}
           >
             <PlusCircle className="h-5 w-5" />
           </Link>
@@ -155,7 +159,7 @@ export function Sidebar() {
             href="/notifications"
             onClick={(event) => handleProtectedClick(event, "/notifications")}
             className="relative flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200/70 bg-white text-neutral-600 shadow-sm transition hover:text-neutral-900"
-            aria-label="Oznámení"
+            aria-label={t("sidebar.notificationsAria")}
           >
             <Bell className="h-5 w-5" />
             {unreadCount > 0 ? (
@@ -168,7 +172,7 @@ export function Sidebar() {
             href="/settings"
             onClick={(event) => handleProtectedClick(event, "/settings")}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200/70 bg-white text-neutral-600 shadow-sm transition hover:text-neutral-900"
-            aria-label="Nastavení"
+            aria-label={t("sidebar.settingsAria")}
           >
             <Settings className="h-5 w-5" />
           </Link>
@@ -187,7 +191,7 @@ export function Sidebar() {
             <Link
               href="/search"
               className="flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-200/70 bg-white text-neutral-600 shadow-sm transition hover:-translate-y-0.5 hover:text-neutral-900"
-              aria-label="Vyhledávání příspěvků"
+              aria-label={t("sidebar.searchAria")}
             >
               <Search className="h-5 w-5" />
             </Link>
@@ -195,7 +199,7 @@ export function Sidebar() {
               href="/notifications"
               onClick={(event) => handleProtectedClick(event, "/notifications")}
               className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-200/70 bg-white text-neutral-600 shadow-sm transition hover:-translate-y-0.5 hover:text-neutral-900"
-              aria-label="Oznámení"
+              aria-label={t("sidebar.notificationsAria")}
             >
               <Bell className="h-5 w-5" />
               {unreadCount > 0 ? (
@@ -208,14 +212,14 @@ export function Sidebar() {
               href="/create"
               onClick={(event) => handleProtectedClick(event, "/create")}
               className="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-900 text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-neutral-800"
-              aria-label="Přidat příspěvek nebo video"
+              aria-label={t("sidebar.addPostAria")}
             >
               <PlusCircle className="h-5 w-5" />
             </Link>
           </div>
 
           <nav className="flex flex-row gap-2 overflow-x-auto md:flex-col md:overflow-visible">
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);
               return (
@@ -243,21 +247,21 @@ export function Sidebar() {
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-neutral-500 transition-colors hover:text-neutral-900"
             >
               <Settings className="h-5 w-5" />
-              <span>Nastavení</span>
+              <span>{t("sidebar.settings")}</span>
             </Link>
             <Link
               href="/support"
               className="mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-neutral-500 transition-colors hover:text-neutral-900"
             >
               <LifeBuoy className="h-5 w-5" />
-              <span>Podpora</span>
+              <span>{t("sidebar.support")}</span>
             </Link>
             <div className="ml-8 mt-2 space-y-1 text-xs text-neutral-500">
               <Link href="/privacy" className="block transition-colors hover:text-neutral-900">
-                Ochrana soukromí
+                {t("sidebar.privacy")}
               </Link>
               <Link href="/terms" className="block transition-colors hover:text-neutral-900">
-                Smluvní podmínky
+                {t("sidebar.terms")}
               </Link>
             </div>
           </div>
@@ -267,7 +271,7 @@ export function Sidebar() {
       <nav
         className="fixed inset-x-0 bottom-0 z-50 border-t border-neutral-200 bg-white/95 backdrop-blur md:hidden"
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 10px)" }}
-        aria-label="Hlavní navigace"
+        aria-label={t("sidebar.mainNavigation")}
       >
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           {mobileNavItems.map((item) => {

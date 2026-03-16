@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "@/components/i18n/LocaleProvider";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 export default function LogoutPage() {
   const router = useRouter();
   const supabase = getSupabaseBrowserClient();
+  const t = useTranslations();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,9 +29,9 @@ export default function LogoutPage() {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="w-full max-w-sm space-y-4 border p-6 rounded-xl">
-        <h1 className="text-xl font-semibold">Odhlášení</h1>
+        <h1 className="text-xl font-semibold">{t("logout.title")}</h1>
         <p className="text-sm text-neutral-600">
-          Kliknutím se odhlásíš z účtu a vrátíš se na přihlášení.
+          {t("logout.description")}
         </p>
 
         {error && <p className="text-sm text-red-500">{error}</p>}
@@ -40,7 +42,7 @@ export default function LogoutPage() {
           disabled={loading}
           className="w-full rounded-md border px-3 py-2 text-sm font-medium"
         >
-          {loading ? "Odhlasuji…" : "Odhlásit se"}
+          {loading ? t("logout.loading") : t("common.actions.signOut")}
         </button>
       </div>
     </div>

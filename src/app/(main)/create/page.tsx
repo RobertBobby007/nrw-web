@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "@/components/i18n/LocaleProvider";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { MAX_POST_MEDIA_IMAGES, serializeMediaUrls } from "@/lib/media";
 import { containsBlockedContent } from "@/lib/content-filter";
@@ -11,10 +12,11 @@ import { requestAuth } from "@/lib/auth-required";
 export default function CreatePage() {
   const router = useRouter();
   const supabase = getSupabaseBrowserClient();
+  const t = useTranslations();
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [contentType, setContentType] = useState("Text");
+  const [contentType, setContentType] = useState("text");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
@@ -201,25 +203,25 @@ export default function CreatePage() {
             />
           </label>
           <label className="space-y-2 text-sm text-neutral-700">
-            <span className="font-semibold text-neutral-900">Typ obsahu</span>
+            <span className="font-semibold text-neutral-900">{t("create.contentTypeLabel")}</span>
             <select
               className="w-full rounded-lg border border-neutral-200/70 px-3 py-2 text-base text-neutral-900 outline-none focus:border-neutral-400 md:text-sm"
               value={contentType}
               onChange={(e) => setContentType(e.target.value)}
             >
-              <option>Text</option>
-              <option>Foto</option>
-              <option>Video</option>
+              <option value="text">{t("create.contentType.text")}</option>
+              <option value="photo">{t("create.contentType.photo")}</option>
+              <option value="video">{t("create.contentType.video")}</option>
             </select>
           </label>
         </div>
 
         <label className="space-y-2 text-sm text-neutral-700">
-          <span className="font-semibold text-neutral-900">Obsah</span>
+          <span className="font-semibold text-neutral-900">{t("create.bodyLabel")}</span>
           <textarea
             rows={6}
             className="w-full resize-none rounded-lg border border-neutral-200/70 px-3 py-2 text-base text-neutral-900 placeholder:text-neutral-500 outline-none focus:border-neutral-400 md:text-sm"
-            placeholder="Napiš, co chceš sdílet..."
+            placeholder={t("create.bodyPlaceholder")}
             value={body}
             onChange={(e) => setBody(e.target.value)}
           />
@@ -234,7 +236,7 @@ export default function CreatePage() {
               multiple
               onChange={(e) => handleFileChange(e.target.files)}
             />
-            {mediaPreviews.length > 0 ? "Přidat další" : "Nahrát fotku/video"}
+            {mediaPreviews.length > 0 ? t("create.addMore") : t("create.uploadMedia")}
           </label>
           {mediaPreviews.length > 0 && (
             <button
@@ -242,14 +244,14 @@ export default function CreatePage() {
               onClick={resetMedia}
               className="rounded-lg border border-neutral-200 px-3 py-1 text-sm font-medium text-neutral-600 transition hover:border-neutral-400"
             >
-              Odebrat
+              {t("create.remove")}
             </button>
           )}
         </div>
 
         {mediaPreviews.length > 0 && (
           <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-700">
-            <div className="mb-2 font-semibold">Náhled</div>
+            <div className="mb-2 font-semibold">{t("create.preview")}</div>
             {mediaType === "video" ? (
               <video
                 src={mediaPreviews[0]}
@@ -260,7 +262,11 @@ export default function CreatePage() {
               <div className="grid grid-cols-2 gap-2">
                 {mediaPreviews.map((preview, index) => (
                   <div key={preview} className="relative overflow-hidden rounded-lg border border-neutral-200 bg-white">
-                    <img src={preview} alt={`Náhled ${index + 1}`} className="h-full w-full object-cover" />
+                    <img
+                      src={preview}
+                      alt={t("create.previewAlt", { index: index + 1 })}
+                      className="h-full w-full object-cover"
+                    />
                     <button
                       type="button"
                       onClick={() => {
@@ -275,7 +281,7 @@ export default function CreatePage() {
                       }}
                       className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-1 text-[11px] font-semibold text-neutral-700 shadow-sm"
                     >
-                      Odebrat
+                      {t("create.remove")}
                     </button>
                   </div>
                 ))}
@@ -295,14 +301,14 @@ export default function CreatePage() {
             type="button"
             className="rounded-lg px-4 py-2 text-sm font-medium text-neutral-600 transition hover:text-neutral-900"
           >
-            Uložit koncept
+            {t("create.saveDraft")}
           </button>
           <button
             type="submit"
             disabled={loading}
             className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-80"
           >
-            {loading ? "Publikuji…" : "Publikovat"}
+            {loading ? t("create.publishing") : t("create.publish")}
           </button>
         </div>
       </form>

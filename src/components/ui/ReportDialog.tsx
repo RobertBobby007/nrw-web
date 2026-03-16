@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
+import { useTranslations } from "@/components/i18n/LocaleProvider";
 
 type ReportReason =
   | "spam"
@@ -12,16 +13,6 @@ type ReportReason =
   | "misinfo"
   | "other";
 
-const REASONS: Array<{ value: ReportReason; label: string }> = [
-  { value: "spam", label: "Spam" },
-  { value: "violence", label: "Násilí" },
-  { value: "nudity", label: "Nahota" },
-  { value: "hate", label: "Nenávist" },
-  { value: "harassment", label: "Obtěžování" },
-  { value: "misinfo", label: "Dezinformace" },
-  { value: "other", label: "Jiné" },
-];
-
 type ReportDialogProps = {
   open: boolean;
   targetType: "post" | "comment";
@@ -30,6 +21,7 @@ type ReportDialogProps = {
 };
 
 export function ReportDialog({ open, targetId, targetType, onClose }: ReportDialogProps) {
+  const t = useTranslations();
   const [reason, setReason] = useState<ReportReason>("spam");
   const [details, setDetails] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -82,9 +74,9 @@ export function ReportDialog({ open, targetId, targetType, onClose }: ReportDial
       const json = await res.json();
       if (!res.ok || !json?.success) {
         if (json?.blocked) {
-          setError("Text nahlášení porušuje pravidla. Zkus to prosím přeformulovat.");
+          setError(t("report.blockedError"));
         } else {
-          setError(json?.error || "Nahlášení se nepodařilo.");
+          setError(json?.error || t("report.submitError"));
         }
         return;
       }
@@ -92,11 +84,21 @@ export function ReportDialog({ open, targetId, targetType, onClose }: ReportDial
       onClose();
     } catch (err) {
       console.error("Report request failed", err);
-      setError("Nahlášení se nepodařilo.");
+      setError(t("report.submitError"));
     } finally {
       setSubmitting(false);
     }
   };
+
+  const reasons: Array<{ value: ReportReason; label: string }> = [
+    { value: "spam", label: t("report.reasons.spam") },
+    { value: "violence", label: t("report.reasons.violence") },
+    { value: "nudity", label: t("report.reasons.nudity") },
+    { value: "hate", label: t("report.reasons.hate") },
+    { value: "harassment", label: t("report.reasons.harassment") },
+    { value: "misinfo", label: t("report.reasons.misinfo") },
+    { value: "other", label: t("report.reasons.other") },
+  ];
 
   return (
     <>
@@ -109,39 +111,39 @@ export function ReportDialog({ open, targetId, targetType, onClose }: ReportDial
         >
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="text-base font-semibold text-neutral-900">Nahlásit</h3>
+              <h3 className="text-base font-semibold text-neutral-900">{t("report.title")}</h3>
               <p className="text-sm text-neutral-600">
-                {targetType === "post" ? "Příspěvek porušuje pravidla?" : "Komentář porušuje pravidla?"}
+                {targetType === "post" ? t("report.postQuestion") : t("report.commentQuestion")}
               </p>
             </div>
             <button
               type="button"
               onClick={onClose}
               className="rounded-full p-2 text-neutral-500 transition hover:bg-neutral-100"
-              aria-label="Zavřít"
+              aria-label={t("report.closeAria")}
             >
               <X className="h-4 w-4" />
             </button>
           </div>
 
           <div className="mt-4 space-y-2">
-            <label className="text-sm font-semibold text-neutral-800">Důvod</label>
+            <label className="text-sm font-semibold text-neutral-800">{t("report.reasonLabel")}</label>
             <select
               value={reason}
               onChange={(e) => setReason(e.target.value as ReportReason)}
               className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-400"
             >
-              {REASONS.map((r) => (
+              {reasons.map((r) => (
                 <option key={r.value} value={r.value}>
                   {r.label}
                 </option>
               ))}
             </select>
-            <label className="text-sm font-semibold text-neutral-800">Detaily (volitelné)</label>
+            <label className="text-sm font-semibold text-neutral-800">{t("report.detailsLabel")}</label>
             <textarea
               value={details}
               onChange={(e) => setDetails(e.target.value)}
-              placeholder="Popiš, co je špatně"
+              placeholder={t("report.detailsPlaceholder")}
               rows={3}
               className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-400"
             />
@@ -154,7 +156,7 @@ export function ReportDialog({ open, targetId, targetType, onClose }: ReportDial
               onClick={onClose}
               className="rounded-full px-4 py-2 text-sm font-semibold text-neutral-700 transition hover:bg-neutral-100"
             >
-              Zavřít
+              {t("common.actions.close")}
             </button>
             <button
               type="button"
@@ -162,14 +164,14 @@ export function ReportDialog({ open, targetId, targetType, onClose }: ReportDial
               onClick={handleSubmit}
               className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-900 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Odeslat
+              {t("common.actions.send")}
             </button>
           </div>
         </div>
       </div>
       {toastVisible ? (
         <div className="fixed bottom-4 right-4 z-50 rounded-full bg-black px-4 py-2 text-sm font-semibold text-white shadow-lg">
-          Díky, nahlášení odesláno.
+          {t("report.successToast")}
         </div>
       ) : null}
     </>

@@ -2,19 +2,19 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useTranslations } from "@/components/i18n/LocaleProvider";
 import type { AuthRequiredDetail } from "@/lib/auth-required";
 
-const DEFAULT_MESSAGE = "Pro tuto akci se musíš přihlásit.";
-
 export function AuthRequiredDialog() {
+  const t = useTranslations();
   const [open, setOpen] = useState(false);
-  const [message, setMessage] = useState(DEFAULT_MESSAGE);
+  const [message, setMessage] = useState(t("authRequired.defaultMessage"));
 
   useEffect(() => {
     const handler = (event: Event) => {
       const custom = event as CustomEvent<AuthRequiredDetail>;
       const nextMessage = custom.detail?.message?.trim();
-      setMessage(nextMessage || DEFAULT_MESSAGE);
+      setMessage(nextMessage || t("authRequired.defaultMessage"));
       setOpen(true);
     };
 
@@ -22,7 +22,7 @@ export function AuthRequiredDialog() {
     return () => {
       window.removeEventListener("nrw:auth_required", handler);
     };
-  }, []);
+  }, [t]);
 
   if (!open) return null;
 
@@ -36,7 +36,7 @@ export function AuthRequiredDialog() {
       <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-5 shadow-xl">
         <div className="space-y-2">
           <h2 id="auth-required-title" className="text-lg font-semibold text-neutral-900">
-            Přihlásit se
+            {t("authRequired.title")}
           </h2>
           <p className="text-sm text-neutral-600">{message}</p>
         </div>
@@ -46,13 +46,13 @@ export function AuthRequiredDialog() {
             onClick={() => setOpen(false)}
             className="rounded-full px-4 py-2 text-sm font-semibold text-neutral-600 transition hover:text-neutral-900"
           >
-            Zavřít
+            {t("common.actions.close")}
           </button>
           <Link
             href="/auth/login"
             className="rounded-full bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
           >
-            Přihlásit se
+            {t("common.actions.signIn")}
           </Link>
         </div>
       </div>

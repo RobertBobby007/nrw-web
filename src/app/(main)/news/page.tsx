@@ -2,6 +2,7 @@
 
 import { Check, ChevronDown, Flame } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useLocale, useTranslations } from "@/components/i18n/LocaleProvider";
 import type { NNewsFeedItem } from "@/lib/nnews";
 import { detectNewsTopics, NEWS_TOPICS, topicLabel, type NewsTopicId } from "@/lib/news-topics";
 import { NewsPreviewModal } from "@/components/news/NewsPreviewModal";
@@ -24,10 +25,10 @@ type NewsFeedResponse = {
   error?: string;
 };
 
-function formatNewsDate(iso: string) {
+function formatNewsDate(iso: string, locale: string) {
   const parsed = new Date(iso);
   if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toLocaleString("cs-CZ", {
+  return parsed.toLocaleString(locale === "en" ? "en-US" : "cs-CZ", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -48,6 +49,8 @@ function getFaviconUrl(link?: string | null) {
 }
 
 export default function NewsPage() {
+  const t = useTranslations();
+  const { locale } = useLocale();
   const [items, setItems] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +86,7 @@ export default function NewsPage() {
         const res = await fetch("/api/news/feed?limit=60", { cache: "no-store" });
         const payload = (await res.json()) as NewsFeedResponse;
         if (!res.ok || payload.success === false) {
-          throw new Error(payload.error ?? "Nepodařilo se načíst nNews.");
+          throw new Error(payload.error ?? t("news.loadError"));
         }
         if (!active) return;
         setItems(
@@ -102,7 +105,7 @@ export default function NewsPage() {
       } catch (err) {
         if (!active) return;
         setItems([]);
-        setError(err instanceof Error ? err.message : "Nepodařilo se načíst nNews.");
+        setError(err instanceof Error ? err.message : t("news.loadError"));
       } finally {
         if (active) setLoading(false);
       }
@@ -111,17 +114,14 @@ export default function NewsPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [t]);
 
   return (
     <main className="min-h-screen bg-neutral-50 lg:h-screen lg:overflow-hidden">
       <section className="mx-auto max-w-6xl px-4 py-8 space-y-8 lg:flex lg:h-full lg:min-h-0 lg:flex-col">
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight">NRW News – přehled novinek</h1>
-          <p className="max-w-xl text-sm text-neutral-600">
-            Aktualizace z NRW světa, nové funkce, změny v aplikaci a důležité zprávy na jednom
-            místě.
-          </p>
+          <h1 className="text-3xl font-semibold tracking-tight">{t("news.title")}</h1>
+          <p className="max-w-xl text-sm text-neutral-600">{t("news.description")}</p>
         </header>
 
         <div className="relative inline-flex items-center">
@@ -130,9 +130,9 @@ export default function NewsPage() {
             onClick={() => setIsTopicMenuOpen((prev) => !prev)}
             className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[11px] font-medium text-neutral-700 shadow-sm hover:bg-neutral-50"
           >
-            Témata
+            {t("news.topics")}
             <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600">
-              {selectedTopics.length === 0 ? "Vše" : selectedTopics.length}
+              {selectedTopics.length === 0 ? t("news.all") : selectedTopics.length}
             </span>
             <ChevronDown className="h-3.5 w-3.5" />
           </button>
@@ -144,7 +144,7 @@ export default function NewsPage() {
                 onClick={() => setSelectedTopics([])}
                 className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs text-neutral-700 hover:bg-neutral-50"
               >
-                <span>Všechna témata</span>
+                <span>{t("news.allTopics")}</span>
                 {selectedTopics.length === 0 ? <Check className="h-4 w-4" /> : null}
               </button>
               <div className="my-1 h-px bg-neutral-100" />
@@ -158,7 +158,7 @@ export default function NewsPage() {
                       onClick={() => toggleTopic(topic.id)}
                       className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs text-neutral-700 hover:bg-neutral-50"
                     >
-                      <span className="truncate">{topicLabel(topic.id)}</span>
+                      <span className="truncate">{topicLabel(topic.id, (id) => t(`news.topicsMap.${id}`))}</span>
                       {isActive ? <Check className="h-4 w-4" /> : null}
                     </button>
                   );
@@ -172,17 +172,17 @@ export default function NewsPage() {
           <div className="space-y-3 lg:min-h-0 lg:overflow-y-auto lg:pr-2">
             {error ? (
               <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                Nepodařilo se načíst nNews: {error}
+                {t("news.loadError")}: {error}
               </div>
             ) : null}
             {loading ? (
               <div className="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
-                Načítám nNews…
+                {t("news.loading")}
               </div>
             ) : null}
             {!loading && !error && visibleItems.length === 0 ? (
               <div className="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
-                Zatím tu nic není.
+                {t("news.empty")}
               </div>
             ) : null}
             {visibleItems.map((item) => {
@@ -223,7 +223,7 @@ export default function NewsPage() {
                       ) : null}
                       <span className="truncate">{item.category}</span>
                       <span>·</span>
-                      <span>{formatNewsDate(item.createdAt)}</span>
+                      <span>{formatNewsDate(item.createdAt, locale)}</span>
                     </div>
                     {item.url ? (
                       <button
@@ -234,7 +234,7 @@ export default function NewsPage() {
                         }}
                         className="text-[11px] font-medium text-neutral-700 hover:text-neutral-900"
                       >
-                        Otevřít
+                        {t("common.actions.open")}
                       </button>
                     ) : null}
                   </div>
@@ -244,8 +244,8 @@ export default function NewsPage() {
           </div>
 
           <aside className="hidden space-y-3 lg:block lg:sticky lg:top-6 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">
-            <CategoryWidget />
-            <TagWidget />
+            <CategoryWidget t={t} />
+            <TagWidget t={t} />
           </aside>
         </div>
       </section>
@@ -263,22 +263,26 @@ export default function NewsPage() {
 }
 
 const categoryHotspots = [
-  { id: "world", label: "Zprávy ze světa", count: 8 },
-  { id: "updates", label: "Update aplikace", count: 12 },
-  { id: "security", label: "Bezpečnost", count: 5 },
-  { id: "community", label: "Komunita", count: 9 },
-  { id: "events", label: "Eventy a livestreamy", count: 3 },
-  { id: "tips", label: "Tipy a návody", count: 6 },
-];
+  { id: "world", count: 8 },
+  { id: "updates", count: 12 },
+  { id: "security", count: 5 },
+  { id: "community", count: 9 },
+  { id: "events", count: 3 },
+  { id: "tips", count: 6 },
+] as const;
 
-function CategoryWidget() {
+function CategoryWidget({
+  t,
+}: {
+  t: (key: string, values?: Record<string, string | number>) => string;
+}) {
   return (
     <div className="space-y-2 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between text-sm font-semibold text-neutral-900">
-        Kategorie
+        {t("news.categoryTitle")}
         <span className="flex items-center gap-1 text-xs font-medium text-neutral-500">
           <Flame className="h-4 w-4 text-red-500" />
-          Nejvíc čtené
+          {t("news.mostRead")}
         </span>
       </div>
       <div className="space-y-2 text-sm text-neutral-700">
@@ -287,7 +291,7 @@ function CategoryWidget() {
             key={item.id}
             className="flex items-center justify-between rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2"
           >
-            <span className="font-medium text-neutral-900">{item.label}</span>
+            <span className="font-medium text-neutral-900">{t(`news.categoryHotspots.${item.id}`)}</span>
             <span className="rounded-full bg-neutral-900 px-2 py-0.5 text-[11px] font-semibold text-white">
               {item.count}
             </span>
@@ -298,19 +302,25 @@ function CategoryWidget() {
   );
 }
 
-const tags = ["NRW", "Produkt", "nReal", "nChat", "Bezpečnost", "Aktualizace", "Komunita", "Podpora"];
+const tags = ["NRW", "Produkt", "nReal", "nChat", "security", "updates", "community", "support"] as const;
 
-function TagWidget() {
+function TagWidget({
+  t,
+}: {
+  t: (key: string, values?: Record<string, string | number>) => string;
+}) {
   return (
     <div className="space-y-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-      <div className="text-sm font-semibold text-neutral-900">Další štítky</div>
+      <div className="text-sm font-semibold text-neutral-900">{t("news.moreTags")}</div>
       <div className="flex flex-wrap gap-2 text-[11px] text-neutral-600">
         {tags.map((tag) => (
           <span
             key={tag}
             className="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 font-medium"
           >
-            {tag}
+            {tag === "security" || tag === "updates" || tag === "community" || tag === "support"
+              ? t(`news.tags.${tag}`)
+              : tag}
           </span>
         ))}
       </div>

@@ -2,12 +2,14 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "@/components/i18n/LocaleProvider";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = getSupabaseBrowserClient();
+  const t = useTranslations();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,9 +19,9 @@ function LoginPageContent() {
 
   useEffect(() => {
     if (searchParams.get("banned")) {
-      setAuthError("Tvůj účet byl zablokován. Pokud si myslíš, že jde o chybu, kontaktuj podporu.");
+      setAuthError(t("auth.login.bannedError"));
     }
-  }, [searchParams]);
+  }, [searchParams, t]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +35,7 @@ function LoginPageContent() {
       });
 
       if (error) {
-        setAuthError(error.message || "Přihlášení se nepovedlo.");
+        setAuthError(error.message || t("auth.login.fallbackError"));
         return;
       }
 
@@ -54,7 +56,7 @@ function LoginPageContent() {
     });
 
     if (error) {
-      setAuthError(error.message || "Přihlášení přes Google se nepovedlo.");
+      setAuthError(error.message || t("auth.login.googleError"));
       setGoogleLoading(false);
     }
   };
@@ -65,7 +67,7 @@ function LoginPageContent() {
         onSubmit={handleSubmit}
         className="w-full max-w-sm space-y-4 border p-6 rounded-xl"
       >
-        <h1 className="text-xl font-semibold">Přihlášení do NRW</h1>
+        <h1 className="text-xl font-semibold">{t("auth.login.title")}</h1>
 
         <button
           type="button"
@@ -73,18 +75,18 @@ function LoginPageContent() {
           disabled={googleLoading || authLoading}
           className="w-full rounded-md border px-3 py-2 text-sm font-medium"
         >
-          {googleLoading ? "Přesměrovávám na Google…" : "Pokračovat přes Google"}
+          {googleLoading ? t("auth.login.googleLoading") : t("auth.login.googleButton")}
         </button>
 
         <div className="relative">
           <div className="h-px w-full bg-neutral-200" />
           <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs text-neutral-500">
-            nebo e-mailem
+            {t("auth.login.emailDivider")}
           </span>
         </div>
 
         <div className="space-y-2">
-          <label className="block text-sm">E-mail</label>
+          <label className="block text-sm">{t("auth.login.emailLabel")}</label>
           <input
             type="email"
             className="w-full border rounded px-3 py-2 bg-transparent"
@@ -95,7 +97,7 @@ function LoginPageContent() {
         </div>
 
         <div className="space-y-2">
-          <label className="block text-sm">Heslo</label>
+          <label className="block text-sm">{t("auth.login.passwordLabel")}</label>
           <input
             type="password"
             className="w-full border rounded px-3 py-2 bg-transparent"
@@ -112,13 +114,13 @@ function LoginPageContent() {
           disabled={authLoading || googleLoading}
           className="w-full rounded-md border px-3 py-2 text-sm font-medium"
         >
-          {authLoading ? "Přihlašuji…" : "Přihlásit se"}
+          {authLoading ? t("auth.login.submitLoading") : t("auth.login.submitButton")}
         </button>
 
         <p className="text-xs text-center text-neutral-500">
-          Nemáš účet?{" "}
+          {t("auth.login.noAccount")}{" "}
           <a href="/auth/register" className="underline">
-            Registrovat se
+            {t("auth.login.registerLink")}
           </a>
         </p>
       </form>

@@ -1,6 +1,10 @@
 import Link from "next/link";
+import { getRequestLocale } from "@/lib/i18n-server";
+import { translate } from "@/lib/i18n";
 
-export default function NotFound() {
+export default async function NotFound() {
+  const locale = await getRequestLocale();
+
   return (
     <main className="sad404">
       <div className="sad404__lights" aria-hidden>
@@ -35,10 +39,10 @@ export default function NotFound() {
           <div className="sad404__error">ERROR 404</div>
         </div>
         <div className="sad404__text">
-          <h1>Stránka nenalezena</h1>
-          <p>Zkus se vrátit zpět na Home. Tahle stránka už tady nejspíš není.</p>
+          <h1>{translate(locale, "notFound.title")}</h1>
+          <p>{translate(locale, "notFound.description")}</p>
           <Link href="/" className="sad404__home">
-            Zpět na Home
+            {translate(locale, "notFound.backHome")}
           </Link>
         </div>
       </section>

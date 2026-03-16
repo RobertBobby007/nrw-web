@@ -45,6 +45,9 @@ export function detectNewsTopics(input: {
   return matches.map((topic) => topic.id);
 }
 
-export function topicLabel(topicId: NewsTopicId) {
-  return NEWS_TOPICS.find((topic) => topic.id === topicId)?.label ?? topicId;
+export function topicLabel(
+  topicId: NewsTopicId,
+  translateLabel?: (topicId: NewsTopicId) => string,
+) {
+  return translateLabel?.(topicId) ?? NEWS_TOPICS.find((topic) => topic.id === topicId)?.label ?? topicId;
 }

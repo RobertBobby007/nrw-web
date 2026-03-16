@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Megaphone } from "lucide-react";
+import { useTranslations } from "@/components/i18n/LocaleProvider";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { safeIdentityLabel } from "@/lib/content-filter";
 import { subscribeToTable } from "@/lib/realtime";
@@ -66,6 +67,7 @@ function severityClasses(value: string | null | undefined): string {
 }
 
 export default function NotificationsPage() {
+  const t = useTranslations();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -234,7 +236,7 @@ export default function NotificationsPage() {
       window.dispatchEvent(new CustomEvent("nrw:notifications_updated"));
     } catch (e: unknown) {
       console.error("markAllAsRead failed", e);
-      setError(errorMessage(e) ?? "Akce se nepovedla.");
+      setError(errorMessage(e) ?? t("notifications.actionError"));
     } finally {
       setBusy(false);
     }
@@ -244,9 +246,9 @@ export default function NotificationsPage() {
     <main className="min-h-screen bg-white mx-auto max-w-4xl px-4 py-10 space-y-4">
       <header className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <p className="text-xs uppercase tracking-[0.2em] text-neutral-600">Centrum upozornění</p>
-          <h1 className="text-3xl font-semibold text-neutral-900">Oznámení</h1>
-          <p className="text-sm text-neutral-700">Tvoje oznámení a systémové zprávy.</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-neutral-600">{t("notifications.eyebrow")}</p>
+          <h1 className="text-3xl font-semibold text-neutral-900">{t("notifications.title")}</h1>
+          <p className="text-sm text-neutral-700">{t("notifications.description")}</p>
         </div>
 
         <button
@@ -255,7 +257,7 @@ export default function NotificationsPage() {
           onClick={markAllAsRead}
           className="rounded-full border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Označit vše jako přečtené
+          {t("notifications.markAllRead")}
         </button>
       </header>
 
@@ -265,9 +267,9 @@ export default function NotificationsPage() {
 
       <div className="rounded-xl border border-neutral-200/70 bg-white p-2 shadow-sm">
         {loading ? (
-          <div className="p-4 text-sm text-neutral-600">Načítám notifikace…</div>
+          <div className="p-4 text-sm text-neutral-600">{t("notifications.loading")}</div>
         ) : items.length === 0 ? (
-          <div className="p-4 text-sm text-neutral-600">Zatím žádné notifikace.</div>
+          <div className="p-4 text-sm text-neutral-600">{t("notifications.empty")}</div>
         ) : (
           <div className="divide-y divide-neutral-100">
             {items.map((n) => {
@@ -277,7 +279,7 @@ export default function NotificationsPage() {
               const username = safeUsername ? `@${safeUsername}` : null;
               const unread = !n.read_at;
               const isAnnouncement = (n.type ?? "").toLowerCase() === "announcement";
-              const annTitle = (n.title ?? "").trim() || "Oznámení";
+              const annTitle = (n.title ?? "").trim() || t("notifications.announcementFallback");
               const annBody = (n.body ?? "").trim();
               const annSeverity = severityLabel(n.severity);
               const hasUrl = Boolean((n.url ?? "").trim());
@@ -349,7 +351,7 @@ export default function NotificationsPage() {
                         rel="noreferrer"
                         className="mt-1 inline-flex rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] font-semibold text-neutral-900 transition hover:bg-neutral-50"
                       >
-                        Otevřít
+                        {t("common.actions.open")}
                       </a>
                     ) : null}
                   </div>

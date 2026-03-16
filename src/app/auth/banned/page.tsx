@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "@/components/i18n/LocaleProvider";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 export default function BannedPage() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const t = useTranslations();
   const [banReason, setBanReason] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasSession, setHasSession] = useState(false);
@@ -65,7 +67,7 @@ export default function BannedPage() {
     return () => {
       active = false;
     };
-  }, [supabase]);
+  }, [supabase, t]);
 
   const handleLogout = async () => {
     setError(null);
@@ -81,19 +83,19 @@ export default function BannedPage() {
     <div className="min-h-screen bg-white text-neutral-900 flex items-center justify-center px-4">
       <div className="w-full max-w-lg space-y-5 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold">Tento účet byl zabanován</h1>
+          <h1 className="text-2xl font-semibold">{t("auth.banned.title")}</h1>
           <p className="text-sm text-neutral-600">
-            Přístup do aplikace je zablokován. Pokud si myslíš, že jde o chybu, kontaktuj podporu.
+            {t("auth.banned.description")}
           </p>
         </div>
 
         {loading ? (
           <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
-            Načítám detail banu…
+            {t("auth.banned.loading")}
           </div>
         ) : banReason ? (
           <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
-            <span className="font-semibold">Důvod banu:</span> {banReason}
+            <span className="font-semibold">{t("auth.banned.reasonLabel")}</span> {banReason}
           </div>
         ) : null}
 
@@ -106,7 +108,7 @@ export default function BannedPage() {
               onClick={handleLogout}
               className="rounded-full border border-neutral-200 bg-white px-5 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-50"
             >
-              Odhlásit se
+              {t("auth.banned.logoutButton")}
             </button>
           ) : null}
           <button
@@ -114,7 +116,7 @@ export default function BannedPage() {
             onClick={() => router.push("/auth/login")}
             className="rounded-full bg-neutral-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
           >
-            Zpět na přihlášení
+            {t("auth.banned.backToLogin")}
           </button>
         </div>
       </div>

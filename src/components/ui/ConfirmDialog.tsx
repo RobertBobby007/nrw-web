@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
+import { useTranslations } from "@/components/i18n/LocaleProvider";
 
 type ConfirmDialogProps = {
   open: boolean;
@@ -24,6 +25,7 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const t = useTranslations();
   const cancelRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
@@ -62,7 +64,7 @@ export function ConfirmDialog({
                 type="button"
                 onClick={onCancel}
                 className="rounded-full p-1 text-neutral-500 transition hover:bg-neutral-100"
-                aria-label="Zavřít"
+                aria-label={t("confirm.closeAria")}
               >
                 <X className="h-4 w-4" />
               </button>

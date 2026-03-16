@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "@/components/i18n/LocaleProvider";
 import { containsBlockedIdentityContent } from "@/lib/content-filter";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 export default function RegisterPage() {
   const supabase = getSupabaseBrowserClient();
+  const t = useTranslations();
 
   const [step, setStep] = useState<1 | 2>(1);
   const [firstName, setFirstName] = useState("");
@@ -32,7 +34,7 @@ export default function RegisterPage() {
     });
 
     if (error) {
-      setError(error.message || "Registrace přes Google se nepovedla.");
+      setError(error.message || t("auth.register.googleError"));
       setGoogleLoading(false);
     }
   }
@@ -49,22 +51,22 @@ export default function RegisterPage() {
     const emailTrimmed = email.trim();
 
     if (!emailTrimmed) {
-      setError("Zadej e-mail.");
+      setError(t("auth.register.emailRequired"));
       return;
     }
 
     if (containsBlockedIdentityContent(emailTrimmed).hit) {
-      setError("E-mail obsahuje nevhodný text.");
+      setError(t("auth.register.emailBlocked"));
       return;
     }
 
     if (!password || password.length < 6) {
-      setError("Heslo musí mít aspoň 6 znaků.");
+      setError(t("auth.register.passwordTooShort"));
       return;
     }
 
     if (password !== confirmPassword) {
-      setError("Hesla se neshodují.");
+      setError(t("auth.register.passwordsMismatch"));
       return;
     }
 
@@ -82,12 +84,12 @@ export default function RegisterPage() {
     }
 
     if (!firstName.trim() || !lastName.trim() || !username.trim()) {
-      setError("Vyplň jméno, příjmení i uživatelské jméno.");
+      setError(t("auth.register.nameUsernameRequired"));
       return;
     }
 
     if (!birthdate) {
-      setError("Vyplň datum narození.");
+      setError(t("auth.register.birthdateRequired"));
       return;
     }
 
@@ -98,23 +100,23 @@ export default function RegisterPage() {
     const emailTrimmed = email.trim();
 
     if (containsBlockedIdentityContent(firstNameTrimmed).hit) {
-      setError("Jméno obsahuje nevhodný text.");
+      setError(t("auth.register.firstNameBlocked"));
       return;
     }
     if (containsBlockedIdentityContent(lastNameTrimmed).hit) {
-      setError("Příjmení obsahuje nevhodný text.");
+      setError(t("auth.register.lastNameBlocked"));
       return;
     }
     if (displayName && containsBlockedIdentityContent(displayName).hit) {
-      setError("Jméno obsahuje nevhodný text.");
+      setError(t("auth.register.displayNameBlocked"));
       return;
     }
     if (containsBlockedIdentityContent(normalizedUsername).hit) {
-      setError("Uživatelské jméno obsahuje nevhodný text.");
+      setError(t("auth.register.usernameBlocked"));
       return;
     }
     if (containsBlockedIdentityContent(emailTrimmed).hit) {
-      setError("E-mail obsahuje nevhodný text.");
+      setError(t("auth.register.emailBlocked"));
       return;
     }
 
@@ -140,7 +142,7 @@ export default function RegisterPage() {
       return;
     }
 
-    setInfo("Účet byl vytvořen, zkontroluj e-mail.");
+    setInfo(t("auth.register.successInfo"));
   }
 
   return (
@@ -152,12 +154,12 @@ export default function RegisterPage() {
         <div className="flex items-start justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-neutral-500">
-              Registrace
+              {t("auth.register.eyebrow")}
             </p>
-            <h1 className="text-xl font-semibold">Vytvoř si účet NRW</h1>
+            <h1 className="text-xl font-semibold">{t("auth.register.title")}</h1>
           </div>
           <span className="rounded-full border px-3 py-1 text-xs font-semibold text-neutral-600">
-            Krok {step}/2
+            {t("auth.register.step", { step })}
           </span>
         </div>
 
@@ -170,14 +172,14 @@ export default function RegisterPage() {
               className="w-full rounded-md border px-3 py-2 text-sm font-medium"
             >
               {googleLoading
-                ? "Přesměrovávám na Google…"
-                : "Registrovat se přes Google"}
+                ? t("auth.register.googleLoading")
+                : t("auth.register.googleButton")}
             </button>
 
             <div className="relative">
               <div className="h-px w-full bg-neutral-200" />
               <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs text-neutral-500">
-                nebo e-mailem
+                {t("auth.register.emailDivider")}
               </span>
             </div>
           </>
@@ -186,7 +188,7 @@ export default function RegisterPage() {
         {step === 1 ? (
           <>
             <div className="space-y-2">
-              <label className="block text-sm">E-mail</label>
+              <label className="block text-sm">{t("auth.register.emailLabel")}</label>
               <input
                 type="email"
                 className="w-full border rounded px-3 py-2 bg-transparent"
@@ -197,7 +199,7 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm">Heslo</label>
+              <label className="block text-sm">{t("auth.register.passwordLabel")}</label>
               <input
                 type="password"
                 className="w-full border rounded px-3 py-2 bg-transparent"
@@ -208,7 +210,7 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm">Potvrzení hesla</label>
+              <label className="block text-sm">{t("auth.register.passwordConfirmLabel")}</label>
               <input
                 type="password"
                 className="w-full border rounded px-3 py-2 bg-transparent"
@@ -224,13 +226,13 @@ export default function RegisterPage() {
               disabled={googleLoading || loading}
               className="w-full rounded-md border px-3 py-2 text-sm font-medium"
             >
-              Pokračovat
+              {t("auth.register.continueButton")}
             </button>
           </>
         ) : (
           <>
             <div className="space-y-2">
-              <label className="block text-sm">Datum narození</label>
+              <label className="block text-sm">{t("auth.register.birthdateLabel")}</label>
               <input
                 type="date"
                 className="w-full border rounded px-3 py-2 bg-transparent"
@@ -242,7 +244,7 @@ export default function RegisterPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <label className="block text-sm">Jméno</label>
+                <label className="block text-sm">{t("auth.register.firstNameLabel")}</label>
                 <input
                   type="text"
                   className="w-full border rounded px-3 py-2 bg-transparent"
@@ -252,7 +254,7 @@ export default function RegisterPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="block text-sm">Příjmení</label>
+                <label className="block text-sm">{t("auth.register.lastNameLabel")}</label>
                 <input
                   type="text"
                   className="w-full border rounded px-3 py-2 bg-transparent"
@@ -264,7 +266,7 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm">Uživatelské jméno</label>
+              <label className="block text-sm">{t("auth.register.usernameLabel")}</label>
               <div className="flex items-center gap-2 rounded border px-3 py-2">
                 <span className="text-neutral-500">@</span>
                 <input
@@ -274,7 +276,7 @@ export default function RegisterPage() {
                   onChange={(e) =>
                     setUsername(e.target.value.replace(/^@+/, ""))
                   }
-                  placeholder="tvujnick"
+                  placeholder={t("auth.register.usernamePlaceholder")}
                   required
                 />
               </div>
@@ -289,14 +291,14 @@ export default function RegisterPage() {
                 onClick={() => setStep(1)}
                 className="flex-1 rounded-md border px-3 py-2 text-sm font-medium"
               >
-                Zpět
+                {t("auth.register.backButton")}
               </button>
               <button
                 type="submit"
                 disabled={loading || googleLoading}
                 className="flex-1 rounded-md border px-3 py-2 text-sm font-medium"
               >
-                {loading ? "Zakládám účet…" : "Registrovat se"}
+                {loading ? t("auth.register.submitLoading") : t("auth.register.submitButton")}
               </button>
             </div>
           </>
@@ -310,9 +312,9 @@ export default function RegisterPage() {
         )}
 
         <p className="text-xs text-center text-neutral-500">
-          Už máš účet?{" "}
+          {t("auth.register.hasAccount")}{" "}
           <a href="/auth/login" className="underline">
-            Přihlásit se
+            {t("auth.register.loginLink")}
           </a>
         </p>
       </form>
