@@ -1,7 +1,8 @@
 import csMessages from "@/messages/cs.json";
 import enMessages from "@/messages/en.json";
+import skMessages from "@/messages/sk.json";
 
-export const locales = ["cs", "en"] as const;
+export const locales = ["cs", "en", "sk"] as const;
 
 export type Locale = (typeof locales)[number];
 type TranslationValues = Record<string, string | number>;
@@ -17,14 +18,28 @@ export const LOCALE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 const messages: Record<Locale, TranslationTree> = {
   cs: csMessages as TranslationTree,
   en: enMessages as TranslationTree,
+  sk: skMessages as TranslationTree,
 };
 
 export function isLocale(value: string | null | undefined): value is Locale {
-  return locales.includes(value as Locale);
+  const normalized = value?.toLowerCase().split("-")[0];
+  return locales.includes(normalized as Locale);
 }
 
 export function resolveLocale(value: string | null | undefined): Locale {
-  return isLocale(value) ? value : defaultLocale;
+  const normalized = value?.toLowerCase().split("-")[0];
+  return isLocale(normalized) ? normalized : defaultLocale;
+}
+
+export function getIntlLocale(value: string | null | undefined) {
+  switch (resolveLocale(value)) {
+    case "en":
+      return "en-US";
+    case "sk":
+      return "sk-SK";
+    default:
+      return "cs-CZ";
+  }
 }
 
 function readPath(tree: TranslationTree, path: string) {

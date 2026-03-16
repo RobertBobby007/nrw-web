@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { BadgeCheck, ChevronLeft, ChevronRight, Heart, MessageCircle, MoreHorizontal, Play, Plus, Send, X } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { useLocale, useTranslations } from "@/components/i18n/LocaleProvider";
+import { getIntlLocale } from "@/lib/i18n";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import type { Profile } from "@/lib/profiles";
 import { safeIdentityLabel } from "@/lib/content-filter";
@@ -149,7 +150,7 @@ function formatTimeLabel(t: TranslateFn, locale: string, createdAt?: string | nu
   if (diffMin < 60) return t("real.post.minutesAgo", { count: diffMin });
   if (diffH < 24) return t("real.post.hoursAgo", { count: diffH });
 
-  return date.toLocaleDateString(locale === "en" ? "en-US" : "cs-CZ", {
+  return date.toLocaleDateString(getIntlLocale(locale), {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

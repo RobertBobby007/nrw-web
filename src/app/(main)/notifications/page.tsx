@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Megaphone } from "lucide-react";
-import { useTranslations } from "@/components/i18n/LocaleProvider";
+import { useLocale, useTranslations } from "@/components/i18n/LocaleProvider";
+import { getIntlLocale } from "@/lib/i18n";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { safeIdentityLabel } from "@/lib/content-filter";
 import { subscribeToTable } from "@/lib/realtime";
@@ -32,7 +33,11 @@ function errorMessage(err: unknown) {
   return null;
 }
 
-function formatTimeLabel(createdAt: string | null | undefined, t: (key: string, values?: Record<string, unknown>) => string) {
+function formatTimeLabel(
+  createdAt: string | null | undefined,
+  locale: string,
+  t: (key: string, values?: Record<string, unknown>) => string,
+) {
   if (!createdAt) return t("notifications.time.unknown");
   const date = new Date(createdAt);
   if (Number.isNaN(date.getTime())) return t("notifications.time.unknown");
@@ -42,7 +47,7 @@ function formatTimeLabel(createdAt: string | null | undefined, t: (key: string, 
   if (diffMin < 1) return t("notifications.time.justNow");
   if (diffMin < 60) return t("notifications.time.minutesAgo", { count: diffMin });
   if (diffH < 24) return t("notifications.time.hoursAgo", { count: diffH });
-  return date.toLocaleDateString("cs-CZ", { day: "numeric", month: "short" });
+  return date.toLocaleDateString(getIntlLocale(locale), { day: "numeric", month: "short" });
 }
 
 function notificationText(type: string, translate: (key: string) => string) {
@@ -68,6 +73,7 @@ function severityClasses(value: string | null | undefined): string {
 
 export default function NotificationsPage() {
   const t = useTranslations();
+  const { locale } = useLocale();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -343,7 +349,7 @@ export default function NotificationsPage() {
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
-                    <div className="text-xs font-semibold text-neutral-500">{formatTimeLabel(n.created_at, t)}</div>
+                    <div className="text-xs font-semibold text-neutral-500">{formatTimeLabel(n.created_at, locale, t)}</div>
                     {isAnnouncement && hasUrl ? (
                       <a
                         href={(n.url ?? "").trim()}

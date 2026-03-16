@@ -1,0 +1,10 @@
+{
+  "common": {
+    "language": "Jazyk",
+    "localeName": {
+      "cs": "Čeština",
+      "en": "Angličtina",
+      "sk": "Slovenčina"
+    }
+  }
+}

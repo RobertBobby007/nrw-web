@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { BadgeCheck } from "lucide-react";
 import { useLocale, useTranslations } from "@/components/i18n/LocaleProvider";
+import { getIntlLocale } from "@/lib/i18n";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { safeIdentityLabel } from "@/lib/content-filter";
 import { requestAuth } from "@/lib/auth-required";
@@ -514,10 +515,10 @@ export default function PublicProfilePage() {
 
                   <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-neutral-700">
                     <span className="whitespace-nowrap">
-                      {t("idProfile.followers", { count: counts.followers.toLocaleString(locale === "en" ? "en-US" : "cs-CZ") })}
+                      {t("idProfile.followers", { count: counts.followers.toLocaleString(getIntlLocale(locale)) })}
                     </span>
-                    <span className="whitespace-nowrap">· {t("idProfile.following", { count: counts.following.toLocaleString(locale === "en" ? "en-US" : "cs-CZ") })}</span>
-                    <span className="whitespace-nowrap">· {t("idProfile.posts", { count: counts.posts.toLocaleString(locale === "en" ? "en-US" : "cs-CZ") })}</span>
+                    <span className="whitespace-nowrap">· {t("idProfile.following", { count: counts.following.toLocaleString(getIntlLocale(locale)) })}</span>
+                    <span className="whitespace-nowrap">· {t("idProfile.posts", { count: counts.posts.toLocaleString(getIntlLocale(locale)) })}</span>
                   </div>
 
                   <p className="text-sm text-neutral-700">{profile.bio?.trim() ? profile.bio : "—"}</p>

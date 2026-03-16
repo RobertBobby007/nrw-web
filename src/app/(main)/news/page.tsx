@@ -3,6 +3,7 @@
 import { Check, ChevronDown, Flame } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "@/components/i18n/LocaleProvider";
+import { getIntlLocale } from "@/lib/i18n";
 import type { NNewsFeedItem } from "@/lib/nnews";
 import { detectNewsTopics, NEWS_TOPICS, topicLabel, type NewsTopicId } from "@/lib/news-topics";
 import { NewsPreviewModal } from "@/components/news/NewsPreviewModal";
@@ -28,7 +29,7 @@ type NewsFeedResponse = {
 function formatNewsDate(iso: string, locale: string) {
   const parsed = new Date(iso);
   if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toLocaleString(locale === "en" ? "en-US" : "cs-CZ", {
+  return parsed.toLocaleString(getIntlLocale(locale), {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

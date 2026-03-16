@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { BadgeCheck, Camera, X } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { useLocale, useTranslations } from "@/components/i18n/LocaleProvider";
+import { getIntlLocale } from "@/lib/i18n";
 import {
   fetchCurrentProfile,
   getCachedProfile,
@@ -505,15 +506,15 @@ export default function IdPage() {
               <p className="text-sm text-neutral-600">{username}</p>
               <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-neutral-700">
                 <span>
-                  {statsLoading ? "—" : t("idProfile.followers", { count: stats.followers.toLocaleString(locale === "en" ? "en-US" : "cs-CZ") })}
+                  {statsLoading ? "—" : t("idProfile.followers", { count: stats.followers.toLocaleString(getIntlLocale(locale)) })}
                 </span>
                 <span>·</span>
                 <span>
-                  {statsLoading ? "—" : t("idProfile.following", { count: stats.following.toLocaleString(locale === "en" ? "en-US" : "cs-CZ") })}
+                  {statsLoading ? "—" : t("idProfile.following", { count: stats.following.toLocaleString(getIntlLocale(locale)) })}
                 </span>
                 <span>·</span>
                 <span>
-                  {statsLoading ? "—" : t("idProfile.posts", { count: stats.posts.toLocaleString(locale === "en" ? "en-US" : "cs-CZ") })}
+                  {statsLoading ? "—" : t("idProfile.posts", { count: stats.posts.toLocaleString(getIntlLocale(locale)) })}
                 </span>
               </div>
               <p className="text-sm text-neutral-700">{bioText}</p>

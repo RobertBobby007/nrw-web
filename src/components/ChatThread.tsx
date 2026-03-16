@@ -3,6 +3,7 @@
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { MoreHorizontal, X } from "lucide-react";
 import { useLocale, useTranslations } from "@/components/i18n/LocaleProvider";
+import { getIntlLocale } from "@/lib/i18n";
 import { useChatMessages } from "@/hooks/useChatMessages";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { sendMessage } from "@/lib/chat";
@@ -36,7 +37,7 @@ function formatMessageTimeLabel(t: TranslateFn, locale: string, createdAt?: stri
   if (diffMin < 60) return t("chat.thread.minutesAgo", { count: diffMin });
   if (diffH < 24) return t("chat.thread.hoursAgo", { count: diffH });
 
-  return date.toLocaleDateString(locale === "en" ? "en-US" : "cs-CZ", {
+  return date.toLocaleDateString(getIntlLocale(locale), {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -61,7 +62,7 @@ function formatDateSeparatorLabel(t: TranslateFn, locale: string, date: Date, no
     return t("chat.thread.yesterdayLabel");
   }
 
-  const formatted = date.toLocaleDateString(locale === "en" ? "en-US" : "cs-CZ", {
+  const formatted = date.toLocaleDateString(getIntlLocale(locale), {
     weekday: "long",
     day: "2-digit",
     month: "2-digit",

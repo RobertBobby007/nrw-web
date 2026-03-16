@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ChevronLeft, MessageCircle } from "lucide-react";
-import { useTranslations } from "@/components/i18n/LocaleProvider";
+import { useLocale, useTranslations } from "@/components/i18n/LocaleProvider";
+import { getIntlLocale } from "@/lib/i18n";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { requestAuth } from "@/lib/auth-required";
 import { useSupportMessages } from "@/hooks/useSupportMessages";
@@ -50,10 +51,10 @@ function isYesterday(date: Date, now: Date) {
   return isSameDay(date, yesterday);
 }
 
-function formatDateSeparatorLabel(date: Date, now: Date) {
-  if (isSameDay(date, now)) return "Dnes";
-  if (isYesterday(date, now)) return "Včera";
-  const formatted = date.toLocaleDateString("cs-CZ", {
+function formatDateSeparatorLabel(locale: string, date: Date, now: Date) {
+  if (isSameDay(date, now)) return locale.startsWith("en") ? "Today" : "Dnes";
+  if (isYesterday(date, now)) return locale.startsWith("en") ? "Yesterday" : "Včera";
+  const formatted = date.toLocaleDateString(getIntlLocale(locale), {
     weekday: "long",
     day: "2-digit",
     month: "2-digit",
@@ -62,11 +63,11 @@ function formatDateSeparatorLabel(date: Date, now: Date) {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
-function formatMessageTimeLabel(createdAt?: string | null) {
+function formatMessageTimeLabel(locale: string, createdAt?: string | null) {
   if (!createdAt) return "";
   const date = new Date(createdAt);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleTimeString("cs-CZ", {
+  return date.toLocaleTimeString(getIntlLocale(locale), {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -74,6 +75,7 @@ function formatMessageTimeLabel(createdAt?: string | null) {
 
 export default function SupportPage() {
   const t = useTranslations();
+  const { locale } = useLocale();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [thread, setThread] = useState<SupportThread | null>(null);
@@ -260,7 +262,7 @@ export default function SupportPage() {
                             <div className="flex items-center gap-3 py-2">
                               <div className="h-px flex-1 bg-neutral-200" />
                               <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
-                                {formatDateSeparatorLabel(messageDate, nowDate)}
+                                {formatDateSeparatorLabel(locale, messageDate, nowDate)}
                               </span>
                               <div className="h-px flex-1 bg-neutral-200" />
                             </div>
@@ -290,7 +292,7 @@ export default function SupportPage() {
                                   isUser ? "text-white/50" : "text-neutral-400"
                                 }`}
                               >
-                                {formatMessageTimeLabel(message.created_at)}
+                                {formatMessageTimeLabel(locale, message.created_at)}
                               </div>
                             </div>
                           </div>

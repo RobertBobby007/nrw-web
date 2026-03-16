@@ -10,8 +10,11 @@ export async function getRequestLocale() {
 
   const headerStore = await headers();
   const acceptLanguage = headerStore.get("accept-language")?.toLowerCase() ?? "";
-  if (acceptLanguage.startsWith("en") || acceptLanguage.includes(",en")) {
-    return "en";
+  for (const candidate of acceptLanguage.split(",")) {
+    const value = candidate.trim().split(";")[0];
+    if (value.startsWith("sk")) return "sk";
+    if (value.startsWith("en")) return "en";
+    if (value.startsWith("cs")) return "cs";
   }
 
   return cookieLocale;

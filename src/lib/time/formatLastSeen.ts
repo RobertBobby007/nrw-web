@@ -1,39 +1,40 @@
 "use client";
 
-function resolveLocale(locale?: string) {
+import { getIntlLocale, resolveLocale as normalizeAppLocale } from "@/lib/i18n";
+
+function resolveDocumentLocale(locale?: string) {
   if (locale) return locale;
   if (typeof document !== "undefined") return document.documentElement.lang || "cs";
   return "cs";
 }
 
 export function formatLastSeen(value?: string | null, now: Date = new Date(), locale?: string) {
-  const resolvedLocale = resolveLocale(locale);
-  const isCzech = resolvedLocale.startsWith("cs");
-  if (!value) return isCzech ? "Offline" : "Offline";
+  const resolvedLocale = resolveDocumentLocale(locale);
+  const appLocale = normalizeAppLocale(resolvedLocale);
+  const isCzech = appLocale === "cs";
+  const isSlovak = appLocale === "sk";
+  if (!value) return "Offline";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return isCzech ? "Offline" : "Offline";
+  if (Number.isNaN(date.getTime())) return "Offline";
 
   const diffMs = now.getTime() - date.getTime();
-  if (diffMs < 0) return isCzech ? "Online" : "Online";
+  if (diffMs < 0) return "Online";
 
   const diffMin = Math.floor(diffMs / 60000);
   if (diffMin < 60) {
-    return isCzech
-      ? `p\u0159ed ${diffMin} minutami`
-      : `${diffMin} minute${diffMin === 1 ? "" : "s"} ago`;
+    if (isCzech) return `p\u0159ed ${diffMin} minutami`;
+    if (isSlovak) return `pred ${diffMin} min\u00fatami`;
+    return `${diffMin} minute${diffMin === 1 ? "" : "s"} ago`;
   }
 
   const diffH = Math.floor(diffMin / 60);
   if (diffH < 48) {
-    return isCzech
-      ? `p\u0159ed ${diffH} hodinami`
-      : `${diffH} hour${diffH === 1 ? "" : "s"} ago`;
+    if (isCzech) return `p\u0159ed ${diffH} hodinami`;
+    if (isSlovak) return `pred ${diffH} hodinami`;
+    return `${diffH} hour${diffH === 1 ? "" : "s"} ago`;
   }
 
-  const day = date.getDate();
-  const month = date.getMonth() + 1;
-  const year = date.getFullYear();
-  return `${day}. ${month}. ${year}`;
+  return date.toLocaleDateString(getIntlLocale(appLocale));
 }
 
 export function getLastSeenTone(value?: string | null, now: Date = new Date()) {
