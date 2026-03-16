@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BadgeCheck, ChevronLeft, ChevronRight, Heart, MessageCircle, MoreHorizontal, Play, Plus, Send, X } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
+import { useLocale, useTranslations } from "@/components/i18n/LocaleProvider";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import type { Profile } from "@/lib/profiles";
 import { safeIdentityLabel } from "@/lib/content-filter";
@@ -49,6 +50,8 @@ type CommentRow = {
   author?: CommentAuthor | CommentAuthor[] | null;
   reply_to_user?: CommentAuthor | CommentAuthor[] | null;
 };
+
+type TranslateFn = (key: string, values?: Record<string, string | number>) => string;
 
 function errorMessage(err: unknown) {
   if (err instanceof Error) return err.message;
@@ -132,34 +135,34 @@ function profileHrefFromUsername(username: string | null | undefined): string | 
   return `/id/${encodeURIComponent(raw)}`;
 }
 
-function formatTimeLabel(createdAt?: string | null) {
-  if (!createdAt) return "neznámý čas";
+function formatTimeLabel(t: TranslateFn, locale: string, createdAt?: string | null) {
+  if (!createdAt) return t("real.post.unknownTime");
 
   const date = new Date(createdAt);
-  if (Number.isNaN(date.getTime())) return "neznámý čas";
+  if (Number.isNaN(date.getTime())) return t("real.post.unknownTime");
 
   const diffMs = Date.now() - date.getTime();
   const diffMin = Math.floor(diffMs / 60000);
   const diffH = Math.floor(diffMin / 60);
 
-  if (diffMin < 1) return "před chvílí";
-  if (diffMin < 60) return `před ${diffMin} min`;
-  if (diffH < 24) return `před ${diffH} h`;
+  if (diffMin < 1) return t("real.post.justNow");
+  if (diffMin < 60) return t("real.post.minutesAgo", { count: diffMin });
+  if (diffH < 24) return t("real.post.hoursAgo", { count: diffH });
 
-  return date.toLocaleDateString("cs-CZ", {
+  return date.toLocaleDateString(locale === "en" ? "en-US" : "cs-CZ", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   });
 }
 
-function localizeVerificationLabel(label?: string | null) {
+function localizeVerificationLabel(t: TranslateFn, label?: string | null) {
   const value = (label ?? "").trim();
-  if (!value) return "Ověřený profil";
+  if (!value) return t("real.post.verifiedProfile");
 
   const normalized = value.toLowerCase();
-  if (normalized === "nrw verified" || normalized === "verified" || normalized === "ověřeno") {
-    return "Ověřený profil";
+  if (normalized === "nrw verified" || normalized === "verified" || normalized === "ov\u011b\u0159eno") {
+    return t("real.post.verifiedProfile");
   }
 
   return value;
@@ -191,6 +194,8 @@ export function PostCard({
   onDeletePost,
   currentUserProfile,
 }: PostCardProps) {
+  const t = useTranslations();
+  const { locale } = useLocale();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
@@ -216,15 +221,14 @@ export function PostCard({
   const [isFollowingAuthor, setIsFollowingAuthor] = useState<boolean | null>(null);
   const [followBusy, setFollowBusy] = useState(false);
   const [isContentExpanded, setIsContentExpanded] = useState(false);
-  const name = safeIdentityLabel(author.displayName, author.isCurrentUser ? "Ty" : "NRW uživatel");
+  const name = safeIdentityLabel(author.displayName, author.isCurrentUser ? t("real.post.you") : t("real.post.userFallback"));
   const initial = name.charAt(0).toUpperCase() || "N";
-  const badgeLabel = author.verified ? localizeVerificationLabel(author.verificationLabel) : null;
+  const badgeLabel = author.verified ? localizeVerificationLabel(t, author.verificationLabel) : null;
   const verificationBadgeClassName =
     "inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-200 dark:ring-emerald-400/40";
   const contentTrimmed = content.trim();
   const hasContent = Boolean(contentTrimmed);
   const isVideoMedia = mediaType === "video";
-  const isVideoOnly = isVideoMedia && !hasContent;
   const mediaUrls = useMemo(() => (!isVideoMedia ? parseMediaUrls(mediaUrl) : []), [isVideoMedia, mediaUrl]);
   const hasMedia = isVideoMedia ? Boolean(mediaUrl) : mediaUrls.length > 0;
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
@@ -236,12 +240,8 @@ export function PostCard({
   const canSubmitComment = Boolean(session?.user?.id);
 
   const handleOpenVideo = useCallback(() => {
-    if (isVideoOnly) {
-      router.push(`/clips?post=${encodeURIComponent(postId)}`);
-      return;
-    }
-    setShowFullMedia(true);
-  }, [isVideoOnly, postId, router]);
+    router.push(`/clips?post=${encodeURIComponent(postId)}`);
+  }, [postId, router]);
   const visibleContent =
     shouldTruncateContent && !isContentExpanded
       ? `${contentTrimmed.slice(0, CONTENT_PREVIEW_CHARS)}…`
@@ -773,7 +773,7 @@ export function PostCard({
           following_id: postUserId,
         });
         if (error && !/duplicate key|already exists/i.test(error.message)) throw error;
-        setDeleteToast({ type: "success", message: "Sleduješ uživatele." });
+        setDeleteToast({ type: "success", message: t("real.post.followSuccess") });
       } else {
         const { error } = await supabase
           .from("follows")
@@ -781,12 +781,12 @@ export function PostCard({
           .eq("follower_id", currentUserId)
           .eq("following_id", postUserId);
         if (error) throw error;
-        setDeleteToast({ type: "success", message: "Přestal(a) jsi sledovat." });
+        setDeleteToast({ type: "success", message: t("real.post.unfollowSuccess") });
       }
     } catch (e: unknown) {
       console.error("toggleFollowAuthor failed", e);
       setIsFollowingAuthor(prev);
-      setDeleteToast({ type: "error", message: errorMessage(e) ?? "Akce se nepovedla." });
+      setDeleteToast({ type: "error", message: errorMessage(e) ?? t("real.post.actionError") });
     } finally {
       setFollowBusy(false);
     }
@@ -803,7 +803,7 @@ export function PostCard({
       const user = authData?.user;
       if (!user) {
         requestAuth();
-        throw new Error("Nejsi přihlášený.");
+        throw new Error(t("real.post.deleteNotSignedIn"));
       }
 
       const { data, error } = await supabase
@@ -816,14 +816,14 @@ export function PostCard({
       if (error) throw error;
 
       if (!data || data.length === 0) {
-        throw new Error("Nemáš právo smazat tenhle příspěvek (nebo už byl smazaný).");
+        throw new Error(t("real.post.deleteForbidden"));
       }
 
       onDeletePost?.(postId);
-      setDeleteToast({ type: "success", message: "Příspěvek smazán." });
+      setDeleteToast({ type: "success", message: t("real.post.postDeleted") });
     } catch (e: unknown) {
       console.error("Delete post failed:", JSON.stringify(e, null, 2));
-      setDeleteToast({ type: "error", message: errorMessage(e) ?? "Smazání příspěvku selhalo." });
+      setDeleteToast({ type: "error", message: errorMessage(e) ?? t("real.post.deletePostError") });
     } finally {
       setIsDeletingPost(false);
     }
@@ -845,12 +845,12 @@ export function PostCard({
         .eq("user_id", currentUserId);
       if (error) {
         console.error("Delete comment failed", error);
-        setDeleteToast({ type: "error", message: "Smazání komentáře selhalo." });
+        setDeleteToast({ type: "error", message: t("real.post.deleteCommentError") });
         await fetchComments(postId);
       }
     } catch (err) {
       console.error("Delete comment exception", err);
-      setDeleteToast({ type: "error", message: "Smazání komentáře selhalo." });
+      setDeleteToast({ type: "error", message: t("real.post.deleteCommentError") });
       await fetchComments(postId);
     }
   };
@@ -902,7 +902,7 @@ export function PostCard({
                       className="inline-flex items-center gap-1 rounded-full bg-neutral-900 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-70"
                     >
                       <Plus className="h-3.5 w-3.5" />
-                      <span>Sledovat</span>
+                      <span>{t("real.post.follow")}</span>
                     </button>
                   ) : null
                 ) : null}
@@ -973,7 +973,7 @@ export function PostCard({
                     className="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
                     disabled={isDeletingPost}
                   >
-                    Smazat
+                    {t("real.post.deletePost")}
                   </button>
                 ) : null}
                 {canReportPost ? (
@@ -990,7 +990,7 @@ export function PostCard({
                     }}
                     className="block w-full px-4 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-100"
                   >
-                    Nahlásit
+                    {t("real.post.report")}
                   </button>
                 ) : null}
               </div>
@@ -1005,17 +1005,17 @@ export function PostCard({
             <>
               <div className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200">
                 <span aria-hidden="true">⏳</span>
-                <span>Čeká na schválení</span>
+                <span>{t("real.post.pending")}</span>
               </div>
-              <div className="mt-1 text-xs text-neutral-500">Vidíš to jen ty, dokud to neschválíme.</div>
+              <div className="mt-1 text-xs text-neutral-500">{t("real.post.pendingDescription")}</div>
             </>
           ) : (
             <>
               <div className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700 ring-1 ring-red-200">
                 <span aria-hidden="true">❌</span>
-                <span>Zamítnuto</span>
+                <span>{t("real.post.rejected")}</span>
               </div>
-              <div className="mt-1 text-xs text-neutral-500">Vidíš to jen ty.</div>
+              <div className="mt-1 text-xs text-neutral-500">{t("real.post.rejectedDescription")}</div>
             </>
           )}
         </div>
@@ -1032,7 +1032,7 @@ export function PostCard({
                 onClick={() => setIsContentExpanded((prev) => !prev)}
                 className="text-xs font-semibold text-neutral-700 underline underline-offset-4"
               >
-                {isContentExpanded ? "Skrýt" : "Zobrazit celé"}
+                {isContentExpanded ? t("real.post.collapse") : t("real.post.expand")}
               </button>
             ) : null}
           </div>
@@ -1040,35 +1040,26 @@ export function PostCard({
         {hasMedia ? (
           isVideoMedia ? (
             <div className="mx-auto w-full max-w-[320px] overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50">
-              {isVideoOnly ? (
                 <button
                   type="button"
                   onClick={handleOpenVideo}
                   className="group relative w-full"
-                  aria-label="Pustit v nClips"
+                  aria-label={t("real.post.playInClips")}
                 >
-                  <video
-                    src={mediaUrl ?? undefined}
-                    preload="metadata"
-                    playsInline
-                    muted
-                    className="pointer-events-none h-auto max-h-[520px] w-full object-contain bg-black"
-                  />
+                <video
+                  src={mediaUrl ?? undefined}
+                  preload="metadata"
+                  playsInline
+                  muted
+                  className="pointer-events-none h-auto max-h-[520px] w-full object-contain bg-black"
+                />
                   <span className="absolute inset-0 flex items-center justify-center">
                     <span className="inline-flex items-center gap-2 rounded-full bg-black/60 px-4 py-2 text-sm font-semibold text-white backdrop-blur transition group-hover:bg-black/75">
                       <Play className="h-4 w-4" />
-                      Pustit v nClips
+                    {t("real.post.playInClips")}
                     </span>
                   </span>
                 </button>
-              ) : (
-                <video
-                  src={mediaUrl ?? undefined}
-                  controls
-                  className="h-auto max-h-[520px] w-full object-contain bg-black"
-                  onClick={handleOpenVideo}
-                />
-              )}
             </div>
           ) : (
             <div className="-mx-4 w-[calc(100%+2rem)] overflow-hidden bg-black sm:mx-auto sm:w-full sm:max-w-[700px] sm:rounded-2xl sm:border sm:border-neutral-200">
@@ -1078,11 +1069,11 @@ export function PostCard({
                     type="button"
                     className="relative block h-full w-full overflow-hidden"
                     onClick={() => setShowFullMedia(true)}
-                    aria-label={`Otevřít fotku ${activeMediaIndex + 1}`}
+                    aria-label={t("real.post.openPhotoWithIndex", { index: activeMediaIndex + 1 })}
                   >
                     <img
                       src={activeImageUrl ?? undefined}
-                      alt={`Příloha ${activeMediaIndex + 1}`}
+                      alt={t("real.post.attachmentWithIndex", { index: activeMediaIndex + 1 })}
                       className="h-full w-full object-cover"
                     />
                   </button>
@@ -1092,7 +1083,7 @@ export function PostCard({
                       setActiveMediaIndex((prev) => (prev - 1 + mediaUrls.length) % mediaUrls.length)
                     }
                     className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/45 p-1.5 text-white transition hover:bg-black/60"
-                    aria-label="Předchozí fotka"
+                    aria-label={t("real.post.previousPhoto")}
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
@@ -1100,7 +1091,7 @@ export function PostCard({
                     type="button"
                     onClick={() => setActiveMediaIndex((prev) => (prev + 1) % mediaUrls.length)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/45 p-1.5 text-white transition hover:bg-black/60"
-                    aria-label="Další fotka"
+                    aria-label={t("real.post.nextPhoto")}
                   >
                     <ChevronRight className="h-4 w-4" />
                   </button>
@@ -1113,7 +1104,7 @@ export function PostCard({
                         className={`h-1.5 w-1.5 rounded-full transition ${
                           index === activeMediaIndex ? "bg-white" : "bg-white/50"
                         }`}
-                        aria-label={`Zobrazit fotku ${index + 1}`}
+                        aria-label={t("real.post.showPhoto", { index: index + 1 })}
                       />
                     ))}
                   </div>
@@ -1126,11 +1117,11 @@ export function PostCard({
                     setActiveMediaIndex(0);
                     setShowFullMedia(true);
                   }}
-                  aria-label="Otevřít fotku"
+                  aria-label={t("real.post.openPhoto")}
                 >
                   <img
                     src={mediaUrls[0] ?? undefined}
-                    alt="Příloha"
+                    alt={t("real.post.attachment")}
                     className="h-auto max-h-[75vh] w-full cursor-zoom-in object-contain"
                   />
                 </button>
@@ -1154,7 +1145,7 @@ export function PostCard({
               <video src={mediaUrl ?? undefined} controls className="h-full max-h-[90vh] w-full object-contain" />
             ) : (
               <div className="relative">
-                <img src={activeImageUrl ?? undefined} alt="Příloha" className="h-full max-h-[90vh] w-full object-contain" />
+                <img src={activeImageUrl ?? undefined} alt={t("real.post.attachment")} className="h-full max-h-[90vh] w-full object-contain" />
                 {mediaUrls.length > 1 ? (
                   <>
                     <button
@@ -1183,10 +1174,10 @@ export function PostCard({
 
       <ConfirmDialog
         open={deleteDialogOpen}
-        title="Opravdu smazat příspěvek?"
-        message="Tahle akce nejde vrátit."
-        confirmText="Smazat"
-        cancelText="Zrušit"
+        title={t("real.post.confirmDeleteTitle")}
+        message={t("real.post.confirmDeleteMessage")}
+        confirmText={t("real.post.deletePost")}
+        cancelText={t("common.actions.cancel")}
         danger
         onCancel={() => setDeleteDialogOpen(false)}
         onConfirm={handleDeletePost}
@@ -1214,7 +1205,7 @@ export function PostCard({
         </div>
       ) : null}
 
-      {/* spodní akce */}
+      {/* bottom actions */}
       <footer className="flex items-center gap-3 border-t border-neutral-100 px-4 py-3 text-xs text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
         <button
           type="button"
@@ -1235,11 +1226,11 @@ export function PostCard({
           className="flex items-center gap-1 rounded-full px-3 py-1 text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white"
         >
           <MessageCircle className="h-4 w-4" />
-          <span>Komentáře ({commentCount})</span>
+          <span>{t("real.post.comments", { count: commentCount })}</span>
         </button>
         <button className="ml-auto flex items-center gap-1 rounded-full px-3 py-1 text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white">
           <Send className="h-4 w-4" />
-          <span>Poslat</span>
+          <span>{t("common.actions.send")}</span>
         </button>
       </footer>
 
@@ -1248,7 +1239,7 @@ export function PostCard({
           <form onSubmit={handleSubmitComment} className="mt-2 flex items-center gap-2 text-sm">
             <input
               type="text"
-              placeholder="Přidej komentář..."
+              placeholder={t("real.post.addComment")}
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
               className="flex-1 rounded-full border border-neutral-300 bg-white px-3 py-1 text-sm text-neutral-900 placeholder:text-neutral-500 outline-none focus:border-neutral-500"
@@ -1258,19 +1249,19 @@ export function PostCard({
               disabled={!canSubmitComment || !newComment.trim() || isSending}
               className="text-sm font-medium text-primary transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Poslat
+              {t("common.actions.send")}
             </button>
           </form>
 
           <div className="mt-3 space-y-2">
             {comments.length === 0 ? (
-              <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">Zatím žádné komentáře.</p>
+              <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">{t("real.post.noComments")}</p>
             ) : (
               <div className="mt-3 space-y-2">
                 {topLevelComments.map((comment) => {
                   const author = comment.author;
-                  const authorName = author?.display_name || author?.username || "Neznámý uživatel";
-                  const createdLabel = formatTimeLabel(comment.created_at);
+                  const authorName = author?.display_name || author?.username || t("real.post.unknownUser");
+                  const createdLabel = formatTimeLabel(t, locale, comment.created_at);
                   const commentInitial = authorName.charAt(0).toUpperCase() || "N";
                   const canDeleteComment = currentUserId && comment.user_id === currentUserId;
                   const canReportComment = !canDeleteComment;
@@ -1326,14 +1317,14 @@ export function PostCard({
                             {author?.verified ? (
                               <span className={verificationBadgeClassName}>
                                 <BadgeCheck className="h-3.5 w-3.5" />
-                                Ověřený profil
+                                {t("real.post.verifiedProfile")}
                               </span>
                             ) : null}
                             <span className="text-xs font-normal text-neutral-500">{createdLabel}</span>
                           </div>
                           <div className="text-sm text-neutral-900 dark:text-neutral-100">
                             {comment.is_deleted ? (
-                              <span className="text-neutral-400 dark:text-neutral-500">Komentář byl smazán</span>
+                              <span className="text-neutral-400 dark:text-neutral-500">{t("real.post.deletedComment")}</span>
                             ) : (
                               renderContentWithMention(comment.content)
                             )}
@@ -1345,7 +1336,7 @@ export function PostCard({
                                 onClick={() => handleReplySelect(comment.id)}
                                 className="font-semibold text-neutral-600 transition hover:text-neutral-900"
                               >
-                                Odpovědět
+                                {t("real.post.reply")}
                               </button>
                               {canReportComment ? (
                                 <button
@@ -1360,7 +1351,7 @@ export function PostCard({
                                   }}
                                   className="font-semibold text-neutral-600 transition hover:text-neutral-900"
                                 >
-                                  Nahlásit
+                                  {t("real.post.report")}
                                 </button>
                               ) : null}
                               {canDeleteComment ? (
@@ -1369,7 +1360,7 @@ export function PostCard({
                                   onClick={() => handleDeleteComment(comment.id)}
                                   className="font-semibold text-red-600 transition hover:text-red-700"
                                 >
-                                  Smazat
+                                  {t("real.post.deletePost")}
                                 </button>
                               ) : null}
                             </div>
@@ -1385,7 +1376,7 @@ export function PostCard({
                               <div className="flex items-center gap-2 text-sm">
                                 <input
                                   type="text"
-                                  placeholder={`Odpověď pro ${authorName}`}
+                                  placeholder={t("real.post.replyPlaceholder", { name: authorName })}
                                   value={replyText}
                                   onChange={(e) => setReplyText(e.target.value)}
                                   className="ml-8 flex-1 rounded-full border border-neutral-300 bg-white px-3 py-1 text-sm text-neutral-900 placeholder:text-neutral-500 outline-none focus:border-neutral-500"
@@ -1395,7 +1386,7 @@ export function PostCard({
                                   disabled={!canSubmitComment || !replyText.trim() || isSending}
                                   className="text-sm font-medium text-primary transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
                                 >
-                                  Odpovědět
+                                  {t("real.post.reply")}
                                 </button>
                               </div>
                               <div className="ml-8 text-xs">
@@ -1404,7 +1395,7 @@ export function PostCard({
                                   onClick={handleCancelReply}
                                   className="font-semibold text-neutral-500 transition hover:text-neutral-900"
                                 >
-                                  Zrušit odpověď
+                                  {t("real.post.cancelReply")}
                                 </button>
                               </div>
                             </form>
@@ -1413,8 +1404,8 @@ export function PostCard({
                       </div>
                       {(repliesByParentId[comment.id] ?? []).map((reply) => {
                         const replyAuthor = reply.author;
-                        const replyAuthorName = replyAuthor?.display_name || replyAuthor?.username || "Neznámý uživatel";
-                        const replyCreatedLabel = formatTimeLabel(reply.created_at);
+                        const replyAuthorName = replyAuthor?.display_name || replyAuthor?.username || t("real.post.unknownUser");
+                        const replyCreatedLabel = formatTimeLabel(t, locale, reply.created_at);
                         const replyInitial = replyAuthorName.charAt(0).toUpperCase() || "N";
                         const canDeleteReply = currentUserId && reply.user_id === currentUserId;
                         const canReportReply = !canDeleteReply;
@@ -1474,14 +1465,14 @@ export function PostCard({
                                 {replyAuthor?.verified ? (
                                   <span className={verificationBadgeClassName}>
                                     <BadgeCheck className="h-3.5 w-3.5" />
-                                    Ověřený profil
+                                    {t("real.post.verifiedProfile")}
                                   </span>
                                 ) : null}
                                 <span className="text-xs font-normal text-neutral-500">{replyCreatedLabel}</span>
                               </div>
                               <div className="text-sm text-neutral-900 dark:text-neutral-100">
                                 {reply.is_deleted ? (
-                                  <span className="text-neutral-400 dark:text-neutral-500">Komentář byl smazán</span>
+                                  <span className="text-neutral-400 dark:text-neutral-500">{t("real.post.deletedComment")}</span>
                                 ) : (
                                   renderContentWithMention(reply.content)
                                 )}
@@ -1493,7 +1484,7 @@ export function PostCard({
                                     onClick={() => handleReplySelect(reply.id)}
                                     className="font-semibold text-neutral-600 transition hover:text-neutral-900"
                                   >
-                                    Odpovědět
+                                    {t("real.post.reply")}
                                   </button>
                                   {canReportReply ? (
                                     <button
@@ -1508,7 +1499,7 @@ export function PostCard({
                                       }}
                                       className="font-semibold text-neutral-600 transition hover:text-neutral-900"
                                     >
-                                      Nahlásit
+                                      {t("real.post.report")}
                                     </button>
                                   ) : null}
                                   {canDeleteReply ? (
@@ -1517,7 +1508,7 @@ export function PostCard({
                                       onClick={() => handleDeleteComment(reply.id)}
                                       className="font-semibold text-red-600 transition hover:text-red-700"
                                     >
-                                      Smazat
+                                      {t("real.post.deletePost")}
                                     </button>
                                   ) : null}
                                 </div>

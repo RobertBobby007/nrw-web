@@ -40,7 +40,7 @@ export function getCachedProfile(): Profile | null {
   return null;
 }
 
-// Vrátí profil přihlášeného uživatele (nebo null)
+// Returns the signed-in user's profile (or null)
 export async function fetchCurrentProfile(options?: { force?: boolean }): Promise<Profile | null> {
   const force = options?.force ?? false;
   const now = Date.now();
@@ -80,7 +80,7 @@ export async function fetchCurrentProfile(options?: { force?: boolean }): Promis
   return inflightProfile;
 }
 
-// Vytvoří / aktualizuje profil pro daného usera
+// Creates or updates the profile for the given user
 export async function upsertProfileFromAuth(options: {
   userId: string;
   username?: string | null;
@@ -136,7 +136,7 @@ export async function deleteAvatarByUrl(publicUrl: string | null | undefined): P
   if (error) console.error("deleteAvatarByUrl error", error);
 }
 
-// Aktualizuje profil přihlášeného uživatele a vrátí uloženou hodnotu
+// Updates the signed-in user's profile and returns the saved value
 export async function updateCurrentProfile(options: {
   username?: string | null;
   displayName?: string | null;
@@ -190,7 +190,7 @@ export async function updateCurrentProfile(options: {
   return fetchCurrentProfile({ force: true });
 }
 
-// Nahraje avatar do bucketu "avatars" a vrátí veřejnou URL (nutný veřejný bucket)
+// Uploads an avatar to the "avatars" bucket and returns its public URL
 export async function uploadAvatar(file: File): Promise<string | null> {
   const supabase = getSupabaseBrowserClient();
   const {

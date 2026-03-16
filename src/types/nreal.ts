@@ -22,3 +22,15 @@ export type NrealPost = {
   likedByCurrentUser: boolean;
   commentsCount?: number;
 };
+
+export type NrealStory = {
+  id: string;
+  user_id: string;
+  media_url: string;
+  media_type: "image" | "video";
+  caption: string | null;
+  created_at: string;
+  expires_at: string;
+  viewsCount?: number;
+  profiles: NrealProfile[];
+};

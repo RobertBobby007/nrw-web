@@ -1,73 +1,109 @@
-export default function PrivacyPage() {
+import { getRequestLocale } from "@/lib/i18n-server";
+import { translate } from "@/lib/i18n";
+
+const listItemClassName = "text-sm text-neutral-700 space-y-2";
+const cardClassName = "rounded-xl border border-neutral-200/70 bg-white p-5 shadow-sm space-y-3";
+
+export default async function PrivacyPage() {
+  const locale = await getRequestLocale();
+
+  const listSections = [
+    {
+      titleKey: "legal.privacy.sections.processedData.title",
+      itemKeys: [
+        "legal.privacy.sections.processedData.items.account",
+        "legal.privacy.sections.processedData.items.profile",
+        "legal.privacy.sections.processedData.items.content",
+        "legal.privacy.sections.processedData.items.love",
+        "legal.privacy.sections.processedData.items.location",
+        "legal.privacy.sections.processedData.items.superLikes",
+        "legal.privacy.sections.processedData.items.support",
+        "legal.privacy.sections.processedData.items.technical",
+      ],
+    },
+    {
+      titleKey: "legal.privacy.sections.purposes.title",
+      itemKeys: [
+        "legal.privacy.sections.purposes.items.service",
+        "legal.privacy.sections.purposes.items.matching",
+        "legal.privacy.sections.purposes.items.realtime",
+        "legal.privacy.sections.purposes.items.payments",
+        "legal.privacy.sections.purposes.items.security",
+        "legal.privacy.sections.purposes.items.analytics",
+        "legal.privacy.sections.purposes.items.legal",
+      ],
+    },
+    {
+      titleKey: "legal.privacy.sections.loveVisibility.title",
+      itemKeys: [
+        "legal.privacy.sections.loveVisibility.items.profile",
+        "legal.privacy.sections.loveVisibility.items.distance",
+        "legal.privacy.sections.loveVisibility.items.swipes",
+        "legal.privacy.sections.loveVisibility.items.chat",
+        "legal.privacy.sections.loveVisibility.items.photos",
+      ],
+    },
+    {
+      titleKey: "legal.privacy.sections.payments.title",
+      itemKeys: [
+        "legal.privacy.sections.payments.items.credits",
+        "legal.privacy.sections.payments.items.provider",
+        "legal.privacy.sections.payments.items.metadata",
+      ],
+    },
+    {
+      titleKey: "legal.privacy.sections.rights.title",
+      itemKeys: [
+        "legal.privacy.sections.rights.items.access",
+        "legal.privacy.sections.rights.items.restriction",
+        "legal.privacy.sections.rights.items.objection",
+      ],
+    },
+    {
+      titleKey: "legal.privacy.sections.faq.title",
+      itemKeys: [
+        "legal.privacy.sections.faq.items.copy",
+        "legal.privacy.sections.faq.items.delete",
+        "legal.privacy.sections.faq.items.sharing",
+        "legal.privacy.sections.faq.items.location",
+      ],
+    },
+  ];
+
+  const textSections = [
+    "supportMetadata",
+    "access",
+    "retention",
+    "contact",
+  ] as const;
+
   return (
     <main className="min-h-screen bg-white mx-auto max-w-4xl px-4 py-10 space-y-6">
       <header className="space-y-1">
-        <p className="text-xs uppercase tracking-[0.2em] text-neutral-600">Právní informace</p>
-        <h1 className="text-3xl font-semibold text-neutral-900">Ochrana soukromí</h1>
-        <p className="text-sm text-neutral-700">
-          Stručný přehled toho, jak nakládáme s osobními údaji v NRW. Detailní znění doplníme.
-        </p>
+        <p className="text-xs uppercase tracking-[0.2em] text-neutral-600">{translate(locale, "legal.eyebrow")}</p>
+        <h1 className="text-3xl font-semibold text-neutral-900">{translate(locale, "legal.privacy.title")}</h1>
+        <p className="text-sm text-neutral-700">{translate(locale, "legal.privacy.description")}</p>
       </header>
 
-      <section className="rounded-xl border border-neutral-200/70 bg-white p-5 shadow-sm space-y-3">
-        <h2 className="text-lg font-semibold text-neutral-900">Jaké údaje zpracováváme</h2>
-        <ul className="text-sm text-neutral-700 space-y-2">
-          <li>• Účetní údaje: e-mail, uživatelské jméno, identifikátor účtu.</li>
-          <li>• Profilové údaje: jméno, bio, avatar a nastavení profilu.</li>
-          <li>• Obsah: zprávy, příspěvky a nahraná média (podle toho, co sdílíš).</li>
-          <li>• Komunikace se supportem: obsah zpráv a metadata podpory.</li>
-          <li>• Technické údaje: zařízení, IP adresa, logy přístupů a bezpečnostní události.</li>
-        </ul>
-      </section>
+      {listSections.map((section) => (
+        <section key={section.titleKey} className={cardClassName}>
+          <h2 className="text-lg font-semibold text-neutral-900">{translate(locale, section.titleKey)}</h2>
+          <ul className={listItemClassName}>
+            {section.itemKeys.map((itemKey) => (
+              <li key={itemKey}>• {translate(locale, itemKey)}</li>
+            ))}
+          </ul>
+        </section>
+      ))}
 
-      <section className="rounded-xl border border-neutral-200/70 bg-white p-5 shadow-sm space-y-3">
-        <h2 className="text-lg font-semibold text-neutral-900">Proč údaje zpracováváme</h2>
-        <ul className="text-sm text-neutral-700 space-y-2">
-          <li>• Provoz služby, doručování zpráv a personalizaci obsahu.</li>
-          <li>• Bezpečnost, prevence zneužití a moderace.</li>
-          <li>• Analytika pro zlepšení aplikace (agregovaně).</li>
-          <li>• Zákonné povinnosti a ochrana práv.</li>
-        </ul>
-      </section>
-
-      <section className="rounded-xl border border-neutral-200/70 bg-white p-5 shadow-sm space-y-3">
-        <h2 className="text-lg font-semibold text-neutral-900">Kdo má přístup k údajům</h2>
-        <p className="text-sm text-neutral-700">
-          Přístup mají pouze oprávněné osoby a dodavatelé, kteří jsou nezbytní pro provoz služby
-          (např. hosting a infrastruktura). Se všemi partnery máme uzavřené smlouvy o ochraně údajů.
-        </p>
-      </section>
-
-      <section className="rounded-xl border border-neutral-200/70 bg-white p-5 shadow-sm space-y-3">
-        <h2 className="text-lg font-semibold text-neutral-900">Uchování údajů</h2>
-        <p className="text-sm text-neutral-700">
-          Údaje uchováváme po dobu nezbytnou k provozu služby nebo dle zákonných povinností. Pokud
-          účet zrušíš, data postupně odstraníme nebo anonymizujeme.
-        </p>
-      </section>
-
-      <section className="rounded-xl border border-neutral-200/70 bg-white p-5 shadow-sm space-y-3">
-        <h2 className="text-lg font-semibold text-neutral-900">Vaše práva</h2>
-        <ul className="text-sm text-neutral-700 space-y-2">
-          <li>• Právo na přístup, opravu a výmaz.</li>
-          <li>• Právo na omezení zpracování a přenositelnost.</li>
-          <li>• Právo vznést námitku.</li>
-        </ul>
-      </section>
-
-      <section className="rounded-xl border border-neutral-200/70 bg-white p-5 shadow-sm space-y-3">
-        <h2 className="text-lg font-semibold text-neutral-900">FAQ</h2>
-        <ul className="text-sm text-neutral-700 space-y-2">
-          <li>• Jak získám kopii svých údajů? Napiš na support@nrw.app.</li>
-          <li>• Jak smažu účet? Požádej support nebo v nastavení účtu.</li>
-          <li>• Sdílíte data s třetími stranami? Jen s nutnými partnery pro provoz služby.</li>
-        </ul>
-      </section>
-
-      <section className="rounded-xl border border-neutral-200/70 bg-white p-5 shadow-sm space-y-2">
-        <h2 className="text-lg font-semibold text-neutral-900">Kontakt</h2>
-        <p className="text-sm text-neutral-700">Dotazy k ochraně soukromí: support@nrw.app</p>
-      </section>
+      {textSections.map((sectionKey) => (
+        <section key={sectionKey} className={cardClassName}>
+          <h2 className="text-lg font-semibold text-neutral-900">
+            {translate(locale, `legal.privacy.sections.${sectionKey}.title`)}
+          </h2>
+          <p className="text-sm text-neutral-700">{translate(locale, `legal.privacy.sections.${sectionKey}.body`)}</p>
+        </section>
+      ))}
     </main>
   );
 }

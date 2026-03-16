@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { user_id: userId, path } = body ?? {};
 
-  // IP – preferuj x-forwarded-for, fallback na localhost
+  // IP: prefer x-forwarded-for, fall back to localhost
   const rawIpHeader =
     req.headers.get("x-forwarded-for") ??
     req.headers.get("x-real-ip") ??
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
 
   let ip = rawIpHeader.split(",")[0].trim();
   if (!ip || ip === "unknown") {
-    // lokální dev
+    // local dev
     ip = "::1";
   }
 
@@ -90,11 +90,11 @@ export async function POST(req: NextRequest) {
   if (ip === "::1" || ip === "127.0.0.1") {
     ip_short = "localhost";
   } else if (ip.includes(".")) {
-    // IPv4 – zkrať na první tři oktety
+    // IPv4: shorten to the first three octets
     const parts = ip.split(".");
     ip_short = parts.slice(0, 3).join(".") + ".x";
   } else {
-    // IPv6 – vezmi první 4 bloky
+    // IPv6: keep the first 4 blocks
     const parts = ip.split(":").filter(Boolean);
     ip_short = parts.slice(0, 4).join(":") + "::";
   }

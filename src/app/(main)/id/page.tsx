@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BadgeCheck, Camera, X } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
+import { useLocale, useTranslations } from "@/components/i18n/LocaleProvider";
 import {
   fetchCurrentProfile,
   getCachedProfile,
@@ -22,8 +23,31 @@ import { requestAuth } from "@/lib/auth-required";
 import { parseMediaUrls } from "@/lib/media";
 import { canHydrateFromSession, readSessionCache, writeSessionCache } from "@/lib/session-cache";
 
+type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentUser" | "status"> & {
+  status?: NrealPost["status"] | null;
+  profiles?: NrealProfile | NrealProfile[] | null;
+  likesCount?: number;
+  likedByCurrentUser?: boolean;
+  commentsCount?: number;
+};
+
+function normalizePost(post: SupabasePost): NrealPost {
+  const rawProfiles = post?.profiles;
+  const profiles = Array.isArray(rawProfiles) ? rawProfiles : rawProfiles ? [rawProfiles] : [];
+  return {
+    ...post,
+    status: post.status ?? "approved",
+    is_deleted: (post as SupabasePost).is_deleted ?? null,
+    profiles,
+    likesCount: post.likesCount ?? 0,
+    likedByCurrentUser: post.likedByCurrentUser ?? false,
+    commentsCount: post.commentsCount ?? 0,
+  };
+}
 
 export default function IdPage() {
+  const t = useTranslations();
+  const { locale } = useLocale();
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const canHydrate = canHydrateFromSession();
@@ -123,11 +147,11 @@ export default function IdPage() {
   const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
   const metaDisplayName = typeof meta.display_name === "string" ? meta.display_name : null;
   const metaUsername = typeof meta.username === "string" ? meta.username : null;
-  const displayName = profile?.display_name ?? metaDisplayName ?? "Uživatel";
+  const displayName = profile?.display_name ?? metaDisplayName ?? t("idProfile.userFallback");
   const resolvedUsername = profile?.username ?? metaUsername ?? "";
   const username = resolvedUsername ? `@${resolvedUsername}` : "";
-  const bio = profile?.bio ?? "Ještě sis nenastavil bio.";
-  const bioText = loading ? "Načítám profil…" : bio;
+  const bio = profile?.bio ?? t("idProfile.bioEmpty");
+  const bioText = loading ? t("idProfile.loadingProfile") : bio;
   const canEdit = Boolean(profile);
   const isVerified = profile?.verified ?? false;
   const sanitizeVerificationLabel = (value: string | null | undefined) => {
@@ -137,29 +161,7 @@ export default function IdPage() {
     if (lower === "null" || lower === "undefined") return null;
     return trimmed;
   };
-  const verificationLabel = sanitizeVerificationLabel(profile?.verification_label) ?? "Ověřený profil";
-
-  type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentUser" | "status"> & {
-    status?: NrealPost["status"] | null;
-    profiles?: NrealProfile | NrealProfile[] | null;
-    likesCount?: number;
-    likedByCurrentUser?: boolean;
-    commentsCount?: number;
-  };
-
-  const normalizePost = (post: SupabasePost): NrealPost => {
-    const rawProfiles = post?.profiles;
-    const profiles = Array.isArray(rawProfiles) ? rawProfiles : rawProfiles ? [rawProfiles] : [];
-    return {
-      ...post,
-      status: post.status ?? "approved",
-      is_deleted: (post as SupabasePost).is_deleted ?? null,
-      profiles,
-      likesCount: post.likesCount ?? 0,
-      likedByCurrentUser: post.likedByCurrentUser ?? false,
-      commentsCount: post.commentsCount ?? 0,
-    };
-  };
+  const verificationLabel = sanitizeVerificationLabel(profile?.verification_label) ?? t("idProfile.verifiedProfile");
 
   useEffect(() => {
     if (!supabase || !profile?.id) return;
@@ -245,12 +247,12 @@ export default function IdPage() {
         setPostsError(null);
       } else {
         setPosts([]);
-        setPostsError(error?.message ?? "Nepodařilo se načíst příspěvky.");
+        setPostsError(error?.message ?? t("idProfile.postsLoadError"));
       }
 
       setPostsLoading(false);
     })();
-  }, [profile?.id, supabase]);
+  }, [profile?.id, supabase, t]);
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -388,7 +390,7 @@ export default function IdPage() {
       if (uploaded) {
         avatarUrl = uploaded;
       } else {
-        setProfileError("Nepodařilo se nahrát fotku.");
+        setProfileError(t("idProfile.uploadPhotoError"));
         setSavingProfile(false);
         return;
       }
@@ -396,7 +398,7 @@ export default function IdPage() {
 
     const nextBio = bioInput.trim();
     if (nextBio && containsBlockedContent(nextBio).hit) {
-      setProfileError("Životopis obsahuje nevhodný text.");
+      setProfileError(t("idProfile.bioBlocked"));
       setSavingProfile(false);
       return;
     }
@@ -409,7 +411,7 @@ export default function IdPage() {
     });
 
     if (!updated) {
-      setProfileError("Profil se nepodařilo uložit.");
+      setProfileError(t("idProfile.saveError"));
       setSavingProfile(false);
       return;
     }
@@ -424,7 +426,7 @@ export default function IdPage() {
       avatar_url: avatarUrl,
     });
 
-    setProfileMessage("Profil uložen.");
+    setProfileMessage(t("idProfile.saved"));
     setSavingProfile(false);
     setIsEditingProfile(false);
   };
@@ -461,7 +463,7 @@ export default function IdPage() {
               {isEditingProfile && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-full bg-black/55 text-white opacity-0 transition group-hover:opacity-100">
                   <Camera className="h-5 w-5" />
-                  <span className="text-[11px] font-semibold tracking-[0.14em] uppercase">Změnit</span>
+                  <span className="text-[11px] font-semibold tracking-[0.14em] uppercase">{t("idProfile.changePhoto")}</span>
                 </div>
               )}
             </label>
@@ -482,19 +484,19 @@ export default function IdPage() {
                         : "bg-neutral-100 text-neutral-700 ring-1 ring-neutral-200"
                     }`}
                     tabIndex={0}
-                    aria-label={isVerified ? "Ověřený profil" : "Neověřený profil"}
+                    aria-label={isVerified ? t("idProfile.verifiedProfile") : t("idProfile.unverifiedProfile")}
                   >
                     <BadgeCheck className="h-4 w-4" />
-                    {isVerified ? verificationLabel : "Neověřeno"}
+                    {isVerified ? verificationLabel : t("idProfile.unverifiedShort")}
                   </span>
                   {isVerified && showVerificationInfo && (
                     <div className="absolute right-0 top-full z-20 mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-neutral-200 bg-white p-3 text-[13px] text-neutral-700 shadow-lg sm:left-0 sm:right-auto">
                       <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-neutral-900">
                         <BadgeCheck className="h-4 w-4 text-emerald-600" />
-                        Ověřený profil
+                        {t("idProfile.verificationInfoTitle")}
                       </div>
                       <p>
-                        Identita potvrzená v nID. Dostáváš prioritní ochranu a důvěryhodný štítek u obsahu.
+                        {t("idProfile.verificationInfoBody")}
                       </p>
                     </div>
                   )}
@@ -502,11 +504,17 @@ export default function IdPage() {
               </div>
               <p className="text-sm text-neutral-600">{username}</p>
               <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-neutral-700">
-                <span>{statsLoading ? "—" : stats.followers.toLocaleString("cs-CZ")} sledujících</span>
+                <span>
+                  {statsLoading ? "—" : t("idProfile.followers", { count: stats.followers.toLocaleString(locale === "en" ? "en-US" : "cs-CZ") })}
+                </span>
                 <span>·</span>
-                <span>{statsLoading ? "—" : stats.following.toLocaleString("cs-CZ")} sleduje</span>
+                <span>
+                  {statsLoading ? "—" : t("idProfile.following", { count: stats.following.toLocaleString(locale === "en" ? "en-US" : "cs-CZ") })}
+                </span>
                 <span>·</span>
-                <span>{statsLoading ? "—" : stats.posts.toLocaleString("cs-CZ")} postů</span>
+                <span>
+                  {statsLoading ? "—" : t("idProfile.posts", { count: stats.posts.toLocaleString(locale === "en" ? "en-US" : "cs-CZ") })}
+                </span>
               </div>
               <p className="text-sm text-neutral-700">{bioText}</p>
             </div>
@@ -522,10 +530,10 @@ export default function IdPage() {
               }}
               className="flex-1 rounded-full border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-100 sm:flex-none"
             >
-              Upravit profil
+              {t("idProfile.editProfile")}
             </button>
             <button className="rounded-full bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-[1px]">
-              Sdílet profil
+              {t("idProfile.shareProfile")}
             </button>
           </div>
         </header>
@@ -534,29 +542,29 @@ export default function IdPage() {
           <section className="rounded-2xl border border-neutral-200 bg-white/90 p-5 shadow-sm backdrop-blur">
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <h2 className="text-base font-semibold text-neutral-900">Upravit profil</h2>
-                  <p className="text-sm text-neutral-600">Bio a fotka profilu</p>
+                  <h2 className="text-base font-semibold text-neutral-900">{t("idProfile.editCard.title")}</h2>
+                  <p className="text-sm text-neutral-600">{t("idProfile.editCard.description")}</p>
                 </div>
                 <div className="text-xs text-neutral-500">{username}</div>
               </div>
 
             <div className="space-y-3">
               <label className="block space-y-2 text-sm text-neutral-700">
-                <span className="font-semibold text-neutral-900">Bio</span>
+                <span className="font-semibold text-neutral-900">{t("idProfile.editCard.bioLabel")}</span>
                 <textarea
                   rows={3}
                   value={bioInput}
                   onChange={(e) => setBioInput(e.target.value)}
                   className="w-full resize-none rounded-lg border border-neutral-200 px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-500 outline-none focus:border-neutral-400"
-                  placeholder="Napiš něco o sobě..."
+                  placeholder={t("idProfile.editCard.bioPlaceholder")}
                 />
               </label>
 
               <div className="flex items-center gap-3 text-sm text-neutral-700">
                 <div className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold text-neutral-700">
-                  Fotka profilu
+                  {t("idProfile.editCard.photoLabel")}
                 </div>
-                <span className="text-xs text-neutral-500">Klikni na avatar nahoře pro změnu</span>
+                <span className="text-xs text-neutral-500">{t("idProfile.editCard.photoHint")}</span>
               </div>
 
               {profileError && (
@@ -572,7 +580,7 @@ export default function IdPage() {
                   onClick={() => setIsEditingProfile(false)}
                   className="rounded-lg px-4 py-2 text-sm font-medium text-neutral-700 transition hover:text-neutral-900"
                 >
-                  Zavřít
+                  {t("idProfile.editCard.close")}
                 </button>
                 <button
                   type="button"
@@ -580,7 +588,7 @@ export default function IdPage() {
                   onClick={handleSaveProfile}
                   className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-80"
                 >
-                  {savingProfile ? "Ukládám…" : "Uložit profil"}
+                  {savingProfile ? t("common.actions.saving") : t("idProfile.editCard.save")}
                 </button>
               </div>
             </div>
@@ -592,8 +600,8 @@ export default function IdPage() {
             <div className="w-full max-w-3xl rounded-2xl border border-neutral-200 bg-white p-4 shadow-xl">
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <h3 className="text-base font-semibold text-neutral-900">Upravit fotku</h3>
-                  <p className="text-sm text-neutral-600">Přibliž, posuň, ulož ořez.</p>
+                  <h3 className="text-base font-semibold text-neutral-900">{t("idProfile.cropper.title")}</h3>
+                  <p className="text-sm text-neutral-600">{t("idProfile.cropper.description")}</p>
                 </div>
                 <button
                   type="button"
@@ -628,7 +636,7 @@ export default function IdPage() {
                   <img
                     ref={imageRef}
                     src={cropImageUrl}
-                    alt="Crop preview"
+                    alt={t("idProfile.cropper.previewAlt")}
                     className="absolute inset-0 h-full w-full object-contain"
                     style={{
                       transform: `translate(${cropOffsetX}px, ${cropOffsetY}px) scale(${cropZoom})`,
@@ -656,7 +664,7 @@ export default function IdPage() {
 
                 <div className="space-y-3">
                   <label className="block space-y-1 text-sm">
-                    <span className="font-semibold text-neutral-900">Zoom</span>
+                    <span className="font-semibold text-neutral-900">{t("idProfile.cropper.zoom")}</span>
                     <input
                       type="range"
                       min={1}
@@ -673,7 +681,7 @@ export default function IdPage() {
                     />
                   </label>
 
-                  <p className="text-xs text-neutral-500">Fotku můžeš chytit a posunout myší/prstem.</p>
+                  <p className="text-xs text-neutral-500">{t("idProfile.cropper.dragHint")}</p>
 
                   <div className="flex items-center gap-3 pt-1">
                     <button
@@ -683,9 +691,9 @@ export default function IdPage() {
                         setCropOffsetX(0);
                         setCropOffsetY(0);
                       }}
-                      className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-semibold text-neutral-700 transition hover:bg-neutral-100"
-                    >
-                      Reset
+                    className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-semibold text-neutral-700 transition hover:bg-neutral-100"
+                  >
+                      {t("idProfile.cropper.reset")}
                     </button>
                     <button
                       type="button"
@@ -728,7 +736,7 @@ export default function IdPage() {
                       }}
                       className="rounded-lg bg-neutral-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
                     >
-                      Uložit ořez
+                      {t("idProfile.cropper.saveCrop")}
                     </button>
                   </div>
                 </div>
@@ -757,29 +765,29 @@ export default function IdPage() {
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-sm font-semibold text-neutral-900">Krátké posty</h2>
+                    <h2 className="text-sm font-semibold text-neutral-900">{t("idProfile.sections.shortPosts")}</h2>
                     {posts.length > 0 ? (
                       <button
                         type="button"
                         onClick={() => setShowAllPosts((prev) => !prev)}
                         className="rounded-full px-3 py-1 text-xs font-semibold text-neutral-600 transition hover:bg-neutral-100"
                       >
-                        {showAllPosts ? "Skrýt" : "Zobrazit všechno"}
+                        {showAllPosts ? t("idProfile.sections.hide") : t("idProfile.sections.showAll")}
                       </button>
                     ) : null}
                   </div>
 
                   {postsError ? (
                     <div className="rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">
-                      Nepodařilo se načíst příspěvky: {postsError}
+                      {t("idProfile.sections.postsLoadErrorPrefix")} {postsError}
                     </div>
                   ) : postsLoading ? (
                     <div className="rounded-3xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
-                      Načítám příspěvky…
+                      {t("idProfile.sections.loadingPosts")}
                     </div>
                   ) : posts.length === 0 ? (
                     <div className="rounded-3xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
-                      Zatím žádné příspěvky.
+                      {t("idProfile.sections.noPosts")}
                     </div>
                   ) : (
                     (showAllPosts ? posts : posts.slice(0, 3)).map((post) => {
@@ -824,25 +832,25 @@ export default function IdPage() {
             ) : (
               <div className="rounded-3xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
                 {activeTab === "reels"
-                  ? "Klipy se zobrazí brzy."
+                  ? t("idProfile.sections.reelsSoon")
                   : activeTab === "tags"
-                    ? "Označené příspěvky se zobrazí brzy."
-                    : "Vlákna se zobrazí brzy."}
+                    ? t("idProfile.sections.tagsSoon")
+                    : t("idProfile.sections.threadsSoon")}
               </div>
             )}
           </div>
 
           <aside className="hidden space-y-3 lg:block lg:sticky lg:top-10 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">
-            <Widget title="Highlighy">
+            <Widget title={t("idProfile.widgets.highlights")}>
               <Highlights />
             </Widget>
-            <Widget title="Trending témata">
+            <Widget title={t("idProfile.widgets.trendingTopics")}>
               <TwitterHighlights />
             </Widget>
-            <Widget title="Společné zájmy">
+            <Widget title={t("idProfile.widgets.sharedInterests")}>
               <Interests />
             </Widget>
-            <Widget title="Linky">
+            <Widget title={t("idProfile.widgets.links")}>
               <Links />
             </Widget>
           </aside>
@@ -853,6 +861,7 @@ export default function IdPage() {
 }
 
 function ProfileStories() {
+  const t = useTranslations();
   const stories = [
     { id: "s1", label: "Crew", color: "from-rose-400 via-orange-300 to-amber-200" },
     { id: "s2", label: "Events", color: "from-indigo-400 via-blue-300 to-cyan-200" },
@@ -871,7 +880,7 @@ function ProfileStories() {
         </div>
       ))}
       <button className="flex w-28 shrink-0 flex-col items-center gap-2 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-3 text-xs font-semibold text-neutral-600 transition hover:border-neutral-400 hover:text-neutral-900">
-        + Highlight
+        {t("idProfile.widgets.highlightAdd")}
       </button>
     </div>
   );
@@ -884,11 +893,12 @@ function ProfileTabs({
   activeTab: "posts" | "reels" | "tags" | "threads";
   onChange: (tab: "posts" | "reels" | "tags" | "threads") => void;
 }) {
+  const t = useTranslations();
   const tabs: Array<{ id: "posts" | "reels" | "tags" | "threads"; label: string }> = [
-    { id: "posts", label: "Příspěvky" },
-    { id: "reels", label: "Klipy" },
-    { id: "tags", label: "Označení" },
-    { id: "threads", label: "Vlákna" },
+    { id: "posts", label: t("idProfile.tabs.posts") },
+    { id: "reels", label: t("idProfile.tabs.reels") },
+    { id: "tags", label: t("idProfile.tabs.tags") },
+    { id: "threads", label: t("idProfile.tabs.threads") },
   ];
   return (
     <div className="flex items-center gap-2 overflow-x-auto pb-1 text-sm font-semibold text-neutral-700 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
@@ -914,15 +924,16 @@ function ProfileTabs({
 }
 
 function PhotoGrid({ items }: { items: Array<{ id: string; url: string; type: "image" | "video" | null }> }) {
+  const t = useTranslations();
   return (
     <div className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-neutral-900">Foto grid</h2>
+        <h2 className="text-base font-semibold text-neutral-900">{t("idProfile.widgets.photoGrid")}</h2>
         <button
           type="button"
           className="rounded-full px-3 py-1 text-xs font-semibold text-neutral-600 transition hover:bg-neutral-100"
         >
-          Archiv
+          {t("idProfile.widgets.archive")}
         </button>
       </div>
 
@@ -962,10 +973,11 @@ function Widget({ title, children }: { title: string; children: React.ReactNode 
 }
 
 function Highlights() {
+  const t = useTranslations();
   const list = [
-    { id: "h1", title: "Letná run", meta: "12k zhlédnutí" },
-    { id: "h2", title: "NRW meetup #4", meta: "9.2k zhlédnutí" },
-    { id: "h3", title: "Studio live", meta: "7.4k zhlédnutí" },
+    { id: "h1", title: "Letná run", meta: t("idProfile.highlightsData.letnaMeta") },
+    { id: "h2", title: "NRW meetup #4", meta: t("idProfile.highlightsData.meetupMeta") },
+    { id: "h3", title: "Studio live", meta: t("idProfile.highlightsData.studioMeta") },
   ];
   return (
     <div className="space-y-2 text-sm text-neutral-700">
@@ -979,7 +991,7 @@ function Highlights() {
             <div className="text-[11px] text-neutral-500">{item.meta}</div>
           </div>
           <button className="rounded-full px-3 py-1 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-900 hover:text-white">
-            Přehrát
+            {t("idProfile.widgets.play")}
           </button>
         </div>
       ))}
@@ -988,10 +1000,11 @@ function Highlights() {
 }
 
 function TwitterHighlights() {
+  const t = useTranslations();
   const topics = [
     { id: "th1", tag: "#nrw", stat: "trending" },
-    { id: "th2", tag: "#nReal", stat: "1.2k tweetů" },
-    { id: "th3", tag: "#rooms", stat: "620 tweetů" },
+    { id: "th2", tag: "#nReal", stat: t("idProfile.topicsData.real") },
+    { id: "th3", tag: "#rooms", stat: t("idProfile.topicsData.rooms") },
   ];
   return (
     <div className="space-y-2 text-sm text-neutral-700">
@@ -1005,7 +1018,7 @@ function TwitterHighlights() {
             <div className="text-[11px] text-neutral-500">{topic.stat}</div>
           </div>
           <button className="rounded-full border border-neutral-200 px-3 py-1 text-xs font-semibold text-neutral-900 transition hover:bg-neutral-900 hover:text-white">
-            Sledovat
+            {t("idProfile.widgets.follow")}
           </button>
         </div>
       ))}
@@ -1027,6 +1040,7 @@ function Interests() {
 }
 
 function Links() {
+  const t = useTranslations();
   const links = [
     { id: "ln1", label: "nReal Talks #12", url: "nrw.link/talks12" },
     { id: "ln2", label: "nLove beta room", url: "nrw.link/love" },
@@ -1044,7 +1058,7 @@ function Links() {
             <div className="text-[11px] text-neutral-500">{link.url}</div>
           </div>
           <button className="rounded-full px-3 py-1 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-900 hover:text-white">
-            Otevřít
+            {t("idProfile.widgets.open")}
           </button>
         </div>
       ))}

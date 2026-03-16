@@ -78,6 +78,116 @@ function firstImageFromHtml(raw?: string | null): string | null {
   return raw.match(/<img[^>]+src=["']([^"']+)["'][^>]*>/i)?.[1] ?? null;
 }
 
+function normalizeText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function canonicalUrl(url: string | null | undefined) {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    parsed.hash = "";
+    parsed.search = "";
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function dedupeNnewsItems(items: NNewsFeedItem[]) {
+  const dedupedByUrl = new Map<string, NNewsFeedItem>();
+  const withoutUrl: NNewsFeedItem[] = [];
+
+  for (const item of items) {
+    const key = canonicalUrl(item.url);
+    if (!key) {
+      withoutUrl.push(item);
+      continue;
+    }
+    const existing = dedupedByUrl.get(key);
+    if (!existing) {
+      dedupedByUrl.set(key, item);
+      continue;
+    }
+    if (new Date(item.createdAt).getTime() > new Date(existing.createdAt).getTime()) {
+      dedupedByUrl.set(key, item);
+    }
+  }
+
+  const titleSeen = new Set<string>();
+  const byTitle: NNewsFeedItem[] = [];
+
+  for (const item of [...dedupedByUrl.values(), ...withoutUrl]) {
+    const titleKey = normalizeText(item.title).slice(0, 120);
+    if (!titleKey) {
+      byTitle.push(item);
+      continue;
+    }
+    if (titleSeen.has(titleKey)) continue;
+    titleSeen.add(titleKey);
+    byTitle.push(item);
+  }
+
+  return byTitle;
+}
+
+function sourceFromItem(item: NNewsFeedItem) {
+  if (item.sourceName?.trim()) return item.sourceName.trim();
+  try {
+    return item.url ? new URL(item.url).hostname : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+export function computeNnewsScore(item: NNewsFeedItem, now: Date): number {
+  const createdAt = new Date(item.createdAt);
+  const hoursSince = Number.isNaN(createdAt.getTime())
+    ? 48
+    : Math.max(0, (now.getTime() - createdAt.getTime()) / 36e5);
+  const recencyScore = Math.exp(-hoursSince / 24) * 35;
+  const titleQuality = Math.min(12, normalizeText(item.title).split(" ").filter(Boolean).length * 1.2);
+  const excerptQuality = Math.min(10, normalizeText(item.excerpt).split(" ").filter(Boolean).length * 0.35);
+  const mediaBonus = item.imageUrl ? 4 : 0;
+  const sourceBonus = sourceFromItem(item) !== "unknown" ? 2 : 0;
+  return recencyScore + titleQuality + excerptQuality + mediaBonus + sourceBonus;
+}
+
+export function rankNnewsItems(items: NNewsFeedItem[], limit: number, now = new Date()) {
+  const deduped = dedupeNnewsItems(items);
+  const remaining = deduped.map((item) => ({ item, baseScore: computeNnewsScore(item, now) }));
+  const output: NNewsFeedItem[] = [];
+  const sourceCounts = new Map<string, number>();
+
+  while (remaining.length > 0 && output.length < limit) {
+    let bestIndex = 0;
+    let bestScore = Number.NEGATIVE_INFINITY;
+
+    for (let i = 0; i < remaining.length; i += 1) {
+      const candidate = remaining[i];
+      const source = sourceFromItem(candidate.item);
+      const sourcePenalty = (sourceCounts.get(source) ?? 0) * 5;
+      const adjustedScore = candidate.baseScore - sourcePenalty;
+      if (adjustedScore > bestScore) {
+        bestScore = adjustedScore;
+        bestIndex = i;
+      }
+    }
+
+    const [picked] = remaining.splice(bestIndex, 1);
+    output.push(picked.item);
+    const source = sourceFromItem(picked.item);
+    sourceCounts.set(source, (sourceCounts.get(source) ?? 0) + 1);
+  }
+
+  return output;
+}
+
 function mapRow(row: Row, i: number): NNewsFeedItem {
   const createdAt = iso(str(row, ["published_at", "created_at", "pub_date", "updated_at", "date"]));
   const sourceName = str(row, ["source_name", "source", "publisher", "author"]);
@@ -90,7 +200,7 @@ function mapRow(row: Row, i: number): NNewsFeedItem {
   });
   return {
     id: str(row, ["id", "guid", "uuid", "slug"]) ?? `nnews-${i}`,
-    title: str(row, ["title", "headline", "name"]) ?? "Bez názvu",
+    title: str(row, ["title", "headline", "name"]) ?? "Untitled",
     excerpt: str(row, ["excerpt", "summary", "description", "content", "text"]) ?? "",
     meta: sourceName ? `${sourceName} · ${dateLabel}` : dateLabel,
     createdAt,
@@ -149,7 +259,7 @@ function parseFeed(xml: string) {
         null;
       if (!title && !excerpt) return null;
       return {
-        title: title || "Bez názvu",
+        title: title || "Untitled",
         excerpt,
         link: linkHref ?? (linkText || null),
         guid: guid || null,
@@ -202,7 +312,7 @@ async function loadFromRss(client: Client, limit: number): Promise<NNewsFeedItem
     }
   }
 
-  return items.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)).slice(0, limit);
+  return rankNnewsItems(items, limit);
 }
 
 export async function loadNNewsFeed(client: Client, limit = 30): Promise<{
@@ -227,5 +337,6 @@ export async function loadNNewsFeed(client: Client, limit = 30): Promise<{
     .filter(Boolean)
     .map((row, i) => mapRow(row as Row, i))
     .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
-  return { items, table, error: null };
+  const rankedItems = rankNnewsItems(items, limit);
+  return { items: rankedItems, table, error: null };
 }

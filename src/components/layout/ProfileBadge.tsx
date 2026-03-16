@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { useTranslations } from "@/components/i18n/LocaleProvider";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { safeIdentityLabel } from "@/lib/content-filter";
 
@@ -12,6 +13,7 @@ const AVATAR_CACHE_KEY = "nrw_profile_avatar_url";
 
 export function ProfileBadge() {
   const pathname = usePathname();
+  const t = useTranslations();
   const isHidden = HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix));
   const [open, setOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -69,12 +71,12 @@ export function ProfileBadge() {
     const username = profile?.username ?? metaUsername ?? null;
     const avatar = profile?.avatar_url ?? metaAvatarUrl ?? null;
     const safeUsername = safeIdentityLabel(username, "");
-    const name = safeIdentityLabel(displayName, safeUsername || "Uživatel");
+    const name = safeIdentityLabel(displayName, safeUsername || t("profileBadge.userFallback"));
     setInitials(computeInitials(name));
     setProfileUsername(safeUsername ? safeUsername.trim().replace(/^@+/, "") : null);
     setAvatarUrl(avatar);
     updateAvatarCache(avatar);
-  }, [supabase]);
+  }, [supabase, t]);
 
   useEffect(() => {
     setOpen(false);
@@ -118,14 +120,14 @@ export function ProfileBadge() {
       <div className="relative">
         <button
           type="button"
-          aria-label="Tvůj profil"
+          aria-label={t("profileBadge.buttonAria")}
           onClick={() => setOpen((prev) => !prev)}
           className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-neutral-900 via-neutral-700 to-neutral-900 text-sm font-semibold text-white shadow-lg shadow-neutral-900/15 ring-2 ring-white transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-neutral-900/20 md:h-11 md:w-11"
         >
           {avatarUrl ? (
             <Image
               src={avatarUrl}
-              alt="Profilová fotka"
+              alt={t("profileBadge.avatarAlt")}
               fill
               sizes="44px"
               className="rounded-full object-cover"
@@ -145,14 +147,14 @@ export function ProfileBadge() {
                   href={profileUsername ? `/id/${encodeURIComponent(profileUsername)}` : "/id"}
                   className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-50"
                 >
-                  Zobrazit profil
+                  {t("profileBadge.openProfile")}
                   <span className="text-[11px] font-medium text-neutral-500">nID</span>
                 </Link>
                 <Link
                   href="/auth/logout"
                   className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
                 >
-                  Odhlásit se
+                  {t("common.actions.signOut")}
                   <span className="text-[11px] font-medium text-red-400">↗</span>
                 </Link>
               </>
@@ -161,7 +163,7 @@ export function ProfileBadge() {
                 href="/auth/login"
                 className="flex items-center justify-between px-3 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-50"
               >
-                Přihlásit se
+                {t("common.actions.signIn")}
                 <span className="text-[11px] font-medium text-neutral-500">→</span>
               </Link>
             )}

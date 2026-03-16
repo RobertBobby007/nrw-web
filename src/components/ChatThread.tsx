@@ -2,6 +2,7 @@
 
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { MoreHorizontal, X } from "lucide-react";
+import { useLocale, useTranslations } from "@/components/i18n/LocaleProvider";
 import { useChatMessages } from "@/hooks/useChatMessages";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { sendMessage } from "@/lib/chat";
@@ -20,20 +21,22 @@ type ChatThreadProps = {
   } | null;
 };
 
-function formatMessageTimeLabel(createdAt?: string | null, nowMs: number = Date.now()) {
-  if (!createdAt) return "neznámý čas";
+type TranslateFn = (key: string, values?: Record<string, string | number>) => string;
+
+function formatMessageTimeLabel(t: TranslateFn, locale: string, createdAt?: string | null, nowMs: number = Date.now()) {
+  if (!createdAt) return t("chat.thread.unknownTime");
   const date = new Date(createdAt);
-  if (Number.isNaN(date.getTime())) return "neznámý čas";
+  if (Number.isNaN(date.getTime())) return t("chat.thread.unknownTime");
 
   const diffMs = nowMs - date.getTime();
   const diffMin = Math.floor(diffMs / 60000);
   const diffH = Math.floor(diffMin / 60);
 
-  if (diffMin < 1) return "před chvílí";
-  if (diffMin < 60) return `před ${diffMin} min`;
-  if (diffH < 24) return `před ${diffH} h`;
+  if (diffMin < 1) return t("chat.thread.justNow");
+  if (diffMin < 60) return t("chat.thread.minutesAgo", { count: diffMin });
+  if (diffH < 24) return t("chat.thread.hoursAgo", { count: diffH });
 
-  return date.toLocaleDateString("cs-CZ", {
+  return date.toLocaleDateString(locale === "en" ? "en-US" : "cs-CZ", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -50,15 +53,15 @@ function isYesterday(date: Date, now: Date) {
   return isSameDay(date, yesterday);
 }
 
-function formatDateSeparatorLabel(date: Date, now: Date) {
+function formatDateSeparatorLabel(t: TranslateFn, locale: string, date: Date, now: Date) {
   if (isSameDay(date, now)) {
-    return "Dnes";
+    return t("chat.thread.todayLabel");
   }
   if (isYesterday(date, now)) {
-    return "Včera";
+    return t("chat.thread.yesterdayLabel");
   }
 
-  const formatted = date.toLocaleDateString("cs-CZ", {
+  const formatted = date.toLocaleDateString(locale === "en" ? "en-US" : "cs-CZ", {
     weekday: "long",
     day: "2-digit",
     month: "2-digit",
@@ -74,6 +77,8 @@ export function ChatThread({
   currentUserId,
   otherUser,
 }: ChatThreadProps) {
+  const t = useTranslations();
+  const { locale } = useLocale();
   const { messages, loading } = useChatMessages(chatId, currentUserId ?? null);
   const [content, setContent] = useState("");
   const [sending, setSending] = useState(false);
@@ -97,8 +102,8 @@ export function ChatThread({
   const otherLabel = useMemo(() => {
     const display = safeIdentityLabel(otherUser?.display_name ?? null, "");
     const username = safeIdentityLabel(otherUser?.username ?? null, "");
-    return display || username || "Uživatel";
-  }, [otherUser]);
+    return display || username || t("chat.thread.userFallback");
+  }, [otherUser, t]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -191,11 +196,11 @@ export function ChatThread({
   const handleReport = async () => {
     if (!reportTarget) return;
     if (!currentUserId) {
-      setToast("Nejprve se přihlaste.");
+      setToast(t("chat.thread.signInFirst"));
       return;
     }
     if (reportedIds.has(reportTarget.messageId)) {
-      setToast("Tuto zprávu už máte nahlášenou.");
+      setToast(t("chat.thread.alreadyReported"));
       return;
     }
 
@@ -217,11 +222,11 @@ export function ChatThread({
         next.add(reportTarget.messageId);
         return next;
       });
-      setToast("Zpráva byla nahlášena. Děkujeme.");
+      setToast(t("chat.thread.reportSuccess"));
       setReportTarget(null);
     } catch (error) {
       console.error("Report message failed", error);
-      setToast("Nahlášení se nepovedlo. Zkuste to prosím znovu.");
+      setToast(t("chat.thread.reportError"));
     } finally {
       setReporting(false);
     }
@@ -246,14 +251,14 @@ export function ChatThread({
             <div className="h-8 w-32 animate-pulse rounded-full bg-neutral-100" />
           </div>
         ) : messages.length === 0 ? (
-          <p className="text-sm text-neutral-500">Zatím žádné zprávy.</p>
+          <p className="text-sm text-neutral-500">{t("chat.thread.empty")}</p>
         ) : (
           <ul className="space-y-2">
             {messages.map((message, index) => {
               const senderId = message.sender_id ?? message.user_id ?? null;
               const isMe = Boolean(currentUserId && senderId === currentUserId);
-              const label = isMe ? "Ty" : otherLabel;
-              const timeLabel = formatMessageTimeLabel(message.created_at, now);
+              const label = isMe ? t("chat.thread.you") : otherLabel;
+              const timeLabel = formatMessageTimeLabel(t, locale, message.created_at, now);
               const messageDate = new Date(message.created_at ?? "");
               const prevDate =
                 index > 0 ? new Date(messages[index - 1]?.created_at ?? "") : null;
@@ -270,12 +275,12 @@ export function ChatThread({
                   .filter((m) => (m.sender_id ?? m.user_id ?? null) === currentUserId)
                   .at(-1)?.id === message.id;
               const readByOthers = (message.read_by ?? []).filter((id) => id && id !== currentUserId);
-              const readTimeLabel = message.read_at ? formatMessageTimeLabel(message.read_at, now) : "";
+              const readTimeLabel = message.read_at ? formatMessageTimeLabel(t, locale, message.read_at, now) : "";
               const readIndicator =
                 isLastMine && readByOthers.length > 0
                   ? readTimeLabel
-                    ? `Přečteno ${readTimeLabel}`
-                    : "Přečteno"
+                    ? t("chat.thread.readAt", { time: readTimeLabel })
+                    : t("chat.thread.read")
                   : "";
               const canReport = Boolean(
                 senderId &&
@@ -290,7 +295,7 @@ export function ChatThread({
                     <div className="flex items-center gap-3 py-2">
                       <div className="h-px flex-1 bg-neutral-200" />
                       <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
-                        {formatDateSeparatorLabel(messageDate, nowDate)}
+                        {formatDateSeparatorLabel(t, locale, messageDate, nowDate)}
                       </span>
                       <div className="h-px flex-1 bg-neutral-200" />
                     </div>
@@ -311,7 +316,7 @@ export function ChatThread({
                               setOpenMenuId((prev) => (prev === message.id ? null : message.id));
                             }}
                             className="rounded-full p-1 text-neutral-400 hover:bg-neutral-200"
-                            aria-label="Menu zprávy"
+                            aria-label={t("chat.thread.menuAria")}
                           >
                             <MoreHorizontal className="h-4 w-4" />
                           </button>
@@ -336,7 +341,7 @@ export function ChatThread({
                             }
                             className="w-full rounded-md px-3 py-2 text-left text-xs text-neutral-800 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:text-neutral-400"
                           >
-                            Nahlásit zprávu
+                            {t("chat.thread.reportMessage")}
                           </button>
                         </div>
                       ) : null}
@@ -389,7 +394,7 @@ export function ChatThread({
             scheduleTyping(next);
           }}
           onBlur={() => void stopTyping()}
-          placeholder="Napište zprávu…"
+          placeholder={t("chat.thread.messagePlaceholder")}
           className="flex-1 rounded-full border border-neutral-200 px-4 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-400"
         />
         <button
@@ -397,7 +402,7 @@ export function ChatThread({
           disabled={sending || !content.trim()}
           className="rounded-full bg-neutral-900 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Odeslat
+          {t("common.actions.send")}
         </button>
       </form>
 
@@ -413,38 +418,38 @@ export function ChatThread({
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-neutral-900">Nahlásit zprávu</h2>
+              <h2 className="text-lg font-semibold text-neutral-900">{t("chat.thread.reportTitle")}</h2>
               <button
                 type="button"
                 onClick={() => setReportTarget(null)}
                 className="rounded-full p-2 text-neutral-500 transition hover:bg-neutral-100"
-                aria-label="Zavřít"
+                aria-label={t("common.actions.close")}
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             <div className="mt-4 space-y-3">
-              <label className="block text-xs font-semibold text-neutral-600">Důvod</label>
+              <label className="block text-xs font-semibold text-neutral-600">{t("chat.thread.reasonLabel")}</label>
               <select
                 value={reportReason}
                 onChange={(event) => setReportReason(event.target.value)}
                 className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm text-neutral-900"
               >
-                <option value="harassment">Obtěžování / harassment</option>
-                <option value="spam">Spam</option>
-                <option value="sexual">Sexuální obsah</option>
-                <option value="violence">Násilí</option>
-                <option value="other">Jiné</option>
+                <option value="harassment">{t("chat.thread.reasons.harassment")}</option>
+                <option value="spam">{t("chat.thread.reasons.spam")}</option>
+                <option value="sexual">{t("chat.thread.reasons.sexual")}</option>
+                <option value="violence">{t("chat.thread.reasons.violence")}</option>
+                <option value="other">{t("chat.thread.reasons.other")}</option>
               </select>
 
-              <label className="block text-xs font-semibold text-neutral-600">Popis (volitelné)</label>
+              <label className="block text-xs font-semibold text-neutral-600">{t("chat.thread.detailsLabel")}</label>
               <textarea
                 value={reportDetails}
                 onChange={(event) => setReportDetails(event.target.value)}
                 rows={3}
                 className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm text-neutral-900"
-                placeholder="Doplňte podrobnosti…"
+                placeholder={t("chat.thread.detailsPlaceholder")}
               />
             </div>
 
@@ -455,7 +460,7 @@ export function ChatThread({
                 disabled={reporting}
                 className="rounded-full bg-neutral-900 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Odeslat hlášení
+                {t("chat.thread.submitReport")}
               </button>
             </div>
           </div>

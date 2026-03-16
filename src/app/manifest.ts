@@ -2,7 +2,6 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    lang: "cs",
     name: "NRW",
     short_name: "NRW",
     description: "NRW",

@@ -17,6 +17,7 @@ import {
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
+import { useTranslations } from "@/components/i18n/LocaleProvider";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { parseMediaUrls } from "@/lib/media";
 import { requestAuth } from "@/lib/auth-required";
@@ -36,20 +37,29 @@ type Clip = {
   viewsCount?: number | null;
 };
 
-const clipFilters = ["Top", "Pro tebe", "Sleduješ", "Nové"];
+function formatDuration(seconds: number | null | undefined) {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds <= 0) return "—";
+  const total = Math.round(seconds);
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${mins}:${String(secs).padStart(2, "0")}`;
+}
+
+const clipFilters = ["top", "forYou", "following", "new"] as const;
 const trendingNow = [
-  { id: "tr1", label: "Noční ride", stat: "🔥 2.4k" },
-  { id: "tr2", label: "NRW backstage", stat: "🔥 1.8k" },
-  { id: "tr3", label: "Ranní káva", stat: "🔥 1.2k" },
-  { id: "tr4", label: "Sraz v parku", stat: "🔥 960" },
+  { id: "tr1", stat: "🔥 2.4k" },
+  { id: "tr2", stat: "🔥 1.8k" },
+  { id: "tr3", stat: "🔥 1.2k" },
+  { id: "tr4", stat: "🔥 960" },
 ];
 
 export default function ClipsPage() {
+  const t = useTranslations();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const searchParams = useSearchParams();
   const router = useRouter();
   const clipPostId = searchParams.get("post");
-  const [activeFilter, setActiveFilter] = useState("Top");
+  const [activeFilter, setActiveFilter] = useState<(typeof clipFilters)[number]>("top");
   const [clips, setClips] = useState<Clip[]>([]);
   const [clipsLoading, setClipsLoading] = useState(false);
   const [clipsError, setClipsError] = useState<string | null>(null);
@@ -64,6 +74,7 @@ export default function ClipsPage() {
     mediaUrl: string | null;
   } | null>(null);
   const [activeMobileClipId, setActiveMobileClipId] = useState<string | null>(null);
+  const [mobileMuted, setMobileMuted] = useState(true);
   const [clipError, setClipError] = useState<string | null>(null);
   const [clipLoading, setClipLoading] = useState(false);
   const [overlayMuted, setOverlayMuted] = useState(true);
@@ -117,7 +128,7 @@ export default function ClipsPage() {
 
         if (!active) return;
         if (error || !data) {
-          setClipsError("Klipy se nepodařilo načíst.");
+          setClipsError(t("clips.loadError"));
           setClips([]);
           return;
         }
@@ -127,9 +138,9 @@ export default function ClipsPage() {
             const mediaUrls = parseMediaUrls(post.media_url);
             const mediaUrl = mediaUrls[0] ?? null;
             const rawDescription = (post.content ?? "").trim();
-            const title = rawDescription ? rawDescription.replace(/\s+/g, " ").slice(0, 120) : "Bez popisku";
+            const title = rawDescription ? rawDescription.replace(/\s+/g, " ").slice(0, 120) : t("clips.untitled");
             const profile = Array.isArray(post.profiles) ? post.profiles[0] : post.profiles;
-            const creatorHandle = profile?.username ? `@${profile.username}` : "@nrw.clips";
+            const creatorHandle = profile?.username ? `@${profile.username}` : t("clips.creatorFallback");
             const gradients = [
               "from-neutral-900 via-slate-800 to-indigo-800",
               "from-amber-900 via-orange-700 to-pink-700",
@@ -142,9 +153,9 @@ export default function ClipsPage() {
               title,
               creator: creatorHandle,
               creatorAvatarUrl: profile?.avatar_url ?? null,
-              length: "0:30",
+              length: "—",
               views: typeof post.views_count === "number" ? `${post.views_count}` : "—",
-              vibe: "nClips",
+              vibe: t("clips.vibe"),
               gradient: gradients[index % gradients.length],
               tags: ["clip"],
               mediaUrl,
@@ -160,7 +171,7 @@ export default function ClipsPage() {
     return () => {
       active = false;
     };
-  }, [supabase]);
+  }, [supabase, t]);
 
   useEffect(() => {
     let active = true;
@@ -323,19 +334,19 @@ export default function ClipsPage() {
         if (!active) return;
         if (error || !data) {
           setSelectedClip(null);
-          setClipError("Klip se nepodařilo načíst.");
+          setClipError(t("clips.overlay.loadError"));
           return;
         }
         if (data.media_type !== "video" || !data.media_url) {
           setSelectedClip(null);
-          setClipError("Tenhle příspěvek není video klip.");
+          setClipError(t("clips.overlay.notVideo"));
           return;
         }
         const mediaUrls = parseMediaUrls(data.media_url);
         const firstUrl = mediaUrls[0] ?? null;
         if (!firstUrl) {
           setSelectedClip(null);
-          setClipError("Video nemá platnou URL.");
+          setClipError(t("clips.overlay.invalidUrl"));
           return;
         }
         setSelectedClip({
@@ -350,11 +361,29 @@ export default function ClipsPage() {
     return () => {
       active = false;
     };
-  }, [clipPostId, supabase]);
+  }, [clipPostId, supabase, t]);
 
   useEffect(() => {
     setOverlayMuted(true);
   }, [selectedClip?.id]);
+
+  const toggleOverlayMute = useCallback(() => {
+    const nextMuted = !overlayMuted;
+    const video = overlayVideoRef.current;
+    setOverlayMuted(nextMuted);
+    if (!video) return;
+
+    video.muted = nextMuted;
+    video.defaultMuted = nextMuted;
+    if (!nextMuted) {
+      video.volume = 1;
+      void video.play().catch(() => {
+        setOverlayMuted(true);
+        video.muted = true;
+        video.defaultMuted = true;
+      });
+    }
+  }, [overlayMuted]);
 
   useEffect(() => {
     if (clips.length === 0) {
@@ -406,6 +435,23 @@ export default function ClipsPage() {
     });
   }, [activeMobileClipId, clips]);
 
+  const toggleMobileSound = useCallback((clipId: string) => {
+    const video = mobileVideoRefs.current[clipId];
+    const nextMuted = !mobileMuted;
+    setMobileMuted(nextMuted);
+    if (!video) return;
+    video.muted = nextMuted;
+    video.defaultMuted = nextMuted;
+    if (!nextMuted) {
+      video.volume = 1;
+      void video.play().catch(() => {
+        setMobileMuted(true);
+        video.muted = true;
+        video.defaultMuted = true;
+      });
+    }
+  }, [mobileMuted]);
+
   if (showClipOverlay) {
     const overlayLikes = selectedClip?.id ? likesCountMap[selectedClip.id] ?? 0 : 0;
     const overlayLiked = selectedClip?.id ? likedClipIds.has(selectedClip.id) : false;
@@ -415,33 +461,33 @@ export default function ClipsPage() {
     const overlayAvatar = activeOverlayClip?.creatorAvatarUrl ?? null;
     const overlayInitial = overlayCreator.replace(/^@/, "").charAt(0).toUpperCase() || "N";
     const overlayViews = formatViews(activeOverlayClip?.viewsCount);
-    const overlayCaption = selectedClip?.content?.trim() || activeOverlayClip?.title || "Bez popisku";
+    const overlayCaption = selectedClip?.content?.trim() || activeOverlayClip?.title || t("clips.untitled");
 
     return (
-      <main className="fixed inset-0 z-50 overflow-hidden bg-[#060b12] text-white">
+      <main className="fixed inset-0 z-[140] overflow-hidden bg-[#060b12] text-white">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_22%_38%,rgba(37,99,235,0.2),transparent_36%),radial-gradient(circle_at_74%_52%,rgba(6,182,212,0.16),transparent_40%)]" />
         <div className="relative flex h-full flex-col">
-          <header className="flex items-center justify-between px-4 py-3 md:px-6">
+          <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3 md:px-6">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">nClips</div>
             <button
               type="button"
               onClick={() => router.back()}
               className="rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-white transition hover:bg-white/10"
             >
-              Zpět
+              {t("clips.overlay.back")}
             </button>
           </header>
 
-          <div className="relative flex flex-1 items-center justify-center px-4 pb-6">
+          <div className="relative flex flex-1 items-center justify-center px-4 pb-6 md:px-8 md:pb-8">
           {clipError ? (
             <div className="max-w-md rounded-xl bg-white/10 px-4 py-3 text-sm text-white/90">{clipError}</div>
           ) : clipLoading || !selectedClip ? (
-            <div className="text-sm text-white/70">Načítám klip…</div>
+            <div className="text-sm text-white/70">{t("clips.overlay.loading")}</div>
           ) : (
-            <div className="flex w-full max-w-6xl items-center justify-center gap-4 md:gap-6">
-              <div className="relative w-full max-w-[430px]">
+            <div className="relative flex w-full items-center justify-center">
+              <div className="relative w-[min(84vw,360px)] md:w-[min(34vw,400px)]">
                 <div className="absolute inset-0 -z-10 scale-105 rounded-[30px] bg-black/70 blur-2xl" />
-                <div className="relative aspect-[9/16] overflow-hidden rounded-[28px] border border-white/15 bg-black shadow-[0_24px_90px_rgba(0,0,0,0.7)]">
+                <div className="relative mx-auto aspect-[9/16] overflow-hidden rounded-[28px] border border-white/15 bg-black shadow-[0_24px_90px_rgba(0,0,0,0.7)]">
                 <video
                   ref={overlayVideoRef}
                   src={selectedClip.mediaUrl ?? undefined}
@@ -480,17 +526,17 @@ export default function ClipsPage() {
                           type="button"
                           className="rounded-full border border-white/45 px-3 py-1 text-xs font-semibold text-white transition hover:bg-white/10"
                         >
-                          Sledovat
+                          {t("clips.overlay.follow")}
                         </button>
                       </div>
                       <p className="line-clamp-2 max-w-[280px] text-sm text-white/90">{overlayCaption}</p>
-                      <p className="text-xs text-white/70">{overlayViews} zhlédnutí</p>
+                      <p className="text-xs text-white/70">{t("clips.overlay.views", { count: overlayViews })}</p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => setOverlayMuted((prev) => !prev)}
+                      onClick={toggleOverlayMute}
                       className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/70"
-                      aria-label={overlayMuted ? "Zapnout zvuk" : "Vypnout zvuk"}
+                      aria-label={overlayMuted ? t("clips.overlay.soundOnAria") : t("clips.overlay.soundOffAria")}
                     >
                       {overlayMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                     </button>
@@ -508,56 +554,51 @@ export default function ClipsPage() {
                       {overlayLikes}
                     </button>
                   ) : null}
-                  <button
-                    type="button"
-                    onClick={handleShareOverlayClip}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white"
-                    aria-label="Sdílet"
-                  >
-                    <Send className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white"
-                    aria-label="Uložit"
-                  >
-                    <Bookmark className="h-4 w-4" />
-                  </button>
+                    <button
+                      type="button"
+                      onClick={handleShareOverlayClip}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white"
+                      aria-label={t("clips.overlay.shareAria")}
+                    >
+                      <Send className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white"
+                      aria-label={t("clips.overlay.saveAria")}
+                    >
+                      <Bookmark className="h-4 w-4" />
+                    </button>
                 </div>
               </div>
 
-              <aside className="hidden md:flex flex-col items-center gap-4">
+              <aside className="hidden md:flex absolute right-8 top-1/2 -translate-y-1/2 flex-col items-center gap-4">
                 <button
                   type="button"
                   onClick={() => canGoPrev && openOverlayByIndex(selectedOverlayIndex - 1)}
                   disabled={!canGoPrev}
-                  className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-35"
-                  aria-label="Předchozí klip"
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-35"
+                  aria-label={t("clips.overlay.previousAria")}
                 >
-                  <ChevronUp className="h-8 w-8" />
+                  <ChevronUp className="h-6 w-6" />
                 </button>
                 <button
                   type="button"
                   onClick={() => canGoNext && openOverlayByIndex(selectedOverlayIndex + 1)}
                   disabled={!canGoNext}
-                  className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-35"
-                  aria-label="Další klip"
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-35"
+                  aria-label={t("clips.overlay.nextAria")}
                 >
-                  <ChevronDown className="h-8 w-8" />
+                  <ChevronDown className="h-6 w-6" />
                 </button>
-
                 {selectedClip.id ? (
                   <button
                     type="button"
                     onClick={() => handleToggleLike(selectedClip.id)}
                     className="mt-2 flex flex-col items-center gap-1 text-white"
-                    aria-label={overlayLiked ? "Odebrat like" : "Dát like"}
+                    aria-label={overlayLiked ? t("clips.overlay.unlikeAria") : t("clips.overlay.likeAria")}
                   >
-                    <span
-                      className={`inline-flex h-12 w-12 items-center justify-center rounded-full ${
-                        overlayLiked ? "bg-rose-500" : "bg-black/55"
-                      }`}
-                    >
+                    <span className={`inline-flex h-12 w-12 items-center justify-center rounded-full ${overlayLiked ? "bg-rose-500" : "bg-black/55"}`}>
                       <Heart className={`h-6 w-6 ${overlayLiked ? "fill-white" : ""}`} />
                     </span>
                     <span className="text-sm font-semibold">{overlayLikes}</span>
@@ -567,7 +608,7 @@ export default function ClipsPage() {
                 <button
                   type="button"
                   className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/70"
-                  aria-label="Komentáře"
+                  aria-label={t("clips.overlay.commentsAria")}
                 >
                   <MessageCircle className="h-6 w-6" />
                 </button>
@@ -575,21 +616,21 @@ export default function ClipsPage() {
                   type="button"
                   onClick={handleShareOverlayClip}
                   className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/70"
-                  aria-label="Sdílet"
+                  aria-label={t("clips.overlay.shareAria")}
                 >
                   <Send className="h-5 w-5" />
                 </button>
                 <button
                   type="button"
                   className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/70"
-                  aria-label="Uložit"
+                  aria-label={t("clips.overlay.saveAria")}
                 >
                   <Bookmark className="h-5 w-5" />
                 </button>
                 <button
                   type="button"
                   className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/70"
-                  aria-label="Další možnosti"
+                  aria-label={t("clips.overlay.moreAria")}
                 >
                   <MoreHorizontal className="h-5 w-5" />
                 </button>
@@ -607,14 +648,14 @@ export default function ClipsPage() {
       <section className="fixed inset-x-0 top-0 bottom-[calc(env(safe-area-inset-bottom)+76px)] z-30 flex flex-col bg-black text-white md:hidden">
         <div ref={mobileFeedRef} className="min-h-0 flex-1 snap-y snap-mandatory overflow-y-auto">
           {clipsLoading ? (
-            <div className="flex h-full items-center justify-center px-6 text-sm text-white/70">Načítám klipy…</div>
+            <div className="flex h-full items-center justify-center px-6 text-sm text-white/70">{t("clips.mobile.loading")}</div>
           ) : clipsError ? (
             <div className="flex h-full items-center justify-center px-6 text-center text-sm text-amber-200">
               {clipsError}
             </div>
           ) : clips.length === 0 ? (
             <div className="flex h-full items-center justify-center px-6 text-sm text-white/70">
-              Zatím nejsou žádné klipy.
+              {t("clips.mobile.empty")}
             </div>
           ) : (
             clips.map((clip) => {
@@ -636,7 +677,7 @@ export default function ClipsPage() {
                       mobileVideoRefs.current[clip.id] = element;
                     }}
                     src={clip.mediaUrl ?? undefined}
-                    muted
+                    muted={mobileMuted}
                     loop
                     playsInline
                     preload="metadata"
@@ -650,6 +691,14 @@ export default function ClipsPage() {
                     onPause={clearViewTimer}
                     onEnded={clearViewTimer}
                     className="h-full w-full object-cover"
+                    onLoadedMetadata={(e) => {
+                      const el = e.currentTarget;
+                      const nextDuration = Number.isFinite(el.duration) ? el.duration : 0;
+                      setClipDurations((prev) =>
+                        prev[clip.id] === nextDuration ? prev : { ...prev, [clip.id]: nextDuration },
+                      );
+                    }}
+                    onClick={() => toggleMobileSound(clip.id)}
                   />
                   <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/55 to-transparent" />
                   <div className="pointer-events-none absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
@@ -669,17 +718,17 @@ export default function ClipsPage() {
                         type="button"
                         className="rounded-full border border-white/40 px-3 py-1 text-xs font-semibold text-white"
                       >
-                        Sledovat
+                        {t("clips.mobile.follow")}
                       </button>
                     </div>
                     <p className="line-clamp-2 text-xs font-normal leading-snug text-white/90">{clip.title}</p>
-                    <p className="text-xs text-white/80">{viewsLabel} zhlédnutí</p>
+                    <p className="text-xs text-white/80">{t("clips.desktop.views", { count: viewsLabel })}</p>
                   </div>
                   <div className="absolute bottom-30 right-3 flex flex-col items-center gap-4">
                     {clip.postId ? (
                       <button
                         type="button"
-                        aria-label={isLiked ? "Odebrat like" : "Dát like"}
+                        aria-label={isLiked ? t("clips.overlay.unlikeAria") : t("clips.overlay.likeAria")}
                         onClick={() => handleToggleLike(clip.postId as string)}
                         className="flex flex-col items-center gap-1 text-white"
                       >
@@ -697,27 +746,32 @@ export default function ClipsPage() {
                       type="button"
                       onClick={() => router.push(href)}
                       className="flex flex-col items-center gap-1 text-white"
-                      aria-label="Otevřít komentáře"
+                      aria-label={t("clips.mobile.commentsAria")}
                     >
                       <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/50">
                         <MessageCircle className="h-6 w-6" />
                       </span>
-                      <span className="text-xs font-semibold">Komenty</span>
+                      <span className="text-xs font-semibold">{t("clips.mobile.commentsLabel")}</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => router.push(href)}
                       className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-white"
-                      aria-label="Sdílet"
+                      aria-label={t("clips.mobile.shareAria")}
                     >
                       <Send className="h-5 w-5" />
                     </button>
                   </div>
                   <div className="absolute bottom-6 right-4">
+                    {(() => {
+                      const durationLabel = formatDuration(clipDurations[clip.id]);
+                      return (
                     <div className="inline-flex items-center gap-2 rounded-full bg-black/55 px-3 py-1 text-sm font-semibold uppercase tracking-[0.14em]">
                       <Play className="h-4 w-4" />
-                      {clip.length}
+                      {durationLabel === "—" ? clip.length : durationLabel}
                     </div>
+                      );
+                    })()}
                   </div>
                 </article>
               );
@@ -730,7 +784,7 @@ export default function ClipsPage() {
               type="button"
               onClick={() => router.push("/create")}
               className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/45"
-              aria-label="Přidat klip"
+              aria-label={t("clips.mobile.addAria")}
             >
               <Plus className="h-6 w-6" />
             </button>
@@ -747,7 +801,7 @@ export default function ClipsPage() {
                   onClick={() => setActiveFilter(filter)}
                   className={isActive ? "text-white" : "text-white/55"}
                 >
-                  {filter}
+                  {t(`clips.filters.${filter}`)}
                 </button>
               );
             })}
@@ -757,11 +811,8 @@ export default function ClipsPage() {
 
       <section className="mx-auto hidden max-w-7xl space-y-8 px-4 py-8 md:block">
         <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900">Fresh Reels z NRW</h1>
-          <p className="max-w-2xl text-sm text-neutral-600">
-            Krátká videa a highlighty komunity. Projeď to jako feed, co si pustíš mezi zprávami v
-            nChat – rychlé, vizuální a živé.
-          </p>
+          <h1 className="text-3xl font-semibold tracking-tight text-neutral-900">{t("clips.desktop.title")}</h1>
+          <p className="max-w-2xl text-sm text-neutral-600">{t("clips.desktop.description")}</p>
         </header>
 
         <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -778,7 +829,7 @@ export default function ClipsPage() {
                       : "rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] font-medium text-neutral-600"
                 }
               >
-                {filter}
+                {t(`clips.filters.${filter}`)}
               </button>
             );
           })}
@@ -788,7 +839,7 @@ export default function ClipsPage() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
             {clipsLoading ? (
               <div className="rounded-2xl border border-dashed border-neutral-200 bg-white p-6 text-sm text-neutral-500">
-                Načítám klipy…
+                {t("clips.desktop.loading")}
               </div>
             ) : clipsError ? (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-700">
@@ -796,17 +847,14 @@ export default function ClipsPage() {
               </div>
             ) : clips.length === 0 ? (
               <div className="rounded-2xl border border-neutral-200 bg-white p-6 text-sm text-neutral-500">
-                Zatím nejsou žádné klipy.
+                {t("clips.desktop.empty")}
               </div>
             ) : (
               clips.map((clip) => {
                 const isRealVideo = Boolean(clip.mediaUrl);
                 const href = clip.postId ? `/clips?post=${encodeURIComponent(clip.postId)}` : "/clips";
                 const durationSeconds = clipDurations[clip.id];
-                const durationLabel =
-                  typeof durationSeconds === "number" && Number.isFinite(durationSeconds)
-                    ? `${Math.floor(durationSeconds / 60)}:${String(Math.floor(durationSeconds % 60)).padStart(2, "0")}`
-                    : "—";
+                const durationLabel = formatDuration(durationSeconds);
                 const likesCount = clip.postId ? likesCountMap[clip.postId] ?? 0 : 0;
                 const isLiked = clip.postId ? likedClipIds.has(clip.postId) : false;
                 const viewsLabel = formatViews(clip.viewsCount);
@@ -860,7 +908,7 @@ export default function ClipsPage() {
                             {clip.postId ? (
                               <button
                                 type="button"
-                                aria-label={isLiked ? "Odebrat like" : "Dát like"}
+                                aria-label={isLiked ? t("clips.overlay.unlikeAria") : t("clips.overlay.likeAria")}
                                 onClick={(event) => {
                                   event.preventDefault();
                                   event.stopPropagation();
@@ -883,7 +931,7 @@ export default function ClipsPage() {
                                   router.push(href);
                                 }}
                                 className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-black/70"
-                                aria-label="Otevřít komentáře"
+                                aria-label={t("clips.desktop.commentsAria")}
                               >
                                 <MessageCircle className="h-4 w-4" />
                               </button>
@@ -897,7 +945,7 @@ export default function ClipsPage() {
                                   router.push(href);
                                 }}
                                 className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-black/70"
-                                aria-label="Sdílet klip"
+                                aria-label={t("clips.desktop.shareClipAria")}
                               >
                                 <Send className="h-4 w-4" />
                               </button>
@@ -915,7 +963,7 @@ export default function ClipsPage() {
                         <div className="flex items-center justify-between gap-3">
                           <p className="flex-1 text-sm font-normal leading-snug text-white/90">{clip.title}</p>
                           <div className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.14em]">
-                            {viewsLabel} zhlédnutí
+                            {t("clips.desktop.views", { count: viewsLabel })}
                           </div>
                         </div>
                       </div>
@@ -931,32 +979,28 @@ export default function ClipsPage() {
           <aside className="hidden space-y-3 lg:block lg:sticky lg:top-6">
             <div className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between text-sm font-semibold text-neutral-900">
-                Tvoje flow
-                <span className="text-xs font-medium text-neutral-500">Mini storyboard</span>
+                {t("clips.sidebar.flowTitle")}
+                <span className="text-xs font-medium text-neutral-500">{t("clips.sidebar.flowBadge")}</span>
               </div>
               <div className="space-y-2 text-sm text-neutral-700">
                 <div className="rounded-xl border border-dashed border-neutral-200 bg-neutral-50 px-3 py-2">
-                  <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">Idea</p>
-                  <p className="font-semibold text-neutral-900">Co teď natáčíš?</p>
-                  <p className="text-xs text-neutral-500">Vhoď sem vibe, hudbu a linkni nChat.</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">{t("clips.sidebar.ideaEyebrow")}</p>
+                  <p className="font-semibold text-neutral-900">{t("clips.sidebar.ideaTitle")}</p>
+                  <p className="text-xs text-neutral-500">{t("clips.sidebar.ideaBody")}</p>
                 </div>
                 <div className="rounded-xl border border-neutral-200 bg-white px-3 py-2 shadow-sm">
-                  <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">Spojka</p>
-                  <p className="font-semibold text-neutral-900">Sdílej do nChat</p>
-                  <p className="text-xs text-neutral-500">
-                    Každý klip má share do nChat – rychlé reakce od lidí, co sleduješ.
-                  </p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-neutral-500">{t("clips.sidebar.bridgeEyebrow")}</p>
+                  <p className="font-semibold text-neutral-900">{t("clips.sidebar.bridgeTitle")}</p>
+                  <p className="text-xs text-neutral-500">{t("clips.sidebar.bridgeBody")}</p>
                 </div>
                 <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-900 px-3 py-3 text-white shadow-sm">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-neutral-300">
-                      Zvuk týdne
-                    </p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-neutral-300">{t("clips.sidebar.soundEyebrow")}</p>
                     <p className="text-sm font-semibold">lofi sprint · 00:18</p>
                   </div>
                   <button className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-neutral-900 transition hover:-translate-y-0.5">
                     <Play className="h-4 w-4" />
-                    Přehrát
+                    {t("clips.sidebar.play")}
                   </button>
                 </div>
               </div>
@@ -966,7 +1010,7 @@ export default function ClipsPage() {
               <div className="flex items-center justify-between text-sm font-semibold text-neutral-900">
                 <span className="inline-flex items-center gap-2">
                   <Flame className="h-4 w-4 text-orange-500" />
-                  Trendy dnes
+                  {t("clips.sidebar.trendingTitle")}
                 </span>
                 <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
                   nClips
@@ -980,7 +1024,7 @@ export default function ClipsPage() {
                   >
                     <div className="flex items-center gap-2">
                       <span className="h-2 w-2 rounded-full bg-orange-500 shadow-[0_0_0_4px_rgba(249,115,22,0.15)]" />
-                      <span className="font-semibold text-neutral-900">{item.label}</span>
+                      <span className="font-semibold text-neutral-900">{t(`clips.trending.${item.id}`)}</span>
                     </div>
                     <span className="text-xs font-semibold text-orange-600">{item.stat}</span>
                   </div>

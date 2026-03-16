@@ -3,25 +3,27 @@
 import { Bot, Send, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
+import { useTranslations } from "@/components/i18n/LocaleProvider";
 
-const labels: { prefix: string; message: string; prompt: string }[] = [
-  { prefix: "/real", message: "NEXA: trend scout pro nReal", prompt: "Zrekapituluj top 3 nReal momenty." },
-  { prefix: "/news", message: "NEXA: shrne dnešní nNews", prompt: "Shrň dnešní NRW News do 2 vět." },
-  { prefix: "/love", message: "NEXA: pomůže se superlike copy", prompt: "Navrhni superlike message." },
-  { prefix: "/clips", message: "NEXA: tipne hudbu k nClips", prompt: "Vymysli hudbu a popisek pro klip." },
-  { prefix: "/chat", message: "NEXA: navrhne odpověď v chatu", prompt: "Co odpovědět Natce na meetup?" },
-  { prefix: "/id", message: "NEXA: doladí bio na nID", prompt: "Vylepši bio pro nrw.id." },
+const labels: { prefix: string; key: string }[] = [
+  { prefix: "/real", key: "real" },
+  { prefix: "/news", key: "news" },
+  { prefix: "/love", key: "love" },
+  { prefix: "/clips", key: "clips" },
+  { prefix: "/chat", key: "chat" },
+  { prefix: "/id", key: "id" },
 ];
 
 export function NexaBubble() {
   const pathname = usePathname();
+  const t = useTranslations();
   const [isOpen, setIsOpen] = useState(false);
   const context = useMemo(
     () => labels.find((item) => pathname.startsWith(item.prefix)),
     [pathname]
   );
-  const label = context?.message ?? "NEXA AI: rychlá nápověda";
-  const prompt = context?.prompt ?? "Zeptej se na cokoliv z NRW.";
+  const label = context ? t(`nexa.contexts.${context.key}.message`) : t("nexa.defaultLabel");
+  const prompt = context ? t(`nexa.contexts.${context.key}.prompt`) : t("nexa.defaultPrompt");
 
   return (
     <div
@@ -43,7 +45,7 @@ export function NexaBubble() {
               type="button"
               onClick={() => setIsOpen(false)}
               className="rounded-full p-1 text-white/80 transition hover:bg-white/10 hover:text-white"
-              aria-label="Zavřít NEXA AI"
+              aria-label={t("nexa.closeAria")}
             >
               <X className="h-4 w-4" />
             </button>
@@ -64,8 +66,8 @@ export function NexaBubble() {
               </div>
               <div className="flex justify-end">
                 <div className="rounded-2xl bg-neutral-900 px-3 py-2 text-white">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-neutral-300">Ty</p>
-                  <p>OK, pojď na to.</p>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-neutral-300">{t("nexa.you")}</p>
+                  <p>{t("nexa.ready")}</p>
                 </div>
               </div>
             </div>
@@ -74,7 +76,7 @@ export function NexaBubble() {
           <div className="flex items-center gap-2 border-t border-neutral-200 px-4 py-3">
             <input
               type="text"
-              placeholder="Napiš zprávu NEXA AI…"
+              placeholder={t("nexa.placeholder")}
               className="flex-1 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-800 placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none"
             />
             <button
@@ -82,7 +84,7 @@ export function NexaBubble() {
               className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-px hover:bg-neutral-800"
             >
               <Send className="h-4 w-4" />
-              Poslat
+              {t("nexa.send")}
             </button>
           </div>
         </div>

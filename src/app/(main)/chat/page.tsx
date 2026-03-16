@@ -4,6 +4,7 @@ import { ChevronLeft, Info, MessageCircle, Plus, Search, X } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useLocale, useTranslations } from "@/components/i18n/LocaleProvider";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { requestAuth } from "@/lib/auth-required";
 import { getOrCreateDirectChat } from "@/lib/chat";
@@ -35,8 +36,10 @@ type ChatSummary = {
 const CHAT_CACHE_KEY = "nrw.chat.threads";
 const CHAT_CACHE_TTL_MS = 30000;
 
-function profileLabel(profile: ProfileLite | null) {
-  const name = profile?.display_name?.trim() || profile?.username?.trim() || "nChat";
+type TranslateFn = (key: string, values?: Record<string, string | number>) => string;
+
+function profileLabel(profile: ProfileLite | null, fallback: string) {
+  const name = profile?.display_name?.trim() || profile?.username?.trim() || fallback;
   const username = profile?.username?.trim();
   return { name, username: username ? `@${username}` : null };
 }
@@ -56,14 +59,14 @@ function isYesterday(date: Date, now: Date) {
   return isSameDay(date, yesterday);
 }
 
-function formatLastMessageLabel(value?: string | null) {
+function formatLastMessageLabel(t: TranslateFn, locale: string, value?: string | null) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
 
   const now = new Date();
-  if (isSameDay(date, now)) return "dnes";
-  if (isYesterday(date, now)) return "včera";
+  if (isSameDay(date, now)) return t("chat.today");
+  if (isYesterday(date, now)) return t("chat.yesterday");
 
   const day = date.getDate();
   const month = date.getMonth() + 1;
@@ -83,6 +86,7 @@ function sortChatsByRecent(a: ChatSummary, b: ChatSummary) {
 }
 
 export default function ChatPage() {
+  const t = useTranslations();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const searchParams = useSearchParams();
   const canHydrate = canHydrateFromSession();
@@ -203,10 +207,12 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!isDesktop) return;
+    if (loadingChats) return;
+    if (requestedChatId) return;
     if (!chats.length && activeChatId) {
       setActiveChatId("");
     }
-  }, [activeChatId, chats.length, isDesktop]);
+  }, [activeChatId, chats.length, isDesktop, loadingChats, requestedChatId]);
 
   useEffect(() => {
     if (!newChatOpen) {
@@ -294,7 +300,7 @@ export default function ChatPage() {
 
   const handleOpenNewChat = () => {
     if (!currentUserId) {
-      requestAuth({ message: "Přihlaste se pro nChat." });
+      requestAuth({ message: t("chat.authRequired") });
       return;
     }
     setNewChatOpen(true);
@@ -313,7 +319,7 @@ export default function ChatPage() {
 
   const handleSelectUser = async (profile: ProfileLite) => {
     if (!currentUserId) {
-      requestAuth({ message: "Přihlaste se pro nChat." });
+      requestAuth({ message: t("chat.authRequired") });
       return;
     }
 
@@ -341,8 +347,8 @@ export default function ChatPage() {
       <section className="flex h-full w-full flex-1 flex-col gap-0 px-0 py-0 md:gap-4 md:px-8 md:py-8 min-h-0">
         <header className="hidden md:flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-neutral-900">nChat</h1>
-            <p className="text-sm text-neutral-600">Rychlé zprávy, rooms i reakce.</p>
+            <h1 className="text-3xl font-semibold tracking-tight text-neutral-900">{t("chat.title")}</h1>
+            <p className="text-sm text-neutral-600">{t("chat.description")}</p>
           </div>
           <div className="hidden md:block" aria-hidden />
         </header>
@@ -397,9 +403,9 @@ export default function ChatPage() {
                     <MessageCircle className="h-8 w-8" />
                   </div>
                   <div>
-                    <p className="text-lg font-semibold text-neutral-900">Vaše zprávy</p>
+                    <p className="text-lg font-semibold text-neutral-900">{t("chat.emptyState.title")}</p>
                     <p className="mt-1 text-sm text-neutral-500">
-                      Pošlete příteli nebo skupině soukromé fotky a zprávy.
+                      {t("chat.emptyState.description")}
                     </p>
                   </div>
                   <button
@@ -407,7 +413,7 @@ export default function ChatPage() {
                     onClick={handleOpenNewChat}
                     className="rounded-full bg-neutral-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
                   >
-                    Odeslat zprávu
+                    {t("chat.emptyState.cta")}
                   </button>
                 </div>
               </div>
@@ -431,12 +437,13 @@ export default function ChatPage() {
 }
 
 function SearchBar() {
+  const t = useTranslations();
   return (
     <div className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700 shadow-sm">
       <Search className="h-4 w-4 text-neutral-400" />
       <input
         type="search"
-        placeholder="Hledej lidi nebo vlákna"
+        placeholder={t("chat.sidebar.searchPlaceholder")}
         className="w-48 bg-transparent text-sm text-neutral-800 outline-none placeholder:text-neutral-400"
       />
     </div>
@@ -444,19 +451,20 @@ function SearchBar() {
 }
 
 function SidebarHeader({ onNewChat }: { onNewChat: () => void }) {
+  const t = useTranslations();
   return (
     <div className="border-b border-neutral-100 px-4 py-3">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">Chaty</p>
-          <p className="text-sm text-neutral-600">Tvůj hlavní inbox</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">{t("chat.sidebar.eyebrow")}</p>
+          <p className="text-sm text-neutral-600">{t("chat.sidebar.inbox")}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onNewChat}
             className="rounded-full border border-neutral-200 p-2 text-neutral-600 transition hover:border-neutral-300 hover:bg-neutral-50"
-            aria-label="Nový chat"
+            aria-label={t("chat.sidebar.newChatAria")}
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -479,11 +487,13 @@ function ThreadList({
   activeChatId: string;
   onSelect: (id: string) => void;
 }) {
+  const t = useTranslations();
+  const { locale } = useLocale();
   const { onlineIds } = useOnlineUsers();
   if (!chats.length) {
     return (
       <div className="flex flex-1 items-center justify-center px-4 py-10 text-sm text-neutral-500">
-        Začni nový chat.
+        {t("chat.threadList.startNew")}
       </div>
     );
   }
@@ -491,9 +501,9 @@ function ThreadList({
   return (
     <div className="divide-y divide-neutral-100">
       {chats.map((chat) => {
-        const { name, username } = profileLabel(chat.other);
+        const { name, username } = profileLabel(chat.other, t("chat.profileFallback"));
         const isActive = chat.id === activeChatId;
-        const lastLabel = formatLastMessageLabel(chat.lastMessageAt);
+        const lastLabel = formatLastMessageLabel(t, locale, chat.lastMessageAt);
         const isOnline = Boolean(chat.other?.id && onlineIds.has(chat.other.id));
         const lastSeenTone = getLastSeenTone(chat.other?.last_seen ?? null);
         const offlineDot =
@@ -542,7 +552,7 @@ function ThreadList({
                 ) : null}
               </div>
               <div className={`text-xs ${isActive ? "text-white/80" : "text-neutral-500"}`}>
-                {username ?? "Direct chat"}
+                {username ?? t("chat.directChat")}
               </div>
             </div>
           </button>
@@ -573,9 +583,10 @@ function ThreadHeader({
   onBack?: () => void;
   onInfo?: () => void;
 }) {
-  const { name, username } = profileLabel(profile);
+  const t = useTranslations();
+  const { name, username } = profileLabel(profile, t("chat.profileFallback"));
   const { isOnline } = useUserPresence(profile?.id ?? null);
-  const lastSeenLabel = isOnline ? "Online" : formatLastSeen(profile?.last_seen ?? null);
+  const lastSeenLabel = isOnline ? t("chat.header.online") : formatLastSeen(profile?.last_seen ?? null);
   const lastSeenTone = getLastSeenTone(profile?.last_seen ?? null);
   const statusDot = isOnline
     ? "bg-emerald-500"
@@ -590,7 +601,7 @@ function ThreadHeader({
             type="button"
             onClick={onBack}
             className="md:hidden rounded-full p-2 text-neutral-500 transition hover:bg-neutral-100"
-            aria-label="Zpět na chaty"
+            aria-label={t("chat.header.backAria")}
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
@@ -623,7 +634,7 @@ function ThreadHeader({
                   <span>{isOnline ? "Online" : lastSeenLabel}</span>
                 </div>
               ) : (
-                <div className="text-[11px] text-neutral-500">Direct chat</div>
+                <div className="text-[11px] text-neutral-500">{t("chat.directChat")}</div>
               )}
             </div>
           </Link>
@@ -652,7 +663,7 @@ function ThreadHeader({
                   <span>{isOnline ? "Online" : lastSeenLabel}</span>
                 </div>
               ) : (
-                <div className="text-[11px] text-neutral-500">Direct chat</div>
+                <div className="text-[11px] text-neutral-500">{t("chat.directChat")}</div>
               )}
             </div>
           </>
@@ -663,7 +674,7 @@ function ThreadHeader({
           type="button"
           onClick={onInfo}
           className="rounded-full p-2 text-neutral-500 transition hover:bg-neutral-100"
-          aria-label="Info o chatu"
+          aria-label={t("chat.header.infoAria")}
         >
           <Info className="h-5 w-5" />
         </button>
@@ -679,18 +690,19 @@ function ChatInfoPanel({
   profile: ProfileLite | null;
   onClose: () => void;
 }) {
+  const t = useTranslations();
   if (!profile) return null;
-  const { name, username } = profileLabel(profile);
+  const { name, username } = profileLabel(profile, t("chat.profileFallback"));
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto p-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-neutral-900">Info o chatu</h2>
+        <h2 className="text-lg font-semibold text-neutral-900">{t("chat.info.title")}</h2>
         <button
           type="button"
           onClick={onClose}
           className="rounded-full p-2 text-neutral-500 transition hover:bg-neutral-100"
-          aria-label="Zavřít"
+          aria-label={t("common.actions.close")}
         >
           <X className="h-4 w-4" />
         </button>
@@ -717,25 +729,25 @@ function ChatInfoPanel({
 
       <div className="mt-6 space-y-3">
         <div className="rounded-xl border border-neutral-200 p-3">
-          <div className="text-xs font-semibold text-neutral-500">Sdílená média</div>
-          <div className="mt-2 text-sm text-neutral-600">Zatím žádné fotky.</div>
+          <div className="text-xs font-semibold text-neutral-500">{t("chat.info.sharedMedia")}</div>
+          <div className="mt-2 text-sm text-neutral-600">{t("chat.info.noPhotos")}</div>
         </div>
         <div className="rounded-xl border border-neutral-200 p-3">
-          <div className="text-xs font-semibold text-neutral-500">Akce</div>
+          <div className="text-xs font-semibold text-neutral-500">{t("chat.info.actions")}</div>
           <div className="mt-3 flex flex-col gap-2">
             <button
               type="button"
               disabled
               className="rounded-lg border border-neutral-200 px-3 py-2 text-left text-sm text-neutral-400"
             >
-              Zablokovat účet (připravujeme)
+              {t("chat.info.blockSoon")}
             </button>
             <button
               type="button"
               disabled
               className="rounded-lg border border-neutral-200 px-3 py-2 text-left text-sm text-neutral-400"
             >
-              Nahlásit účet (připravujeme)
+              {t("chat.info.reportSoon")}
             </button>
           </div>
         </div>
@@ -763,6 +775,7 @@ function NewChatOverlay({
   onQueryChange: (value: string) => void;
   onSelect: (profile: ProfileLite) => void;
 }) {
+  const t = useTranslations();
   if (!open) return null;
 
   return (
@@ -777,12 +790,12 @@ function NewChatOverlay({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-neutral-900">Nový chat</h2>
+          <h2 className="text-lg font-semibold text-neutral-900">{t("chat.new.title")}</h2>
           <button
             type="button"
             onClick={onClose}
             className="rounded-full p-2 text-neutral-500 transition hover:bg-neutral-100"
-            aria-label="Zavřít"
+            aria-label={t("common.actions.close")}
           >
             <X className="h-4 w-4" />
           </button>
@@ -794,22 +807,22 @@ function NewChatOverlay({
             type="text"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="Vyhledat uživatele"
+            placeholder={t("chat.new.searchPlaceholder")}
             className="w-full bg-transparent text-sm text-neutral-800 outline-none placeholder:text-neutral-400"
           />
         </div>
 
         <div className="mt-4 max-h-[360px] overflow-y-auto">
           {loading ? (
-            <div className="p-3 text-sm text-neutral-500">Hledám…</div>
+            <div className="p-3 text-sm text-neutral-500">{t("chat.new.searching")}</div>
           ) : query.trim().length === 0 ? (
-            <div className="p-3 text-sm text-neutral-500">Zadej jméno nebo username.</div>
+            <div className="p-3 text-sm text-neutral-500">{t("chat.new.enterQuery")}</div>
           ) : results.length === 0 ? (
-            <div className="p-3 text-sm text-neutral-500">Žádné výsledky.</div>
+            <div className="p-3 text-sm text-neutral-500">{t("chat.new.noResults")}</div>
           ) : (
             <ul className="space-y-2">
               {results.map((profile) => {
-                const { name, username } = profileLabel(profile);
+                const { name, username } = profileLabel(profile, t("chat.profileFallback"));
                 const isCreating = creatingUserId === profile.id;
                 return (
                   <li key={profile.id}>
@@ -835,7 +848,7 @@ function NewChatOverlay({
                         <div className="truncate font-semibold text-neutral-900">{name}</div>
                         {username ? <div className="text-xs text-neutral-500">{username}</div> : null}
                       </div>
-                      {isCreating ? <span className="ml-auto text-xs text-neutral-500">Otevírám…</span> : null}
+                      {isCreating ? <span className="ml-auto text-xs text-neutral-500">{t("chat.new.opening")}</span> : null}
                     </button>
                   </li>
                 );

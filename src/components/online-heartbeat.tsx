@@ -44,12 +44,12 @@ export function OnlineHeartbeat() {
           body: JSON.stringify({ user_id: userId, path: pathname }),
         });
       } catch (e) {
-        // tiché selhání, nechceme shodit UI
+        // Silent failure so background presence does not break the UI.
         console.error("heartbeat failed", e);
       }
 
       if (!stopped) {
-        // další ping za 30 sekund
+        // Schedule the next ping after 30 seconds.
         setTimeout(sendPing, 30_000);
       }
     }

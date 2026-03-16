@@ -20,13 +20,14 @@ export function ConfirmDialog({
   title,
   message,
   confirmText = "OK",
-  cancelText = "Zrušit",
+  cancelText,
   danger,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
   const t = useTranslations();
   const cancelRef = useRef<HTMLButtonElement | null>(null);
+  const resolvedCancelText = cancelText ?? t("common.actions.cancel");
 
   useEffect(() => {
     if (open) {
@@ -79,7 +80,7 @@ export function ConfirmDialog({
             onClick={onCancel}
             className="rounded-full px-4 py-2 text-sm font-semibold text-neutral-700 transition hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-300"
           >
-            {cancelText}
+            {resolvedCancelText}
           </button>
           <button
             type="button"

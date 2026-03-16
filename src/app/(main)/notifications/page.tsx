@@ -32,30 +32,30 @@ function errorMessage(err: unknown) {
   return null;
 }
 
-function formatTimeLabel(createdAt?: string | null) {
-  if (!createdAt) return "neznámý čas";
+function formatTimeLabel(createdAt: string | null | undefined, t: (key: string, values?: Record<string, unknown>) => string) {
+  if (!createdAt) return t("notifications.time.unknown");
   const date = new Date(createdAt);
-  if (Number.isNaN(date.getTime())) return "neznámý čas";
+  if (Number.isNaN(date.getTime())) return t("notifications.time.unknown");
   const diffMs = Date.now() - date.getTime();
   const diffMin = Math.floor(diffMs / 60000);
   const diffH = Math.floor(diffMin / 60);
-  if (diffMin < 1) return "před chvílí";
-  if (diffMin < 60) return `před ${diffMin} min`;
-  if (diffH < 24) return `před ${diffH} h`;
+  if (diffMin < 1) return t("notifications.time.justNow");
+  if (diffMin < 60) return t("notifications.time.minutesAgo", { count: diffMin });
+  if (diffH < 24) return t("notifications.time.hoursAgo", { count: diffH });
   return date.toLocaleDateString("cs-CZ", { day: "numeric", month: "short" });
 }
 
-function notificationText(type: string) {
-  const t = (type ?? "").toLowerCase();
-  if (t === "follow" || t === "followed") return "začal/a tě sledovat";
-  return "poslal/a notifikaci";
+function notificationText(type: string, translate: (key: string) => string) {
+  const normalized = (type ?? "").toLowerCase();
+  if (normalized === "follow" || normalized === "followed") return translate("notifications.activity.followed");
+  return translate("notifications.activity.notified");
 }
 
-function severityLabel(value: string | null | undefined): string | null {
+function severityLabel(value: string | null | undefined, t: (key: string) => string): string | null {
   const v = (value ?? "").toLowerCase();
-  if (v === "info") return "Info";
-  if (v === "warn") return "Varování";
-  if (v === "urgent") return "Důležité";
+  if (v === "info") return t("announcements.labels.info");
+  if (v === "warn") return t("announcements.labels.warn");
+  if (v === "urgent") return t("announcements.labels.urgent");
   return null;
 }
 
@@ -223,7 +223,7 @@ export default function NotificationsPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user?.id) throw new Error("Musíš být přihlášený.");
+      if (!user?.id) throw new Error(t("notifications.signInRequired"));
 
       const { error } = await supabase
         .from("notifications")
@@ -275,13 +275,13 @@ export default function NotificationsPage() {
             {items.map((n) => {
               const actor = n.actor_id ? actorsById[n.actor_id] : null;
               const safeUsername = safeIdentityLabel(actor?.username ?? null, "");
-              const name = safeIdentityLabel(actor?.display_name ?? null, safeUsername || "NRW uživatel");
+              const name = safeIdentityLabel(actor?.display_name ?? null, safeUsername || t("notifications.userFallback"));
               const username = safeUsername ? `@${safeUsername}` : null;
               const unread = !n.read_at;
               const isAnnouncement = (n.type ?? "").toLowerCase() === "announcement";
               const annTitle = (n.title ?? "").trim() || t("notifications.announcementFallback");
               const annBody = (n.body ?? "").trim();
-              const annSeverity = severityLabel(n.severity);
+              const annSeverity = severityLabel(n.severity, t);
               const hasUrl = Boolean((n.url ?? "").trim());
               return (
                 <div
@@ -337,13 +337,13 @@ export default function NotificationsPage() {
                             <span className="font-semibold text-neutral-900">{name}</span>
                             {username ? <span className="text-xs text-neutral-500">{username}</span> : null}
                           </div>
-                          <div className="text-sm text-neutral-700">{notificationText(n.type)}</div>
+                          <div className="text-sm text-neutral-700">{notificationText(n.type, t)}</div>
                         </>
                       )}
                     </div>
                   </div>
                   <div className="shrink-0 text-right">
-                    <div className="text-xs font-semibold text-neutral-500">{formatTimeLabel(n.created_at)}</div>
+                    <div className="text-xs font-semibold text-neutral-500">{formatTimeLabel(n.created_at, t)}</div>
                     {isAnnouncement && hasUrl ? (
                       <a
                         href={(n.url ?? "").trim()}

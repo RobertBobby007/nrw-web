@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Image as ImageIcon, Video as VideoIcon } from "lucide-react";
+import { useTranslations } from "@/components/i18n/LocaleProvider";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { subscribeToTable } from "@/lib/realtime";
 import { containsBlockedContent, safeIdentityLabel } from "@/lib/content-filter";
@@ -37,6 +38,8 @@ const VIDEO_SOFT_UPLOAD_LIMIT_BYTES = 95 * 1024 * 1024;
 const VIDEO_TARGET_BITRATE = 1_500_000;
 const AUDIO_TARGET_BITRATE = 128_000;
 const VIDEO_MAX_DURATION_DIFF_SECONDS = 0.75;
+const COMPOSER_MIN_HEIGHT_PX = 72;
+const COMPOSER_MAX_HEIGHT_PX = 320;
 
 type CropPreset = "4:5" | "1:1" | "16:9";
 type CropRect = { x: number; y: number; width: number; height: number };
@@ -81,6 +84,16 @@ const CROP_PRESETS: CropPreset[] = ["4:5", "1:1", "16:9"];
 let nrealPostsCache: { userId: string | null; posts: NrealPost[]; fetchedAt: number } | null = null;
 const POST_SESSION_KEY = "nrw.feed.nreal";
 const POST_SESSION_TTL_MS = 30000;
+const REAL_FEED_ERROR_CODES = {
+  imageCompressionLoad: "real_feed_image_compression_load_failed",
+  videoMetadataLoad: "real_feed_video_metadata_load_failed",
+  videoCompressionLoad: "real_feed_video_compression_load_failed",
+  videoRecorderFailed: "real_feed_video_recorder_failed",
+  videoPlaybackFailed: "real_feed_video_playback_failed",
+  storageConfigMissing: "real_feed_storage_config_missing",
+  uploadFailed: "real_feed_upload_failed",
+  uploadNetworkFailed: "real_feed_upload_network_failed",
+} as const;
 
 function replaceFileExtension(fileName: string, nextExt: string) {
   const base = fileName.replace(/\.[^/.]+$/, "");
@@ -91,7 +104,7 @@ function loadImageElement(src: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Nepodařilo se načíst obrázek pro kompresi."));
+    image.onerror = () => reject(new Error(REAL_FEED_ERROR_CODES.imageCompressionLoad));
     image.src = src;
   });
 }
@@ -272,7 +285,7 @@ async function getVideoDuration(file: File) {
   try {
     await new Promise<void>((resolve, reject) => {
       video.onloadedmetadata = () => resolve();
-      video.onerror = () => reject(new Error("Nepodařilo se načíst metadata videa."));
+      video.onerror = () => reject(new Error(REAL_FEED_ERROR_CODES.videoMetadataLoad));
     });
     return Number.isFinite(video.duration) ? video.duration : null;
   } catch {
@@ -282,10 +295,24 @@ async function getVideoDuration(file: File) {
   }
 }
 
+function shouldAvoidWebmCompression() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent.toLowerCase();
+  const isIos = /iphone|ipad|ipod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isSafari = /safari/.test(ua) && !/chrome|crios|chromium|android|edg|opr|firefox|fxios/.test(ua);
+  if (isIos || isSafari) return true;
+
+  const probe = document.createElement("video");
+  const canPlayVp8 = probe.canPlayType('video/webm; codecs="vp8,opus"');
+  const canPlayVp9 = probe.canPlayType('video/webm; codecs="vp9,opus"');
+  return !(canPlayVp8 || canPlayVp9);
+}
+
 async function compressVideoFilePreserveAudio(file: File, onProgress?: (progress: number) => void) {
   if (!file.type.startsWith("video/")) return file;
   if (file.size < VIDEO_COMPRESS_TRIGGER_BYTES) return file;
   if (typeof MediaRecorder === "undefined") return file;
+  if (shouldAvoidWebmCompression()) return file;
 
   const objectUrl = URL.createObjectURL(file);
   const video = document.createElement("video");
@@ -299,7 +326,7 @@ async function compressVideoFilePreserveAudio(file: File, onProgress?: (progress
   try {
     await new Promise<void>((resolve, reject) => {
       video.onloadedmetadata = () => resolve();
-      video.onerror = () => reject(new Error("Nepodařilo se načíst video pro kompresi."));
+      video.onerror = () => reject(new Error(REAL_FEED_ERROR_CODES.videoCompressionLoad));
     });
 
     const captureStreamFn =
@@ -325,7 +352,7 @@ async function compressVideoFilePreserveAudio(file: File, onProgress?: (progress
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunks.push(event.data);
       };
-      recorder.onerror = () => reject(new Error("Kompresní rekordér videa selhal."));
+      recorder.onerror = () => reject(new Error(REAL_FEED_ERROR_CODES.videoRecorderFailed));
       recorder.onstop = () => resolve(new Blob(chunks, { type: supportedMimeType }));
     });
 
@@ -340,7 +367,7 @@ async function compressVideoFilePreserveAudio(file: File, onProgress?: (progress
 
     await new Promise<void>((resolve, reject) => {
       video.onended = () => resolve();
-      video.onerror = () => reject(new Error("Přehrávání videa selhalo při kompresi."));
+      video.onerror = () => reject(new Error(REAL_FEED_ERROR_CODES.videoPlaybackFailed));
     });
 
     if (recorder.state !== "inactive") recorder.stop();
@@ -372,6 +399,7 @@ async function compressVideoFilePreserveAudio(file: File, onProgress?: (progress
 }
 
 export function RealFeedClient() {
+  const t = useTranslations();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const canHydrate = canHydrateFromSession();
   const initialUserId = canHydrate
@@ -401,6 +429,7 @@ export function RealFeedClient() {
   const [likingPostIds, setLikingPostIds] = useState<Set<string>>(new Set());
   const deletedPostsRef = useRef<Map<string, NrealPost>>(new Map());
   const cropGestureRef = useRef<CropGestureState>({ mode: "none" });
+  const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const cachePosts = (nextPosts: NrealPost[], cacheUserId: string | null) => {
     nrealPostsCache = {
@@ -431,6 +460,28 @@ export function RealFeedClient() {
       likedByCurrentUser: post.likedByCurrentUser ?? false,
       commentsCount: post.commentsCount ?? 0,
     };
+  };
+
+  const localizeRuntimeError = (message: string) => {
+    switch (message) {
+      case REAL_FEED_ERROR_CODES.imageCompressionLoad:
+        return t("real.composer.errors.imageCompressionLoad");
+      case REAL_FEED_ERROR_CODES.videoMetadataLoad:
+        return t("real.composer.errors.videoMetadataLoad");
+      case REAL_FEED_ERROR_CODES.videoCompressionLoad:
+        return t("real.composer.errors.videoCompressionLoad");
+      case REAL_FEED_ERROR_CODES.videoRecorderFailed:
+        return t("real.composer.errors.videoRecorderFailed");
+      case REAL_FEED_ERROR_CODES.videoPlaybackFailed:
+        return t("real.composer.errors.videoPlaybackFailed");
+      case REAL_FEED_ERROR_CODES.storageConfigMissing:
+        return t("real.composer.errors.storageConfigMissing");
+      case REAL_FEED_ERROR_CODES.uploadFailed:
+      case REAL_FEED_ERROR_CODES.uploadNetworkFailed:
+        return t("real.composer.errors.uploadTransportFailed");
+      default:
+        return message;
+    }
   };
 
   useEffect(() => {
@@ -792,6 +843,13 @@ export function RealFeedClient() {
 
   const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
+  const resizeComposerTextarea = () => {
+    const textarea = composerTextareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "0px";
+    textarea.style.height = `${Math.min(COMPOSER_MAX_HEIGHT_PX, Math.max(COMPOSER_MIN_HEIGHT_PX, textarea.scrollHeight))}px`;
+  };
+
   const applyActivePhotoGesture = (nextZoom: number, nextOffsetX: number, nextOffsetY: number) => {
     updateActivePhotoAsset((asset) => ({
       ...asset,
@@ -848,6 +906,10 @@ export function RealFeedClient() {
     };
   });
 
+  useEffect(() => {
+    resizeComposerTextarea();
+  }, [content]);
+
   const removePhotoAsset = (localId: string) => {
     setPhotoAssets((prev) => {
       const target = prev.find((asset) => asset.localId === localId);
@@ -874,7 +936,7 @@ export function RealFeedClient() {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error("Chybí konfigurace úložiště.");
+      throw new Error(REAL_FEED_ERROR_CODES.storageConfigMissing);
     }
 
     const encodedPath = path
@@ -901,11 +963,10 @@ export function RealFeedClient() {
           onProgress(1);
           resolve();
         } else {
-          const responseText = (xhr.responseText || "").slice(0, 220);
-          reject(new Error(`Nahrání selhalo (${xhr.status})${responseText ? `: ${responseText}` : ""}`));
+          reject(new Error(REAL_FEED_ERROR_CODES.uploadFailed));
         }
       };
-      xhr.onerror = () => reject(new Error("Nahrání selhalo (síť/chyba připojení)."));
+      xhr.onerror = () => reject(new Error(REAL_FEED_ERROR_CODES.uploadNetworkFailed));
       xhr.send(file);
     });
   };
@@ -921,7 +982,7 @@ export function RealFeedClient() {
     const hasExistingMedia = mediaType === "image" ? photoAssets.length > 0 : mediaFiles.length > 0;
     if (containsVideo) {
       if (files.length > 1 || hasExistingMedia) {
-        setError("Video nelze kombinovat s fotkami a jde nahrát jen jedno.");
+        setError(t("real.composer.errors.videoMixed"));
         return;
       }
       const file = files.find((f) => f.type.startsWith("video")) ?? files[0];
@@ -934,7 +995,7 @@ export function RealFeedClient() {
 
     const imageFiles = files.filter((file) => file.type.startsWith("image/"));
     if (imageFiles.length === 0) {
-      setError("Podporujeme jen obrázky nebo jedno video.");
+      setError(t("real.composer.errors.unsupportedMedia"));
       return;
     }
 
@@ -943,12 +1004,12 @@ export function RealFeedClient() {
     const filesToAdd = imageFiles.slice(0, availableSlots);
 
     if (filesToAdd.length < imageFiles.length) {
-      setError(`Maximálně ${MAX_POST_MEDIA_IMAGES} fotky.`);
+      setError(t("real.composer.errors.maxPhotos", { count: MAX_POST_MEDIA_IMAGES }));
     }
 
     if (filesToAdd.length === 0 && existingAssets.length > 0) return;
     if (filesToAdd.length === 0) {
-      setError(`Maximálně ${MAX_POST_MEDIA_IMAGES} fotky.`);
+      setError(t("real.composer.errors.maxPhotos", { count: MAX_POST_MEDIA_IMAGES }));
       return;
     }
 
@@ -970,7 +1031,7 @@ export function RealFeedClient() {
   const preparePhotoFilesForUpload = async (assets: EditablePhotoAsset[]) => {
     const prepared: File[] = [];
     if (assets.length === 0) return prepared;
-    setUploadStatus("Aplikuji crop…");
+    setUploadStatus(t("real.composer.status.applyingCrop"));
     setUploadProgress(3);
 
     for (const [index, asset] of assets.entries()) {
@@ -994,16 +1055,16 @@ export function RealFeedClient() {
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData.session?.access_token;
     if (!accessToken) {
-      setError("Musíš být přihlášený.");
+      setError(t("real.composer.errors.signInRequired"));
       return null;
     }
 
     const optimizedFiles: File[] = [];
     if (options?.skipImageOptimization) {
-      setUploadStatus("Připravuji upload…");
+      setUploadStatus(t("real.composer.status.preparingUpload"));
       setUploadProgress((prev) => Math.max(prev ?? 0, 15));
     } else {
-      setUploadStatus("Optimalizuji média…");
+      setUploadStatus(t("real.composer.status.optimizingMedia"));
       setUploadProgress(3);
     }
 
@@ -1012,18 +1073,20 @@ export function RealFeedClient() {
 
       let optimized = file;
       if (file.type.startsWith("image/") && !options?.skipImageOptimization) {
-        setUploadStatus("Optimalizuji fotky…");
+        setUploadStatus(t("real.composer.status.optimizingPhotos"));
         optimized = await compressImageFile(file);
       } else if (file.type.startsWith("video/")) {
-        setUploadStatus(file.size >= VIDEO_COMPRESS_TRIGGER_BYTES ? "Komprimuji video…" : "Připravuji video…");
+        setUploadStatus(
+          file.size >= VIDEO_COMPRESS_TRIGGER_BYTES
+            ? t("real.composer.status.compressingVideo")
+            : t("real.composer.status.preparingVideo"),
+        );
         optimized = await compressVideoFilePreserveAudio(file, (progress) => {
           const next = ((index + progress) / files.length) * 25;
           setUploadProgress(Math.max(3, Math.round(next)));
         });
         if (optimized.size > VIDEO_SOFT_UPLOAD_LIMIT_BYTES) {
-          setError(
-            `Video je moc velké (${Math.round(optimized.size / 1024 / 1024)} MB). Zkus nižší kvalitu nebo kratší klip.`,
-          );
+          setError(t("real.composer.errors.videoTooLarge", { size: Math.round(optimized.size / 1024 / 1024) }));
           return null;
         }
       }
@@ -1035,7 +1098,7 @@ export function RealFeedClient() {
     const uploaded: string[] = [];
     const totalBytes = optimizedFiles.reduce((sum, file) => sum + file.size, 0) || 1;
     let uploadedBytesDone = 0;
-    setUploadStatus("Nahrávám média…");
+    setUploadStatus(t("real.composer.status.uploadingMedia"));
     setUploadProgress((prev) => Math.max(prev ?? 0, 25));
 
     for (const [index, file] of optimizedFiles.entries()) {
@@ -1058,7 +1121,7 @@ export function RealFeedClient() {
         });
         if (fallbackError) {
           uploadFailed = true;
-          setError(`Nahrání souboru selhalo: ${fallbackError.message}`);
+          setError(t("real.composer.errors.fileUploadFailed", { message: fallbackError.message }));
         }
       }
 
@@ -1077,20 +1140,20 @@ export function RealFeedClient() {
     e.preventDefault();
     if (posting) return;
     if (!userId) {
-      setError("Musíš být přihlášený.");
+      setError(t("real.composer.errors.signInRequired"));
       return;
     }
     const trimmed = content.trim();
     const hasSelectedMedia = mediaType === "image" ? photoAssets.length > 0 : mediaFiles.length > 0;
     if (!trimmed && !hasSelectedMedia) return;
     if (trimmed.length > MAX_POST_CHARS) {
-      setError(`Text je moc dlouhý (max ${MAX_POST_CHARS} znaků).`);
+      setError(t("real.composer.errors.textTooLong", { max: MAX_POST_CHARS }));
       return;
     }
     if (trimmed) {
       const { hit } = containsBlockedContent(trimmed);
       if (hit) {
-        setError("Uprav text – obsahuje zakázané výrazy, které mohou být urážlivé. Pokud si myslíš, že jde o omyl, kontaktuj podporu.");
+        setError(t("real.composer.errors.blockedSevere"));
         return;
       }
     }
@@ -1098,7 +1161,7 @@ export function RealFeedClient() {
     setPosting(true);
     setError(null);
     setUploadProgress(hasSelectedMedia ? 1 : null);
-    setUploadStatus(hasSelectedMedia ? "Připravuji upload…" : null);
+    setUploadStatus(hasSelectedMedia ? t("real.composer.status.preparingUpload") : null);
     const preparedPhotoFiles =
       mediaType === "image" && photoAssets.length > 0 ? await preparePhotoFilesForUpload(photoAssets) : [];
     const sourceMediaFiles = mediaType === "image" ? preparedPhotoFiles : mediaFiles;
@@ -1168,7 +1231,7 @@ export function RealFeedClient() {
       setUploadProgress(null);
       setUploadStatus(null);
       setPostsWithCache((prev) => prev.filter((post) => post.id !== optimisticId), userId);
-      setError(err instanceof Error ? err.message : "Publikace selhala.");
+      setError(err instanceof Error ? localizeRuntimeError(err.message) : t("real.composer.errors.publishFailed"));
       return;
     }
 
@@ -1179,13 +1242,13 @@ export function RealFeedClient() {
     if (!response.ok) {
       setPosts((prev) => prev.filter((post) => post.id !== optimisticId));
       if (payload?.error === "blocked_content") {
-        setError("Uprav text – obsahuje zakázané výrazy.");
+        setError(t("real.composer.errors.blockedSimple"));
       } else if (payload?.error === "content_too_long") {
-        setError(`Text je moc dlouhý (max ${payload?.max ?? MAX_POST_CHARS} znaků).`);
+        setError(t("real.composer.errors.textTooLong", { max: payload?.max ?? MAX_POST_CHARS }));
       } else if (payload?.error === "unauthorized") {
-        setError("Musíš být přihlášený.");
+        setError(t("real.composer.errors.signInRequired"));
       } else {
-        setError(payload?.message ?? "Publikace selhala.");
+        setError(payload?.message ?? t("real.composer.errors.publishFailed"));
       }
       return;
     }
@@ -1227,7 +1290,7 @@ export function RealFeedClient() {
 
   const toggleLike = async (postId: string) => {
     if (!currentUserId) {
-      setError("Musíš být přihlášený.");
+      setError(t("real.composer.errors.signInRequired"));
       return;
     }
 
@@ -1282,7 +1345,7 @@ export function RealFeedClient() {
   if (loading) {
     return (
       <div className="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-700 shadow-sm">
-        Načítám příspěvky…
+        {t("real.feed.loading")}
       </div>
     );
   }
@@ -1306,18 +1369,24 @@ export function RealFeedClient() {
   return (
     <div className="space-y-6">
       <div className="rounded-3xl border border-neutral-200 bg-white shadow-sm">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-6 py-5">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3 px-5 py-4 sm:px-6">
           <textarea
+            ref={composerTextareaRef}
             value={content}
             maxLength={MAX_POST_CHARS}
-            onChange={(e) => setContent(e.target.value.slice(0, MAX_POST_CHARS))}
-            placeholder="Co se děje v NRW?"
-            className="min-h-[120px] w-full resize-none border-none bg-transparent text-base outline-none placeholder:text-neutral-400 md:text-sm"
+            rows={1}
+            onChange={(e) => {
+              setContent(e.target.value.slice(0, MAX_POST_CHARS));
+              resizeComposerTextarea();
+            }}
+            placeholder={t("real.composer.placeholder")}
+            className="w-full resize-none overflow-y-auto border-none bg-transparent text-base leading-7 outline-none placeholder:text-neutral-400 md:text-sm"
+            style={{ minHeight: `${COMPOSER_MIN_HEIGHT_PX}px`, maxHeight: `${COMPOSER_MAX_HEIGHT_PX}px` }}
           />
           <div className="flex items-center justify-between text-xs text-neutral-500">
             <span>{content.length}/{MAX_POST_CHARS}</span>
             {content.length >= MAX_POST_CHARS ? (
-              <span className="font-semibold text-red-600">Limit dosažen</span>
+              <span className="font-semibold text-red-600">{t("real.composer.limitReached")}</span>
             ) : null}
           </div>
           <div className="flex items-center gap-3">
@@ -1334,7 +1403,7 @@ export function RealFeedClient() {
               ) : (
                 <ImageIcon className="h-4 w-4 text-neutral-500" />
               )}
-              {hasSelectedMedia ? "Přidat další" : "Přidat foto/video"}
+              {hasSelectedMedia ? t("real.composer.addMore") : t("real.composer.addMedia")}
             </label>
             <button
               type="submit"
@@ -1343,15 +1412,17 @@ export function RealFeedClient() {
             >
               {posting
                 ? uploadProgress !== null
-                  ? `Odesílám… ${Math.max(1, Math.min(100, Math.round(uploadProgress)))}%`
-                  : "Odesílám…"
-                : "Přidat příspěvek"}
+                  ? t("real.composer.submitProgress", {
+                      percent: Math.max(1, Math.min(100, Math.round(uploadProgress))),
+                    })
+                  : t("real.composer.submitting")
+                : t("real.composer.submit")}
             </button>
           </div>
           {posting && uploadProgress !== null ? (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs text-neutral-600">
-                <span>{uploadStatus ?? "Nahrávám…"}</span>
+                <span>{uploadStatus ?? t("real.composer.uploading")}</span>
                 <span className="font-semibold">{Math.max(1, Math.min(100, Math.round(uploadProgress)))}%</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-neutral-200">
@@ -1369,16 +1440,16 @@ export function RealFeedClient() {
                 onClick={resetMedia}
                 className="rounded-lg border border-neutral-200 px-3 py-1 text-xs font-semibold text-neutral-600 transition hover:border-neutral-400"
               >
-                Odebrat
+                {t("real.composer.remove")}
               </button>
               <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                {mediaType === "video" ? "Video" : "Foto"}
+                {mediaType === "video" ? t("real.composer.mediaVideo") : t("real.composer.mediaPhoto")}
               </span>
             </div>
           )}
           {hasSelectedMedia && (
             <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-              <div className="mb-2 text-xs font-semibold text-neutral-700">Náhled</div>
+              <div className="mb-2 text-xs font-semibold text-neutral-700">{t("real.composer.previewTitle")}</div>
               {mediaType === "video" ? (
                 <video
                   src={mediaPreviews[0]}
@@ -1493,7 +1564,7 @@ export function RealFeedClient() {
                       >
                         <img
                           src={activePhotoAsset.previewUrl}
-                          alt="Crop náhled"
+                          alt={t("real.composer.cropPreviewAlt")}
                           className="h-full w-full object-cover"
                           style={{
                             transform: `translate(${activePhotoAsset.offsetX * 22}%, ${activePhotoAsset.offsetY * 22}%) scale(${activePhotoAsset.zoom})`,
@@ -1508,7 +1579,7 @@ export function RealFeedClient() {
                         </div>
                       </div>
                       <div className="text-xs text-neutral-600">
-                        Drag pro posun. Pinch (2 prsty) nebo kolečko myši pro zoom.
+                        {t("real.composer.cropHint")}
                       </div>
                     </>
                   ) : null}
@@ -1525,11 +1596,11 @@ export function RealFeedClient() {
                           type="button"
                           onClick={() => setActivePhotoId(asset.localId)}
                           className="absolute inset-0 z-10"
-                          aria-label={`Upravit náhled ${index + 1}`}
+                          aria-label={t("real.composer.editPreviewAria", { index: index + 1 })}
                         />
                         <img
                           src={asset.previewUrl}
-                          alt={`Náhled ${index + 1}`}
+                          alt={t("real.composer.previewAlt", { index: index + 1 })}
                           className="h-full w-full object-cover"
                           onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
                         />
@@ -1545,7 +1616,7 @@ export function RealFeedClient() {
                           }}
                           className="absolute right-2 top-2 z-20 rounded-full bg-white/90 px-2 py-1 text-[11px] font-semibold text-neutral-700 shadow-sm"
                         >
-                          Odebrat
+                          {t("real.composer.remove")}
                         </button>
                       </div>
                     ))}
@@ -1556,7 +1627,7 @@ export function RealFeedClient() {
           )}
           {mediaType === "image" && photoAssets.length > 0 ? (
             <div className="rounded-lg bg-neutral-100 px-3 py-2 text-xs text-neutral-600">
-              Crop se použije při publikaci. V carouselu bude výška stabilní, single foto se zobrazí v originálním poměru.
+              {t("real.composer.cropAppliedNote")}
             </div>
           ) : null}
           {error && (
@@ -1574,7 +1645,7 @@ export function RealFeedClient() {
             author={{
               displayName: safeIdentityLabel(
                 post.profiles?.[0]?.display_name ?? null,
-                safeIdentityLabel(post.profiles?.[0]?.username ?? null, "") || "NRW uživatel",
+                safeIdentityLabel(post.profiles?.[0]?.username ?? null, "") || t("real.post.userFallback"),
               ),
               username: (() => {
                 const safeUsername = safeIdentityLabel(post.profiles?.[0]?.username ?? null, "");
@@ -1618,7 +1689,7 @@ export function RealFeedClient() {
         ))}
       {posts.length === 0 && (
         <div className="rounded-3xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-600 shadow-sm">
-          Zatím žádné příspěvky.
+          {t("real.feed.empty")}
         </div>
       )}
     </div>

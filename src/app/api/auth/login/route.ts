@@ -10,12 +10,12 @@ export async function POST(req: Request) {
     const password = typeof body?.password === "string" ? body.password : "";
 
     if (!email || !password) {
-      return NextResponse.json({ message: "Vyplň prosím e-mail i heslo." }, { status: 400 });
+      return NextResponse.json({ message: "Please fill in both email and password." }, { status: 400 });
     }
 
     const user = verifyUser({ email, password });
     if (!user) {
-      return NextResponse.json({ message: "E-mail nebo heslo nesedí." }, { status: 401 });
+      return NextResponse.json({ message: "Email or password is incorrect." }, { status: 401 });
     }
 
     const token = createSessionToken(user);
@@ -24,6 +24,6 @@ export async function POST(req: Request) {
     return res;
   } catch (err) {
     console.error("Login error", err);
-    return NextResponse.json({ message: "Něco se pokazilo. Zkus to prosím znovu." }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong. Please try again." }, { status: 500 });
   }
 }

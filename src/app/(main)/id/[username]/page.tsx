@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { BadgeCheck } from "lucide-react";
+import { useLocale, useTranslations } from "@/components/i18n/LocaleProvider";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { safeIdentityLabel } from "@/lib/content-filter";
 import { requestAuth } from "@/lib/auth-required";
@@ -30,12 +31,30 @@ import {
   writeSessionCache,
 } from "@/lib/session-cache";
 
+type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentUser" | "status"> & {
+  status?: NrealPost["status"] | null;
+  profiles?: NrealProfile | NrealProfile[] | null;
+  likesCount?: number;
+  likedByCurrentUser?: boolean;
+  commentsCount?: number;
+};
+
 function toUsernameParam(value: string) {
   return decodeURIComponent(value).trim().replace(/^@+/, "");
 }
 
-function formatCount(value: number) {
-  return value.toLocaleString("cs-CZ");
+function normalizePost(post: SupabasePost): NrealPost {
+  const rawProfiles = post?.profiles;
+  const profiles = Array.isArray(rawProfiles) ? rawProfiles : rawProfiles ? [rawProfiles] : [];
+  return {
+    ...post,
+    status: post.status ?? "approved",
+    is_deleted: (post as SupabasePost).is_deleted ?? null,
+    profiles,
+    likesCount: post.likesCount ?? 0,
+    likedByCurrentUser: post.likedByCurrentUser ?? false,
+    commentsCount: post.commentsCount ?? 0,
+  };
 }
 
 const PROFILE_CACHE_TTL_MS = 60000;
@@ -49,6 +68,8 @@ const postsSessionKey = (username: string, viewerId: string | null) =>
   `nrw.profile.posts.${username}.${viewerId ?? "anon"}`;
 
 export default function PublicProfilePage() {
+  const t = useTranslations();
+  const { locale } = useLocale();
   const params = useParams<{ username: string }>();
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
@@ -153,7 +174,7 @@ export default function PublicProfilePage() {
       }
 
       if (!profileData) {
-        setError("Profil nenalezen.");
+        setError(t("idProfile.public.notFound"));
         setProfile(null);
         setLoading(false);
         return;
@@ -213,28 +234,6 @@ export default function PublicProfilePage() {
   const isOwnProfile = Boolean(currentUserId && profile?.id && currentUserId === profile.id);
   const isBannedProfile = Boolean(profile?.banned_at);
   
-
-  type SupabasePost = Omit<NrealPost, "profiles" | "likesCount" | "likedByCurrentUser" | "status"> & {
-    status?: NrealPost["status"] | null;
-    profiles?: NrealProfile | NrealProfile[] | null;
-    likesCount?: number;
-    likedByCurrentUser?: boolean;
-    commentsCount?: number;
-  };
-
-  const normalizePost = (post: SupabasePost): NrealPost => {
-    const rawProfiles = post?.profiles;
-    const profiles = Array.isArray(rawProfiles) ? rawProfiles : rawProfiles ? [rawProfiles] : [];
-    return {
-      ...post,
-      status: post.status ?? "approved",
-      is_deleted: (post as SupabasePost).is_deleted ?? null,
-      profiles,
-      likesCount: post.likesCount ?? 0,
-      likedByCurrentUser: post.likedByCurrentUser ?? false,
-      commentsCount: post.commentsCount ?? 0,
-    };
-  };
 
   useEffect(() => {
     if (!profile?.id || profile?.banned_at) {
@@ -402,16 +401,16 @@ export default function PublicProfilePage() {
     try {
       if (next) {
         await follow({ followerId: currentUserId, followingId: profile.id });
-        setToast({ type: "success", message: "Sleduješ uživatele." });
+        setToast({ type: "success", message: t("idProfile.public.followSuccess") });
       } else {
         await unfollow({ followerId: currentUserId, followingId: profile.id });
-        setToast({ type: "success", message: "Přestal(a) jsi sledovat." });
+        setToast({ type: "success", message: t("idProfile.public.unfollowSuccess") });
       }
     } catch (e) {
       console.error("Follow toggle failed", e);
       setFollowing(prev);
       setCounts((c) => ({ ...c, followers: Math.max(0, c.followers + (prev ? 1 : -1)) }));
-      setToast({ type: "error", message: "Akce se nepovedla. Zkus to prosím znovu." });
+      setToast({ type: "error", message: t("idProfile.public.actionError") });
     } finally {
       setFollowBusy(false);
     }
@@ -420,7 +419,7 @@ export default function PublicProfilePage() {
   const handleStartChat = async () => {
     if (!profile?.id) return;
     if (!currentUserId) {
-      requestAuth({ message: "Prihlaste se pro nChat." });
+      requestAuth({ message: t("chat.authRequired") });
       return;
     }
 
@@ -430,7 +429,7 @@ export default function PublicProfilePage() {
       router.push(`/chat?chatId=${chatId}`);
     } catch (error) {
       console.error("Start chat failed", error);
-      setToast({ type: "error", message: "Nepodarilo se otevrit chat." });
+      setToast({ type: "error", message: t("idProfile.public.openChatError") });
     } finally {
       setChatBusy(false);
     }
@@ -455,7 +454,7 @@ export default function PublicProfilePage() {
           ) : error ? (
             <div className="text-sm text-red-700">{error}</div>
           ) : !profile ? (
-            <div className="text-sm text-neutral-600">Profil nenalezen.</div>
+            <div className="text-sm text-neutral-600">{t("idProfile.public.notFound")}</div>
           ) : isBannedProfile ? (
             <div className="flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-4">
@@ -464,9 +463,9 @@ export default function PublicProfilePage() {
                 </div>
                 <div className="space-y-1">
                   <h1 className="text-xl font-semibold text-neutral-900">
-                    Tento účet byl smazán nebo deaktivován
+                    {t("idProfile.public.profileUnavailableTitle")}
                   </h1>
-                  <p className="text-sm text-neutral-600">Profil není veřejně dostupný.</p>
+                  <p className="text-sm text-neutral-600">{t("idProfile.public.profileUnavailableShort")}</p>
                 </div>
               </div>
             </div>
@@ -498,7 +497,7 @@ export default function PublicProfilePage() {
                     <h1 className="text-xl font-semibold text-neutral-900">
                       {safeIdentityLabel(
                         profile.display_name,
-                        safeIdentityLabel(profile.username, "Uživatel"),
+                        safeIdentityLabel(profile.username, t("idProfile.userFallback")),
                       )}
                     </h1>
                     {profile.verified ? (
@@ -514,9 +513,11 @@ export default function PublicProfilePage() {
                   </p>
 
                   <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-neutral-700">
-                    <span className="whitespace-nowrap">{formatCount(counts.followers)} sledujících</span>
-                    <span className="whitespace-nowrap">· {formatCount(counts.following)} sleduje</span>
-                    <span className="whitespace-nowrap">· {formatCount(counts.posts)} postů</span>
+                    <span className="whitespace-nowrap">
+                      {t("idProfile.followers", { count: counts.followers.toLocaleString(locale === "en" ? "en-US" : "cs-CZ") })}
+                    </span>
+                    <span className="whitespace-nowrap">· {t("idProfile.following", { count: counts.following.toLocaleString(locale === "en" ? "en-US" : "cs-CZ") })}</span>
+                    <span className="whitespace-nowrap">· {t("idProfile.posts", { count: counts.posts.toLocaleString(locale === "en" ? "en-US" : "cs-CZ") })}</span>
                   </div>
 
                   <p className="text-sm text-neutral-700">{profile.bio?.trim() ? profile.bio : "—"}</p>
@@ -529,18 +530,18 @@ export default function PublicProfilePage() {
                     href="/id"
                     className="rounded-full border border-neutral-200 bg-white px-5 py-2 text-sm font-semibold text-neutral-900 shadow-sm transition hover:bg-neutral-50"
                   >
-                    Upravit profil
+                    {t("idProfile.editProfile")}
                   </Link>
                 ) : currentUserId ? (
                   <>
                     <button
                       type="button"
-                      disabled={chatBusy}
-                      onClick={handleStartChat}
-                      className="rounded-full border border-neutral-200 bg-white px-5 py-2 text-sm font-semibold text-neutral-900 shadow-sm transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      Napsat zpravu
-                    </button>
+                    disabled={chatBusy}
+                    onClick={handleStartChat}
+                    className="rounded-full border border-neutral-200 bg-white px-5 py-2 text-sm font-semibold text-neutral-900 shadow-sm transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {t("idProfile.public.message")}
+                  </button>
                     <button
                       type="button"
                       disabled={followBusy}
@@ -551,7 +552,7 @@ export default function PublicProfilePage() {
                           : "bg-neutral-900 text-white hover:bg-neutral-800"
                       }`}
                     >
-                      {following ? "Sleduji" : "Sledovat"}
+                      {following ? t("idProfile.public.following") : t("idProfile.public.follow")}
                     </button>
                   </>
                 ) : (
@@ -560,7 +561,7 @@ export default function PublicProfilePage() {
                     onClick={() => requestAuth()}
                     className="rounded-full bg-neutral-900 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800"
                   >
-                    Přihlásit se
+                    {t("idProfile.public.signIn")}
                   </button>
                 )}
               </div>
@@ -572,7 +573,7 @@ export default function PublicProfilePage() {
           <div className="space-y-6">
             {isBannedProfile ? (
               <div className="rounded-3xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
-                Tento účet byl smazán nebo deaktivován. Obsah profilu není dostupný.
+                {t("idProfile.public.profileUnavailableBody")}
               </div>
             ) : (
               <>
@@ -594,31 +595,31 @@ export default function PublicProfilePage() {
 
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <h2 className="text-sm font-semibold text-neutral-900">Krátké posty</h2>
+                        <h2 className="text-sm font-semibold text-neutral-900">{t("idProfile.sections.shortPosts")}</h2>
                         {posts.length > 0 ? (
                           <button
                             type="button"
                             onClick={() => setShowAllPosts((p) => !p)}
                             className="rounded-full px-3 py-1 text-xs font-semibold text-neutral-600 transition hover:bg-neutral-100"
                           >
-                            {showAllPosts ? "Skrýt" : "Zobrazit všechno"}
+                            {showAllPosts ? t("idProfile.sections.hide") : t("idProfile.sections.showAll")}
                           </button>
                         ) : null}
                       </div>
 
                       {postsError ? (
                         <div className="rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">
-                          Nepodařilo se načíst příspěvky: {postsError}
+                          {t("idProfile.sections.postsLoadErrorPrefix")} {postsError}
                         </div>
                       ) : null}
 
                       {postsLoading ? (
                         <div className="rounded-3xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
-                          Načítám příspěvky…
+                          {t("idProfile.sections.loadingPosts")}
                         </div>
                       ) : posts.length === 0 ? (
                         <div className="rounded-3xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
-                          Zatím žádné příspěvky.
+                          {t("idProfile.sections.noPosts")}
                         </div>
                       ) : (
                         (showAllPosts ? posts : posts.slice(0, 3)).map((post) => {
@@ -626,7 +627,7 @@ export default function PublicProfilePage() {
                           const safeUsername = safeIdentityLabel(author?.username ?? null, "");
                           const authorName = safeIdentityLabel(
                             author?.display_name ?? null,
-                            safeUsername || safeIdentityLabel(profile?.display_name ?? null, "NRW uživatel"),
+                            safeUsername || safeIdentityLabel(profile?.display_name ?? null, t("chat.thread.userFallback")),
                           );
                           const authorUsername = safeUsername ? `@${safeUsername}` : null;
                           const verificationLabel = author?.verified
@@ -666,10 +667,10 @@ export default function PublicProfilePage() {
                 ) : (
                   <div className="rounded-3xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600 shadow-sm">
                     {activeTab === "reels"
-                      ? "Klipy se zobrazí brzy."
+                      ? t("idProfile.sections.reelsSoon")
                       : activeTab === "tags"
-                        ? "Označené příspěvky se zobrazí brzy."
-                        : "Vlákna se zobrazí brzy."}
+                        ? t("idProfile.sections.tagsSoon")
+                        : t("idProfile.sections.threadsSoon")}
                   </div>
                 )}
               </>
@@ -692,6 +693,7 @@ export default function PublicProfilePage() {
 }
 
 function ProfileStories({ canAdd }: { canAdd: boolean }) {
+  const t = useTranslations();
   const stories = [
     { id: "s1", label: "Crew", color: "from-rose-400 via-orange-300 to-amber-200" },
     { id: "s2", label: "Events", color: "from-indigo-400 via-blue-300 to-cyan-200" },
@@ -714,7 +716,7 @@ function ProfileStories({ canAdd }: { canAdd: boolean }) {
           type="button"
           className="flex w-28 shrink-0 flex-col items-center gap-2 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-3 text-xs font-semibold text-neutral-600 transition hover:border-neutral-400 hover:text-neutral-900"
         >
-          + Highlight
+          {t("idProfile.widgets.highlightAdd")}
         </button>
       ) : null}
     </div>
@@ -728,11 +730,12 @@ function ProfileTabs({
   activeTab: "posts" | "reels" | "tags" | "threads";
   onChange: (tab: "posts" | "reels" | "tags" | "threads") => void;
 }) {
+  const t = useTranslations();
   const tabs: Array<{ id: "posts" | "reels" | "tags" | "threads"; label: string }> = [
-    { id: "posts", label: "Příspěvky" },
-    { id: "reels", label: "Klipy" },
-    { id: "tags", label: "Označení" },
-    { id: "threads", label: "Vlákna" },
+    { id: "posts", label: t("idProfile.tabs.posts") },
+    { id: "reels", label: t("idProfile.tabs.reels") },
+    { id: "tags", label: t("idProfile.tabs.tags") },
+    { id: "threads", label: t("idProfile.tabs.threads") },
   ];
   return (
     <div className="flex items-center gap-2 overflow-x-auto pb-1 text-sm font-semibold text-neutral-700 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
@@ -758,15 +761,16 @@ function ProfileTabs({
 }
 
 function PhotoGrid({ items }: { items: Array<{ id: string; url: string; type: "image" | "video" | null }> }) {
+  const t = useTranslations();
   return (
     <div className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-neutral-900">Foto grid</h2>
+        <h2 className="text-base font-semibold text-neutral-900">{t("idProfile.widgets.photoGrid")}</h2>
         <button
           type="button"
           className="rounded-full px-3 py-1 text-xs font-semibold text-neutral-600 transition hover:bg-neutral-100"
         >
-          Archiv
+          {t("idProfile.widgets.archive")}
         </button>
       </div>
 

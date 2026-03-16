@@ -2,6 +2,22 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
+async function createOpenSupportThread(userId: string) {
+  const { data: created, error: createError } = await supabaseAdmin
+    .from("support_threads")
+    .insert({ user_id: userId, status: "open" })
+    .select("id, status")
+    .single();
+
+  if (createError || !created) {
+    return { thread: null, error: createError };
+  }
+
+  return { thread: { id: created.id, status: created.status ?? "open" }, error: null };
+}
+
+const SUPPORT_THREAD_CLOSED_MESSAGE = "The conversation was closed by an administrator";
+
 export async function GET() {
   const supabase = await createSupabaseServerClient();
   const {
@@ -49,30 +65,32 @@ export async function GET() {
         .select("id")
         .eq("thread_id", latest.id)
         .eq("sender_type", "system")
-        .eq("content", "Konverzace byla uzavřena administrátorem")
+        .eq("content", SUPPORT_THREAD_CLOSED_MESSAGE)
         .limit(1);
 
       if (!existingSystem?.length) {
         await supabaseAdmin.from("support_messages").insert({
           thread_id: latest.id,
           sender_type: "system",
-          content: "Konverzace byla uzavřena administrátorem",
+          content: SUPPORT_THREAD_CLOSED_MESSAGE,
         });
       }
+
+      const created = await createOpenSupportThread(user.id);
+      if (created.error || !created.thread) {
+        return NextResponse.json({ error: "thread_create_failed", message: created.error?.message }, { status: 400 });
+      }
+
+      return NextResponse.json({ thread: created.thread }, { status: 200 });
     }
 
     return NextResponse.json({ thread: { id: latest.id, status: latest.status ?? "closed" } }, { status: 200 });
   }
 
-  const { data: created, error: createError } = await supabaseAdmin
-    .from("support_threads")
-    .insert({ user_id: user.id, status: "open" })
-    .select("id, status")
-    .single();
-
-  if (createError || !created) {
-    return NextResponse.json({ error: "thread_create_failed", message: createError?.message }, { status: 400 });
+  const created = await createOpenSupportThread(user.id);
+  if (created.error || !created.thread) {
+    return NextResponse.json({ error: "thread_create_failed", message: created.error?.message }, { status: 400 });
   }
 
-  return NextResponse.json({ thread: { id: created.id, status: created.status ?? "open" } }, { status: 200 });
+  return NextResponse.json({ thread: created.thread }, { status: 200 });
 }

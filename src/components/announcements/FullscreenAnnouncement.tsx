@@ -1,6 +1,7 @@
 "use client";
 
-import { AlertTriangle, Info, Link2, Siren } from "lucide-react";
+import { AlertTriangle, Info, Link2, Siren, X } from "lucide-react";
+import { useTranslations } from "@/components/i18n/LocaleProvider";
 import { useFullscreenAnnouncement } from "@/hooks/useFullscreenAnnouncement";
 
 type FullscreenAnnouncementProps = {
@@ -22,7 +23,7 @@ const severityConfig: Record<
   }
 > = {
   info: {
-    label: "Informace",
+    label: "announcements.labels.info",
     icon: Info,
     badge: "bg-sky-100 text-sky-700 ring-1 ring-sky-200",
     iconWrap: "bg-sky-100 text-sky-600 ring-1 ring-sky-200",
@@ -31,7 +32,7 @@ const severityConfig: Record<
     linkButton: "border-sky-200 text-sky-700 hover:bg-sky-50",
   },
   warn: {
-    label: "Upozornění",
+    label: "announcements.labels.warn",
     icon: AlertTriangle,
     badge: "bg-amber-100 text-amber-800 ring-1 ring-amber-200",
     iconWrap: "bg-amber-100 text-amber-700 ring-1 ring-amber-200",
@@ -40,7 +41,7 @@ const severityConfig: Record<
     linkButton: "border-amber-200 text-amber-800 hover:bg-amber-50",
   },
   urgent: {
-    label: "Urgentní",
+    label: "announcements.labels.urgent",
     icon: Siren,
     badge: "bg-rose-100 text-rose-700 ring-1 ring-rose-200",
     iconWrap: "bg-rose-100 text-rose-600 ring-1 ring-rose-200",
@@ -75,6 +76,7 @@ function resolveSeverity(value?: string | null, color?: string | null): Severity
 export function FullscreenAnnouncement({
   userId,
 }: FullscreenAnnouncementProps) {
+  const t = useTranslations();
   const { announcement, dismiss } = useFullscreenAnnouncement(userId);
 
   if (!announcement) {
@@ -87,7 +89,7 @@ export function FullscreenAnnouncement({
   const rawUrl =
     (announcement.url ?? announcement.link_url ?? "").trim();
   const hasUrl = rawUrl.length > 0;
-  const linkLabel = (announcement.link_label ?? "Otevřít odkaz").trim();
+  const linkLabel = (announcement.link_label ?? t("announcements.openLinkFallback")).trim();
 
   return (
     <div
@@ -106,17 +108,17 @@ export function FullscreenAnnouncement({
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${config.badge}`}>
-                  {config.label}
+                  {t(config.label)}
                 </span>
                 <span className="text-xs uppercase tracking-[0.2em] text-neutral-400">
-                  Oznámení
+                  {t("announcements.eyebrow")}
                 </span>
               </div>
               <h2
                 id="fullscreen-announcement-title"
                 className="mt-2 text-2xl font-semibold text-neutral-900"
               >
-                {announcement.title ?? "Oznámení"}
+                {announcement.title ?? t("announcements.titleFallback")}
               </h2>
             </div>
           </div>
@@ -124,9 +126,9 @@ export function FullscreenAnnouncement({
             type="button"
             onClick={dismiss}
             className="rounded-full p-2 text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700"
-            aria-label="Zavřít"
+            aria-label={t("announcements.closeAria")}
           >
-            <span aria-hidden="true">×</span>
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-5">
@@ -142,7 +144,7 @@ export function FullscreenAnnouncement({
                   </span>
                   <div>
                     <p className="text-sm font-semibold text-neutral-900">
-                      Odkaz k oznámení
+                      {t("announcements.linkTitle")}
                     </p>
                     <p className="text-xs text-neutral-500 break-all">
                       {rawUrl}
@@ -155,7 +157,7 @@ export function FullscreenAnnouncement({
                   rel="noreferrer"
                   className={`inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-semibold transition ${config.linkButton}`}
                 >
-                  {linkLabel || "Otevřít odkaz"}
+                  {linkLabel || t("announcements.openLinkFallback")}
                 </a>
               </div>
             </div>
@@ -167,7 +169,7 @@ export function FullscreenAnnouncement({
             onClick={dismiss}
             className={`rounded-full px-4 py-2 text-sm font-semibold text-white transition ${config.action}`}
           >
-            Zavřít
+            {t("announcements.closeAria")}
           </button>
         </div>
       </div>

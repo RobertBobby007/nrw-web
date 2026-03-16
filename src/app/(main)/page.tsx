@@ -34,6 +34,7 @@ import {
 import type { NNewsFeedItem } from "@/lib/nnews";
 import { detectNewsTopics, NEWS_TOPICS, topicLabel, type NewsTopicId } from "@/lib/news-topics";
 import { NewsPreviewModal } from "@/components/news/NewsPreviewModal";
+import { mixMainFeed } from "@/lib/main-feed-mix";
 
 type FeedItem = {
   id: string;
@@ -715,11 +716,7 @@ export default function HomePage() {
     if (activeTab === "nNews") {
       return filteredNnewsItems.map((item) => ({ kind: "nNews", createdAt: item.createdAt, item }));
     }
-    const nreal = nrealPosts.map((post) => ({ kind: "nReal" as const, createdAt: post.created_at, post }));
-    const nnews = filteredNnewsItems.map((item) => ({ kind: "nNews" as const, createdAt: item.createdAt, item }));
-    return [...nreal, ...nnews].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
+    return mixMainFeed(nrealPosts, filteredNnewsItems);
   }, [activeTab, filteredNnewsItems, nrealPosts]);
 
   const toggleLike = async (postId: string) => {
