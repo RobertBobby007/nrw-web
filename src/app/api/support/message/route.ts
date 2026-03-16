@@ -135,7 +135,7 @@ async function createOpenSupportThread(userId: string) {
   const { data: created, error } = await supabaseAdmin
     .from("support_threads")
     .insert({ user_id: userId, status: "open" })
-    .select("id, status, auto_reply_sent")
+    .select("id, user_id, status, auto_reply_sent")
     .single();
 
   if (error || !created) return { thread: null, error };

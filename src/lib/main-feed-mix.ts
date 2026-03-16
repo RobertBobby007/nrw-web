@@ -1,5 +1,6 @@
 import type { NrealPost } from "@/types/nreal";
 import { computeNnewsScore } from "@/lib/nnews";
+import type { NewsTopicId } from "@/lib/news-topics";
 
 type MixedNnewsItem = {
   id: string;
@@ -11,7 +12,7 @@ type MixedNnewsItem = {
   url?: string | null;
   imageUrl?: string | null;
   sourceName?: string | null;
-  topics?: string[];
+  topics?: NewsTopicId[];
 };
 
 export type MixedStreamItem =

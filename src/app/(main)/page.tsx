@@ -38,7 +38,7 @@ import { mixMainFeed } from "@/lib/main-feed-mix";
 
 type FeedItem = {
   id: string;
-  type: "nReal" | "nNews";
+  type: "nNews";
   title: string;
   excerpt: string;
   meta: string;
