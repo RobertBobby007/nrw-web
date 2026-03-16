@@ -5,6 +5,7 @@ import Script from "next/script";
 import "./globals.css";
 import { HydrationFlag } from "@/components/hydration-flag";
 import { ThemeProvider } from "@/components/theme-provider";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: {
