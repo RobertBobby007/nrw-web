@@ -36,7 +36,7 @@ function errorMessage(err: unknown) {
 function formatTimeLabel(
   createdAt: string | null | undefined,
   locale: string,
-  t: (key: string, values?: Record<string, unknown>) => string,
+  t: (key: string, values?: Record<string, string | number>) => string,
 ) {
   if (!createdAt) return t("notifications.time.unknown");
   const date = new Date(createdAt);

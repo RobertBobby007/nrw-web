@@ -910,7 +910,7 @@ export function PostCard({
               </div>
               <div className="flex items-center gap-2 text-xs text-neutral-500">
                 {author.username ? <span>{author.username}</span> : null}
-                <span>{formatTimeLabel(createdAt)}</span>
+                <span>{formatTimeLabel(t, locale, createdAt)}</span>
               </div>
             </div>
           </Link>
@@ -944,7 +944,7 @@ export function PostCard({
               </div>
               <div className="flex items-center gap-2 text-xs text-neutral-500">
                 {author.username ? <span>{author.username}</span> : null}
-                <span>{formatTimeLabel(createdAt)}</span>
+                <span>{formatTimeLabel(t, locale, createdAt)}</span>
               </div>
             </div>
           </>
