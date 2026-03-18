@@ -1,29 +1,29 @@
 {
   "common": {
-    "language": "Jazyk",
+    "language": "Language",
     "actions": {
-      "back": "Zpět",
-      "close": "Zavřít",
-      "cancel": "Zrušit",
-      "save": "Uložit",
-      "saveChanges": "Uložit změny",
-      "saving": "Ukládám…",
-      "send": "Odeslat",
-      "open": "Otevřít",
-      "openOutside": "Otevřít venku",
-      "signIn": "Přihlásit se",
-      "signOut": "Odhlásit se",
-      "changePhoto": "Změnit fotku",
-      "saveCrop": "Uložit ořez"
+      "back": "Back",
+      "close": "Close",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saveChanges": "Save changes",
+      "saving": "Saving…",
+      "send": "Send",
+      "open": "Open",
+      "openOutside": "Open externally",
+      "signIn": "Sign in",
+      "signOut": "Log Out",
+      "changePhoto": "Change photo",
+      "saveCrop": "Save crop"
     },
     "localeName": {
-      "cs": "Čeština",
-      "en": "Angličtina",
-      "sk": "Slovenština"
+      "cs": "Czech",
+      "en": "English",
+      "sk": "Slovak"
     }
   },
   "nav": {
-    "home": "Domů",
+    "home": "Home",
     "news": "nNews",
     "real": "nReal",
     "chat": "nChat",
@@ -32,37 +32,37 @@
     "profile": "nID"
   },
   "sidebar": {
-    "addPostAria": "Přidat příspěvek nebo video",
-    "notificationsAria": "Oznámení",
-    "settingsAria": "Nastavení",
-    "searchAria": "Vyhledávání příspěvků",
-    "settings": "Nastavení",
-    "support": "Podpora",
-    "privacy": "Ochrana soukromí",
-    "terms": "Smluvní podmínky",
-    "mainNavigation": "Hlavní navigace"
+    "addPostAria": "Create a post or video",
+    "notificationsAria": "Notifications",
+    "settingsAria": "Settings",
+    "searchAria": "Search posts",
+    "settings": "Settings",
+    "support": "Support",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service",
+    "mainNavigation": "Main navigation"
   },
   "auth": {
     "login": {
-      "title": "Přihlášení do NRW",
-      "googleLoading": "Přesměrovávám na Google…",
-      "googleButton": "Pokračovat přes Google",
-      "emailDivider": "nebo e-mailem",
-      "emailLabel": "E-mail",
-      "passwordLabel": "Heslo",
-      "submitLoading": "Přihlašuji…",
-      "submitButton": "Přihlásit se",
-      "noAccount": "Nemáš účet?",
-      "registerLink": "Registrovat se",
-      "bannedError": "Tvůj účet byl zablokován. Pokud si myslíš, že jde o chybu, kontaktuj podporu.",
-      "fallbackError": "Přihlášení se nepovedlo.",
-      "googleError": "Přihlášení přes Google se nepovedlo."
+      "title": "Sign in to NRW",
+      "googleLoading": "Redirecting to Google…",
+      "googleButton": "Continue with Google",
+      "emailDivider": "or with email",
+      "emailLabel": "Email",
+      "passwordLabel": "Password",
+      "submitLoading": "Signing in…",
+      "submitButton": "Sign in",
+      "noAccount": "Don't have an account?",
+      "registerLink": "Create one",
+      "bannedError": "Your account has been blocked. If you think this is a mistake, contact support.",
+      "fallbackError": "Sign in failed.",
+      "googleError": "Google sign-in failed."
     },
     "register": {
-      "eyebrow": "Registrace",
-      "title": "Vytvoř si účet NRW",
-      "step": "Krok {step}/2",
-      "googleLoading": "Přesměrovávám na Google…",
+      "eyebrow": "Registration",
+      "title": "Create your NRW account",
+      "step": "Step {step}/2",
+      "googleLoading": "Redirecting to Google…",
       "googleButton": "Registrovat se přes Google",
       "emailDivider": "nebo e-mailem",
       "emailLabel": "E-mail",
@@ -121,72 +121,72 @@
       "violence": "Násilí",
       "nudity": "Nahota",
       "hate": "Nenávist",
-      "harassment": "Obtěžování",
-      "misinfo": "Dezinformace",
-      "other": "Jiné"
+      "harassment": "Harassment",
+      "misinfo": "Misinformation",
+      "other": "Other"
     }
   },
   "confirm": {
-    "closeAria": "Zavřít"
+    "closeAria": "Close"
   },
   "news": {
-    "previewLabel": "Náhled článku",
-    "articleFallback": "Článek",
-    "title": "NRW News – přehled novinek",
-    "description": "Aktualizace z NRW světa, nové funkce, změny v aplikaci a důležité zprávy na jednom místě.",
-    "topics": "Témata",
-    "all": "Vše",
-    "allTopics": "Všechna témata",
-    "loadError": "Nepodařilo se načíst nNews.",
-    "loading": "Načítám nNews…",
-    "empty": "Zatím tu nic není.",
-    "categoryTitle": "Kategorie",
-    "mostRead": "Nejvíc čtené",
-    "moreTags": "Další štítky",
+    "previewLabel": "Article preview",
+    "articleFallback": "Article",
+    "title": "NRW News - updates overview",
+    "description": "Updates from the NRW world, new features, product changes, and important news in one place.",
+    "topics": "Topics",
+    "all": "All",
+    "allTopics": "All topics",
+    "loadError": "Failed to load nNews.",
+    "loading": "Loading nNews…",
+    "empty": "Nothing here yet.",
+    "categoryTitle": "Categories",
+    "mostRead": "Most read",
+    "moreTags": "Other labels",
     "categoryHotspots": {
-      "world": "Zprávy ze světa",
-      "updates": "Update aplikace",
-      "security": "Bezpečnost",
-      "community": "Komunita",
-      "events": "Eventy a livestreamy",
-      "tips": "Tipy a návody"
+      "world": "World news",
+      "updates": "App updates",
+      "security": "Security",
+      "community": "Community",
+      "events": "Events and livestreams",
+      "tips": "Tips and guides"
     },
     "tags": {
-      "security": "Bezpečnost",
-      "updates": "Aktualizace",
-      "community": "Komunita",
-      "support": "Podpora"
+      "security": "Security",
+      "updates": "Updates",
+      "community": "Community",
+      "support": "Support"
     },
     "topicsMap": {
-      "tech": "Technologie",
+      "tech": "Technology",
       "ai": "AI",
-      "business": "Byznys",
-      "politics": "Politika",
-      "world": "Svět",
-      "science": "Věda",
-      "sport": "Sport",
-      "culture": "Kultura",
-      "lifestyle": "Životní styl"
+      "business": "Business",
+      "politics": "Politics",
+      "world": "World",
+      "science": "Science",
+      "sport": "Sports",
+      "culture": "Culture",
+      "lifestyle": "Lifestyle"
     }
   },
   "notifications": {
-    "title": "Oznámení",
-    "eyebrow": "Centrum upozornění",
-    "description": "Tvoje oznámení a systémové zprávy.",
-    "markAllRead": "Označit vše jako přečtené",
-    "actionError": "Akce se nepovedla.",
-    "signInRequired": "Musíš být přihlášený.",
-    "loading": "Načítám notifikace…",
-    "empty": "Zatím žádné notifikace.",
-    "announcementFallback": "Oznámení",
-    "userFallback": "NRW uživatel",
+    "title": "Notifications",
+    "eyebrow": "Notification center",
+    "description": "Your notifications and system messages.",
+    "markAllRead": "Mark all as read",
+    "actionError": "Action failed.",
+    "signInRequired": "You need to be logged in.",
+    "loading": "Loading notifications…",
+    "empty": "No notifications yet.",
+    "announcementFallback": "Announcement",
+    "userFallback": "NRW user",
     "activity": {
       "followed": "začal/a tě sledovat",
       "notified": "poslal/a notifikaci"
     },
     "time": {
-      "unknown": "neznámý čas",
-      "justNow": "před chvílí",
+      "unknown": "unknown time",
+      "justNow": "just a moment ago",
       "minutesAgo": "před {count} min",
       "hoursAgo": "před {count} h"
     }
@@ -276,7 +276,7 @@
       }
     },
     "terms": {
-      "title": "Smluvní podmínky",
+      "title": "Terms of Service",
       "description": "Základní pravidla používání služby NRW. Aktualizováno: 9. 3. 2026.",
       "sections": {
         "account": {
