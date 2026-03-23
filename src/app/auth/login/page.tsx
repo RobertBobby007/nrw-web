@@ -14,7 +14,6 @@ function LoginPageContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,22 +44,6 @@ function LoginPageContent() {
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setAuthError(null);
-    setGoogleLoading(true);
-
-    const redirectTo = `${window.location.origin}/`;
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo },
-    });
-
-    if (error) {
-      setAuthError(error.message || t("auth.login.googleError"));
-      setGoogleLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center">
       <form
@@ -68,22 +51,6 @@ function LoginPageContent() {
         className="w-full max-w-sm space-y-4 border p-6 rounded-xl"
       >
         <h1 className="text-xl font-semibold">{t("auth.login.title")}</h1>
-
-        <button
-          type="button"
-          onClick={handleGoogleSignIn}
-          disabled={googleLoading || authLoading}
-          className="w-full rounded-md border px-3 py-2 text-sm font-medium"
-        >
-          {googleLoading ? t("auth.login.googleLoading") : t("auth.login.googleButton")}
-        </button>
-
-        <div className="relative">
-          <div className="h-px w-full bg-neutral-200" />
-          <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs text-neutral-500">
-            {t("auth.login.emailDivider")}
-          </span>
-        </div>
 
         <div className="space-y-2">
           <label className="block text-sm">{t("auth.login.emailLabel")}</label>
@@ -111,7 +78,7 @@ function LoginPageContent() {
 
         <button
           type="submit"
-          disabled={authLoading || googleLoading}
+          disabled={authLoading}
           className="w-full rounded-md border px-3 py-2 text-sm font-medium"
         >
           {authLoading ? t("auth.login.submitLoading") : t("auth.login.submitButton")}

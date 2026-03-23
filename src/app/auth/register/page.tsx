@@ -18,26 +18,8 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-
-  async function handleGoogleSignIn() {
-    setError(null);
-    setInfo(null);
-    setGoogleLoading(true);
-
-    const redirectTo = `${window.location.origin}/`;
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo },
-    });
-
-    if (error) {
-      setError(error.message || t("auth.register.googleError"));
-      setGoogleLoading(false);
-    }
-  }
 
   const handleNext = (
     e:
@@ -163,28 +145,6 @@ export default function RegisterPage() {
           </span>
         </div>
 
-        {step === 1 && (
-          <>
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              disabled={googleLoading || loading}
-              className="w-full rounded-md border px-3 py-2 text-sm font-medium"
-            >
-              {googleLoading
-                ? t("auth.register.googleLoading")
-                : t("auth.register.googleButton")}
-            </button>
-
-            <div className="relative">
-              <div className="h-px w-full bg-neutral-200" />
-              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs text-neutral-500">
-                {t("auth.register.emailDivider")}
-              </span>
-            </div>
-          </>
-        )}
-
         {step === 1 ? (
           <>
             <div className="space-y-2">
@@ -223,7 +183,7 @@ export default function RegisterPage() {
             <button
               type="button"
               onClick={handleNext}
-              disabled={googleLoading || loading}
+              disabled={loading}
               className="w-full rounded-md border px-3 py-2 text-sm font-medium"
             >
               {t("auth.register.continueButton")}
@@ -295,7 +255,7 @@ export default function RegisterPage() {
               </button>
               <button
                 type="submit"
-                disabled={loading || googleLoading}
+                disabled={loading}
                 className="flex-1 rounded-md border px-3 py-2 text-sm font-medium"
               >
                 {loading ? t("auth.register.submitLoading") : t("auth.register.submitButton")}
