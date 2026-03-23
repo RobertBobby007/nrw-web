@@ -12,7 +12,7 @@
       "open": "Open",
       "openOutside": "Open externally",
       "signIn": "Sign in",
-      "signOut": "Sign out",
+      "signOut": "Log Out",
       "changePhoto": "Change photo",
       "saveCrop": "Save crop"
     },
@@ -66,7 +66,7 @@
       "firstNameLabel": "First name",
       "lastNameLabel": "Last name",
       "usernameLabel": "Username",
-      "usernamePlaceholder": "yourhandle",
+      "usernamePlaceholder": "Your nickname",
       "backButton": "Back",
       "submitLoading": "Creating account…",
       "submitButton": "Sign up",
@@ -77,7 +77,7 @@
       "passwordTooShort": "Password must be at least 6 characters.",
       "passwordsMismatch": "Passwords do not match.",
       "nameUsernameRequired": "Fill in your first name, last name, and username.",
-      "birthdateRequired": "Enter your birth date.",
+      "birthdateRequired": "Enter your birthdate.",
       "firstNameBlocked": "First name contains blocked text.",
       "lastNameBlocked": "Last name contains blocked text.",
       "displayNameBlocked": "Name contains blocked text.",
@@ -134,7 +134,7 @@
     "empty": "Nothing here yet.",
     "categoryTitle": "Categories",
     "mostRead": "Most read",
-    "moreTags": "More tags",
+    "moreTags": "Other labels",
     "categoryHotspots": {
       "world": "World news",
       "updates": "App updates",
@@ -167,872 +167,872 @@
     "description": "Your notifications and system messages.",
     "markAllRead": "Mark all as read",
     "actionError": "Action failed.",
-    "signInRequired": "You must be signed in.",
+    "signInRequired": "You need to be logged in.",
     "loading": "Loading notifications…",
     "empty": "No notifications yet.",
     "announcementFallback": "Announcement",
     "userFallback": "NRW user",
     "activity": {
-      "followed": "started following you",
-      "notified": "sent you a notification"
+      "followed": "začal/a tě sledovat",
+      "notified": "poslal/a notifikaci"
     },
     "time": {
       "unknown": "unknown time",
-      "justNow": "just now",
-      "minutesAgo": "{count} min ago",
-      "hoursAgo": "{count} h ago"
+      "justNow": "just a moment ago",
+      "minutesAgo": "před {count} min",
+      "hoursAgo": "před {count} h"
     }
   },
   "legal": {
-    "eyebrow": "Legal information",
+    "eyebrow": "Právní informace",
     "privacy": {
-      "title": "Privacy Policy",
-      "description": "A short overview of how we process personal data in NRW. Updated: March 9, 2026.",
+      "title": "Ochrana soukromí",
+      "description": "Stručný přehled toho, jak nakládáme s osobními údaji v NRW. Aktualizováno: 9. 3. 2026.",
       "sections": {
         "processedData": {
-          "title": "What data we process",
+          "title": "Jaké údaje zpracováváme",
           "items": {
-            "account": "Account data: email, username, account identifier.",
-            "profile": "Profile data: name, bio, avatar, and profile settings.",
-            "content": "Content: messages, posts, and uploaded media, depending on what you share.",
-            "love": "nLove data: age, identity, preferences (who you're looking for and what you're looking for), distance, swipes, matches, and nLove photos.",
-            "location": "Location data for nLove: approximate location, geohash, measurement accuracy, and update timestamps.",
-            "superLikes": "Super Like credits and order data, if the feature is active.",
-            "support": "Support communication: message content and device metadata when contacting support.",
-            "technical": "Technical data: device, IP address, access logs, and security events."
+            "account": "Účetní údaje: e-mail, uživatelské jméno, identifikátor účtu.",
+            "profile": "Profilové údaje: jméno, bio, avatar a nastavení profilu.",
+            "content": "Obsah: zprávy, příspěvky a nahraná média (podle toho, co sdílíš).",
+            "love": "nLove údaje: věk, identita, preference (koho hledáš, co hledáš), vzdálenost, swipy, matche a nLove fotky.",
+            "location": "Údaje o poloze pro nLove: přibližná poloha, geohash, přesnost měření a časy aktualizace.",
+            "superLikes": "Údaje o Super Like kreditech a objednávkách (pokud je funkce aktivní).",
+            "support": "Komunikace se supportem: obsah zpráv a metadata zařízení při kontaktu podpory.",
+            "technical": "Technické údaje: zařízení, IP adresa, logy přístupů a bezpečnostní události."
           }
         },
         "purposes": {
-          "title": "Why we process data",
+          "title": "Proč údaje zpracováváme",
           "items": {
-            "service": "Operating the service, delivering messages, and personalizing content.",
-            "matching": "nLove matching, showing relevant profiles, and creating matches.",
-            "realtime": "Realtime synchronization, for example new matches, chat status changes, and notifications.",
-            "payments": "Processing payments for optional features such as Super Like credits, where available.",
-            "security": "Security, abuse prevention, and moderation.",
-            "analytics": "Analytics to improve the app in aggregate form.",
-            "legal": "Legal obligations and protection of rights."
+            "service": "Provoz služby, doručování zpráv a personalizaci obsahu.",
+            "matching": "Párování v nLove, zobrazení relevantních profilů a vytvoření matchů.",
+            "realtime": "Realtime synchronizaci (např. nové matche, změny stavu chatu, upozornění).",
+            "payments": "Zpracování plateb za volitelné funkce (např. Super Like kredity), pokud jsou dostupné.",
+            "security": "Bezpečnost, prevence zneužití a moderace.",
+            "analytics": "Analytika pro zlepšení aplikace (agregovaně).",
+            "legal": "Zákonné povinnosti a ochrana práv."
           }
         },
         "loveVisibility": {
-          "title": "nLove and profile visibility",
+          "title": "nLove a viditelnost profilu",
           "items": {
-            "profile": "In nLove, we process profile data including age, search preferences, and relationship goals.",
-            "distance": "We process approximate location to calculate relevance and distance.",
-            "swipes": "We store swipe actions (`pass`, `like`, `superlike`) and matching (`match`).",
-            "chat": "When a match is mutual, a direct chat may be created automatically.",
-            "photos": "nLove photos are stored as publicly accessible URLs within the service."
+            "profile": "V nLove zpracováváme údaje profilu včetně věku, preference hledání a vztahového cíle.",
+            "distance": "Pro výpočet relevance a vzdálenosti zpracováváme přibližnou polohu.",
+            "swipes": "Ukládáme akce swipe (`pass`, `like`, `superlike`) a párování (`match`).",
+            "chat": "Při vzájemném matchi se může automaticky vytvořit direct chat.",
+            "photos": "nLove fotky jsou ukládány jako veřejně dostupné URL v rámci služby."
           }
         },
         "payments": {
-          "title": "Super Like credits and payments",
+          "title": "Super Like kredity a platby",
           "items": {
-            "credits": "If paid features are active, we track credit balances and order history.",
-            "provider": "Payment details may be processed by an external payment provider, for example Stripe.",
-            "metadata": "Within NRW, we mainly store technical and billing metadata for the order, such as status, amount, currency, and references."
+            "credits": "Pokud jsou aktivní placené funkce, evidujeme počet kreditů a historii objednávek.",
+            "provider": "Platební údaje mohou být zpracovány přes externího poskytovatele plateb (např. Stripe).",
+            "metadata": "V NRW ukládáme zejména technické a účetní metadata objednávky (stav, částka, měna, reference)."
           }
         },
         "supportMetadata": {
-          "title": "Support metadata",
-          "body": "When you send a support message, we may also store technical device context such as user agent, platform, language, time zone, screen size, and viewport size. This data is used only for troubleshooting and security."
+          "title": "Metadata podpory",
+          "body": "Při odeslání zprávy na podporu můžeme uložit také technický kontext zařízení (např. user agent, platformu, jazyk, časové pásmo, velikost obrazovky a viewportu). Tato data slouží pouze pro řešení problémů a bezpečnost."
         },
         "access": {
-          "title": "Who has access to the data",
-          "body": "Access is limited to authorized people and vendors necessary to operate the service, such as hosting, infrastructure, and where relevant a payment provider. We have data protection agreements in place with all partners."
+          "title": "Kdo má přístup k údajům",
+          "body": "Přístup mají pouze oprávněné osoby a dodavatelé, kteří jsou nezbytní pro provoz služby (např. hosting, infrastruktura a případně poskytovatel plateb). Se všemi partnery máme uzavřené smlouvy o ochraně údajů."
         },
         "retention": {
-          "title": "Data retention",
-          "body": "We retain data for as long as needed to operate the service or comply with legal obligations. If you delete your account, we gradually remove or anonymize the data. That includes nLove data such as profile information, swipes, and matches, along with optional location data and support metadata."
+          "title": "Uchování údajů",
+          "body": "Údaje uchováváme po dobu nezbytnou k provozu služby nebo dle zákonných povinností. Pokud účet zrušíš, data postupně odstraníme nebo anonymizujeme. To zahrnuje i data nLove (profil, swipy, matche) včetně volitelných údajů o poloze, a metadata podpory."
         },
         "rights": {
-          "title": "Your rights",
+          "title": "Vaše práva",
           "items": {
-            "access": "Right of access, correction, and deletion.",
-            "restriction": "Right to restriction of processing and data portability.",
-            "objection": "Right to object."
+            "access": "Právo na přístup, opravu a výmaz.",
+            "restriction": "Právo na omezení zpracování a přenositelnost.",
+            "objection": "Právo vznést námitku."
           }
         },
         "faq": {
           "title": "FAQ",
           "items": {
-            "copy": "How do I get a copy of my data? Email support@nrw.app.",
-            "delete": "How do I delete my account? Contact support or use your account settings.",
-            "sharing": "Do you share data with third parties? Only with partners required to run the service.",
-            "location": "How do I turn off nLove location? Disable location sharing in nLove settings."
+            "copy": "Jak získám kopii svých údajů? Napiš na support@nrw.app.",
+            "delete": "Jak smažu účet? Požádej support nebo v nastavení účtu.",
+            "sharing": "Sdílíte data s třetími stranami? Jen s nutnými partnery pro provoz služby.",
+            "location": "Jak vypnu polohu pro nLove? V nLove nastavení vypni sdílení polohy."
           }
         },
         "contact": {
-          "title": "Contact",
-          "body": "Privacy questions: support@nrw.app"
+          "title": "Kontakt",
+          "body": "Dotazy k ochraně soukromí: support@nrw.app"
         }
       }
     },
     "terms": {
       "title": "Terms of Service",
-      "description": "Basic rules for using the NRW service. Updated: March 9, 2026.",
+      "description": "Základní pravidla používání služby NRW. Aktualizováno: 9. 3. 2026.",
       "sections": {
         "account": {
-          "title": "Account and access",
+          "title": "Účet a přístup",
           "items": {
-            "security": "You are responsible for keeping your account secure.",
-            "usage": "Do not use the service for illegal or harmful purposes.",
-            "restriction": "We may restrict your account if you break the rules or the law.",
-            "age": "You must be at least 18 years old to use nLove."
+            "security": "Jsi odpovědný za bezpečnost svého účtu.",
+            "usage": "Nepoužívej službu k nelegálním nebo škodlivým účelům.",
+            "restriction": "Můžeme omezit účet při porušení pravidel nebo zákona.",
+            "age": "Pro nLove musíš splňovat minimální věk 18 let."
           }
         },
         "content": {
-          "title": "Content",
+          "title": "Obsah",
           "items": {
-            "responsibility": "You are responsible for the content you post.",
-            "moderation": "As part of moderation, we may hide or remove content.",
-            "respect": "Respect the rights of other users.",
-            "sensitive": "Do not publish sensitive information you do not want to share.",
-            "lovePhotos": "For nLove photos, you confirm that you have the right to publish and share them."
+            "responsibility": "Za svůj obsah odpovídáš ty.",
+            "moderation": "V rámci moderace můžeme obsah skrýt nebo odstranit.",
+            "respect": "Respektuj práva ostatních uživatelů.",
+            "sensitive": "Nezveřejňuj citlivé údaje, které nechceš sdílet.",
+            "lovePhotos": "U nLove fotek potvrzuješ, že máš právo je zveřejnit a sdílet."
           }
         },
         "love": {
-          "title": "nLove rules",
+          "title": "Pravidla nLove",
           "items": {
-            "truthful": "Fill out your nLove profile truthfully, including your age, and do not impersonate anyone else.",
-            "abuse": "It is forbidden to use nLove for harassment, spam, or scams.",
-            "actions": "`pass`, `like`, and `superlike` actions are used only for internal matching within NRW.",
-            "location": "Some nLove features may require active location sharing.",
-            "chat": "When a match is mutual, a direct chat may be created automatically."
+            "truthful": "nLove profil vyplňuj pravdivě (včetně věku) a bez vydávání se za jinou osobu.",
+            "abuse": "Je zakázáno používat nLove k obtěžování, spamu nebo podvodům.",
+            "actions": "Akce `pass`, `like` a `superlike` slouží jen pro interní párování v NRW.",
+            "location": "Některé funkce nLove mohou vyžadovat aktivní sdílení polohy.",
+            "chat": "Při vzájemném matchi může být automaticky vytvořen direct chat."
           }
         },
         "payments": {
-          "title": "Super Like credits and payments",
+          "title": "Super Like kredity a platby",
           "items": {
-            "creditSystem": "Super Like may be tied to a credit system, where 1 Super Like uses 1 credit.",
-            "gateway": "Credits may be available as a paid digital feature through a payment gateway such as Stripe.",
-            "transfer": "Credits are non-transferable between accounts and can only be used within NRW.",
-            "billing": "Billing, disputes, and refunds are governed by applicable law and the payment provider's terms."
+            "creditSystem": "Super Like může být vázaný na kreditní systém (1 Super Like = spotřeba kreditu).",
+            "gateway": "Kredity mohou být dostupné jako placená digitální funkce přes platební bránu (např. Stripe).",
+            "transfer": "Kredity jsou nepřenosné mezi účty a slouží pouze v rámci NRW.",
+            "billing": "Vyúčtování, reklamace a vrácení plateb se řídí právními předpisy a podmínkami poskytovatele platby."
           }
         },
         "support": {
-          "title": "Support rules",
+          "title": "Pravidla podpory",
           "items": {
-            "chat": "Use the support chat respectfully and without abuse.",
-            "context": "When you send a message, technical device context may be attached for diagnostics.",
-            "thread": "A closed conversation may be reopened by the system as a new thread when another message is sent."
+            "chat": "Support chat používej věcně a bez zneužívání.",
+            "context": "Při odeslání zprávy může být připojen technický kontext zařízení pro diagnostiku.",
+            "thread": "Uzavřenou konverzaci může systém otevřít jako nové vlákno při další zprávě."
           }
         },
         "community": {
-          "title": "Community rules",
+          "title": "Pravidla komunity",
           "items": {
-            "harassment": "No harassment, threats, or hate speech.",
-            "spam": "No spam or scams.",
-            "illegal": "No illegal content."
+            "harassment": "Zákaz obtěžování, vyhrožování a šíření nenávisti.",
+            "spam": "Zákaz spamu a podvodů.",
+            "illegal": "Zákaz nelegálního obsahu."
           }
         },
         "changes": {
-          "title": "Service changes",
-          "body": "We may update, improve, or discontinue the service over time. We will notify you about important changes."
+          "title": "Změny služby",
+          "body": "Službu můžeme průběžně upravovat, vylepšovat nebo ukončit. O důležitých změnách dáme vědět."
         },
         "faq": {
           "title": "FAQ",
           "items": {
-            "abuse": "What if someone abuses my account? Contact support as soon as possible.",
-            "delete": "Can I delete my content? Yes, posts and messages will support that through the UI.",
-            "logout": "How do I sign out of the service? Any time in your account settings.",
-            "location": "Do I need location turned on for nLove? For some features yes, otherwise swipe may not be available."
+            "abuse": "Co když mi někdo zneužije účet? Kontaktuj support co nejdřív.",
+            "delete": "Můžu svůj obsah smazat? Ano, u příspěvků a zpráv to půjde přes UI.",
+            "logout": "Jak se odhlásím ze služby? Kdykoliv v nastavení účtu.",
+            "location": "Musím mít zapnutou polohu pro nLove? U části funkcí ano, jinak nemusí být swipe dostupný."
           }
         },
         "contact": {
           "title": "Contact",
-          "body": "Terms questions: support@nrw.app"
+          "body": "Dotazy k podmínkám: support@nrw.app"
         }
       }
     }
   },
   "real": {
     "title": "nReal feed",
-    "description": "NRW stories and moments with quick widgets on the side.",
+    "description": "NRW příběhy a momenty s rychlými widgety na straně.",
     "widgetLabel": "nReal",
     "feed": {
-      "loading": "Loading posts…",
+      "loading": "Načítám příspěvky…",
       "empty": "No posts yet."
     },
     "composer": {
-      "placeholder": "What's happening in NRW?",
+      "placeholder": "Co se děje v NRW?",
       "limitReached": "Limit reached",
-      "addMore": "Add more",
-      "addMedia": "Add photo/video",
-      "submit": "Add post",
-      "submitting": "Posting…",
-      "submitProgress": "Posting… {percent}%",
-      "uploading": "Uploading…",
-      "remove": "Remove",
+      "addMore": "Add another",
+      "addMedia": "Přidat foto/video",
+      "submit": "Přidat příspěvek",
+      "submitting": "Odesílám…",
+      "submitProgress": "Odesílám… {percent}%",
+      "uploading": "Nahrávám…",
+      "remove": "Odebrat",
       "mediaVideo": "Video",
-      "mediaPhoto": "Photo",
+      "mediaPhoto": "Foto",
       "previewTitle": "Preview",
-      "cropPreviewAlt": "Crop preview",
-      "cropHint": "Drag to reposition. Pinch with two fingers or use the mouse wheel to zoom.",
-      "editPreviewAria": "Edit preview {index}",
+      "cropPreviewAlt": "Crop náhled",
+      "cropHint": "Drag pro posun. Pinch (2 prsty) nebo kolečko myši pro zoom.",
+      "editPreviewAria": "Upravit náhled {index}",
       "previewAlt": "Preview {index}",
-      "cropAppliedNote": "The crop is applied on publish. Carousel height stays stable and a single photo keeps its original ratio.",
+      "cropAppliedNote": "Crop se použije při publikaci. V carouselu bude výška stabilní, single foto se zobrazí v originálním poměru.",
       "status": {
-        "applyingCrop": "Applying crop…",
-        "preparingUpload": "Preparing upload…",
-        "optimizingMedia": "Optimizing media…",
-        "optimizingPhotos": "Optimizing photos…",
-        "compressingVideo": "Compressing video…",
-        "preparingVideo": "Preparing video…",
-        "uploadingMedia": "Uploading media…"
+        "applyingCrop": "Aplikuji crop…",
+        "preparingUpload": "Připravuji upload…",
+        "optimizingMedia": "Optimalizuji média…",
+        "optimizingPhotos": "Optimalizuji fotky…",
+        "compressingVideo": "Komprimuji video…",
+        "preparingVideo": "Připravuji video…",
+        "uploadingMedia": "Nahrávám média…"
       },
       "errors": {
-        "imageCompressionLoad": "Failed to load image for compression.",
-        "videoMetadataLoad": "Failed to load video metadata.",
-        "videoCompressionLoad": "Failed to load video for compression.",
-        "videoRecorderFailed": "Video compression recorder failed.",
-        "videoPlaybackFailed": "Video playback failed during compression.",
-        "storageConfigMissing": "Storage configuration is missing.",
-        "uploadTransportFailed": "Media upload failed because of a connection issue.",
-        "videoMixed": "Video cannot be combined with photos and only one video can be uploaded.",
-        "unsupportedMedia": "We only support images or a single video.",
-        "maxPhotos": "Maximum {count} photos.",
-        "signInRequired": "You must be signed in.",
-        "videoTooLarge": "The video is too large ({size} MB). Try lower quality or a shorter clip.",
-        "fileUploadFailed": "File upload failed: {message}",
-        "textTooLong": "The text is too long (max {max} characters).",
-        "blockedSevere": "Edit the text. It contains blocked expressions that may be offensive. If you think this is a mistake, contact support.",
-        "blockedSimple": "Edit the text. It contains blocked expressions.",
-        "publishFailed": "Publishing failed."
+        "imageCompressionLoad": "Nepodařilo se načíst obrázek pro kompresi.",
+        "videoMetadataLoad": "Nepodařilo se načíst metadata videa.",
+        "videoCompressionLoad": "Nepodařilo se načíst video pro kompresi.",
+        "videoRecorderFailed": "Kompresní rekordér videa selhal.",
+        "videoPlaybackFailed": "Přehrávání videa selhalo při kompresi.",
+        "storageConfigMissing": "Chybí konfigurace úložiště.",
+        "uploadTransportFailed": "Nahrání média selhalo kvůli připojení.",
+        "videoMixed": "Video nelze kombinovat s fotkami a jde nahrát jen jedno.",
+        "unsupportedMedia": "Podporujeme jen obrázky nebo jedno video.",
+        "maxPhotos": "Maximálně {count} fotky.",
+        "signInRequired": "Musíš být přihlášený.",
+        "videoTooLarge": "Video je moc velké ({size} MB). Zkus nižší kvalitu nebo kratší klip.",
+        "fileUploadFailed": "Nahrání souboru selhalo: {message}",
+        "textTooLong": "Text je moc dlouhý (max {max} znaků).",
+        "blockedSevere": "Uprav text. Obsahuje zakázané výrazy, které mohou být urážlivé. Pokud si myslíš, že jde o omyl, kontaktuj podporu.",
+        "blockedSimple": "Uprav text. Obsahuje zakázané výrazy.",
+        "publishFailed": "Publikace selhala."
       }
     },
     "post": {
-      "unknownTime": "unknown time",
-      "justNow": "just now",
-      "minutesAgo": "{count} min ago",
-      "hoursAgo": "{count} h ago",
+      "unknownTime": "neznámý čas",
+      "justNow": "před chvílí",
+      "minutesAgo": "před {count} min",
+      "hoursAgo": "před {count} h",
       "verifiedProfile": "Verified profile",
       "you": "You",
       "userFallback": "NRW user",
       "follow": "Follow",
-      "followSuccess": "You are now following this user.",
-      "unfollowSuccess": "You unfollowed this user.",
+      "followSuccess": "Sleduješ uživatele.",
+      "unfollowSuccess": "Přestal(a) jsi sledovat.",
       "actionError": "Action failed.",
-      "deleteNotSignedIn": "You are not signed in.",
-      "deleteForbidden": "You cannot delete this post, or it has already been deleted.",
+      "deleteNotSignedIn": "Not logged in.",
+      "deleteForbidden": "Nemáš právo smazat tenhle příspěvek (nebo už byl smazaný).",
       "postDeleted": "Post deleted.",
-      "deletePostError": "Failed to delete post.",
-      "deleteCommentError": "Failed to delete comment.",
+      "deletePostError": "Smazání příspěvku selhalo.",
+      "deleteCommentError": "Smazání komentáře selhalo.",
       "deletePost": "Delete",
       "report": "Report",
-      "pending": "Pending approval",
-      "pendingDescription": "Only you can see this until we approve it.",
-      "rejected": "Rejected",
-      "rejectedDescription": "Only you can see this.",
-      "collapse": "Collapse",
-      "expand": "Show full",
-      "playInClips": "Play in nClips",
-      "openPhoto": "Open photo",
-      "openPhotoWithIndex": "Open photo {index}",
-      "showPhoto": "Show photo {index}",
-      "attachment": "Attachment",
-      "attachmentWithIndex": "Attachment {index}",
-      "previousPhoto": "Previous photo",
-      "nextPhoto": "Next photo",
-      "confirmDeleteTitle": "Delete this post?",
-      "confirmDeleteMessage": "This action cannot be undone.",
-      "comments": "Comments ({count})",
-      "addComment": "Add a comment...",
+      "pending": "Waiting for Approval",
+      "pendingDescription": "Vidíš to jen ty, dokud to neschválíme.",
+      "rejected": "Zamítnuto",
+      "rejectedDescription": "Vidíš to jen ty.",
+      "collapse": "Skrýt",
+      "expand": "Zobrazit celé",
+      "playInClips": "Pustit v nClips",
+      "openPhoto": "Otevřít fotku",
+      "openPhotoWithIndex": "Otevřít fotku {index}",
+      "showPhoto": "Zobrazit fotku {index}",
+      "attachment": "Příloha",
+      "attachmentWithIndex": "Příloha {index}",
+      "previousPhoto": "Předchozí fotka",
+      "nextPhoto": "Další fotka",
+      "confirmDeleteTitle": "Opravdu smazat příspěvek?",
+      "confirmDeleteMessage": "Tahle akce nejde vrátit.",
+      "comments": "Komentáře ({count})",
+      "addComment": "Přidej komentář...",
       "noComments": "No comments yet.",
-      "unknownUser": "Unknown user",
-      "deletedComment": "Comment was deleted",
+      "unknownUser": "Unknown User",
+      "deletedComment": "The comment has been deleted",
       "reply": "Reply",
       "cancelReply": "Cancel reply",
-      "replyPlaceholder": "Reply to {name}"
+      "replyPlaceholder": "Odpověď pro {name}"
     },
     "stories": {
-      "now": "now",
+      "now": "just now",
       "minutesAgo": "{count} min",
       "hoursAgo": "{count} h",
-      "dayAgo": "24 h",
-      "expiresNow": "Expiring",
-      "expiresInMinutes": "In {count} min",
-      "expiresInHours": "In {count} h",
-      "myProfile": "My profile",
+      "dayAgo": "24h",
+      "expiresNow": "Expires",
+      "expiresInMinutes": "Za {count} min",
+      "expiresInHours": "Za {count} h",
+      "myProfile": "My Profile",
       "userFallback": "NRW user",
-      "loadError": "Failed to load stories.",
-      "loginRequired": "Sign in before adding a story.",
-      "invalidType": "Story must be an image or a video.",
-      "videoTooLarge": "Video is too large ({size} MB).",
-      "uploadFailed": "Story upload failed: {message}",
-      "saveFailed": "Failed to save story.",
-      "add": "Add story",
-      "empty": "No nStories yet. You can add the first one.",
-      "newTitle": "New nStory",
-      "newDescription": "Just choose media and share it. It disappears after 24 hours.",
-      "previewAlt": "Story preview",
-      "changeMedia": "Change media",
-      "share": "Share story",
-      "previousAria": "Previous story",
-      "nextAria": "Next story"
+      "loadError": "Stories se nepodařilo načíst.",
+      "loginRequired": "Pro přidání story se nejdřív přihlas.",
+      "invalidType": "Story musí být obrázek nebo video.",
+      "videoTooLarge": "Video je moc velké ({size} MB).",
+      "uploadFailed": "Nahrání story selhalo: {message}",
+      "saveFailed": "Story se nepodařilo uložit.",
+      "add": "Přidat story",
+      "empty": "Zatím žádné nStories. První můžeš přidat ty.",
+      "newTitle": "Nová nStory",
+      "newDescription": "Jen vyber médium a sdílej. Zmizí po 24 hodinách.",
+      "previewAlt": "Preview story",
+      "changeMedia": "Změnit médium",
+      "share": "Sdílet story",
+      "previousAria": "Předchozí story",
+      "nextAria": "Další story"
     },
     "widgets": {
       "trending": {
-        "title": "Trending today",
-        "loading": "Loading trends…",
-        "error": "Failed to load trends.",
-        "empty": "No trends yet.",
-        "volume": "Volume {count}"
+        "title": "Trendy dnes",
+        "loading": "Načítám trendy…",
+        "error": "Trendy se nepodařilo načíst.",
+        "empty": "Zatím žádné trendy.",
+        "volume": "Objem {count}"
       },
       "creators": {
-        "title": "Popular creators",
+        "title": "Kdo frčí",
         "follow": "Follow",
         "items": {
-          "natka": "12.4k followers",
-          "lukas": "8.1k followers",
-          "crew": "24k followers"
+          "natka": "12.4k sledujících",
+          "lukas": "8.1k sledujících",
+          "crew": "24k sledujících"
         }
       },
       "rooms": {
         "title": "Rooms",
-        "join": "Join",
-        "listeners": "{count} people listening"
+        "join": "Connect",
+        "listeners": "{count} lidí poslouchá"
       },
       "friendMap": {
-        "title": "Friend map",
-        "livePosition": "{name} · Live location",
-        "mock": "Live friend positions (mock)",
-        "hotspots": "Hotspots: Prague · Brno · Ostrava"
+        "title": "Mapa přátel",
+        "livePosition": "{name} · Live poloha",
+        "mock": "Live pozice přátel (mock)",
+        "hotspots": "Hotspoty: Praha · Brno · Ostrava"
       },
       "inbox": {
         "title": "Inbox",
-        "open": "Open",
+        "open": "Otevřít",
         "items": {
-          "eli": "Sent you a reaction 🔥",
-          "mates": "Invites you to a meetup in Brno",
-          "crew": "New collaborative post"
+          "eli": "Poslala ti reakci 🔥",
+          "mates": "Zve tě na meetup v Brně",
+          "crew": "Nový collaborative post"
         }
       }
     }
   },
   "search": {
-    "eyebrow": "Search",
-    "title": "Search content",
-    "description": "Browse posts, videos, and suggested tips. You will also find recommended posts or messages based on activity here.",
-    "placeholder": "Search posts, videos, or users...",
-    "info": "Search is static for now. Recommended results and suggested messages will appear here later."
+    "eyebrow": "Vyhledávání",
+    "title": "Hledat obsah",
+    "description": "Prohledej příspěvky, videa a navržené tipy. Taky tu najdeš doporučené příspěvky nebo zprávy podle aktivity.",
+    "placeholder": "Hledat příspěvky, videa nebo uživatele...",
+    "info": "Vyhledávání je zatím statické. Doporučené výsledky a navržené zprávy se tu objeví později."
   },
   "clips": {
     "filters": {
       "top": "Top",
-      "forYou": "For you",
-      "following": "Following",
+      "forYou": "Pro tebe",
+      "following": "Sleduješ",
       "new": "New"
     },
-    "loadError": "Failed to load clips.",
-    "untitled": "No caption",
+    "loadError": "Klipy se nepodařilo načíst.",
+    "untitled": "Bez popisku",
     "creatorFallback": "@nrw.clips",
     "vibe": "nClips",
     "overlay": {
       "back": "Back",
-      "loading": "Loading clip…",
-      "loadError": "Failed to load clip.",
-      "notVideo": "This post is not a video clip.",
-      "invalidUrl": "The video does not have a valid URL.",
-      "views": "{count} views",
-      "follow": "Follow",
+      "loading": "Načítám klip…",
+      "loadError": "Klip se nepodařilo načíst.",
+      "notVideo": "Tenhle příspěvek není video klip.",
+      "invalidUrl": "Video nemá platnou URL.",
+      "views": "{count} zhlédnutí",
+      "follow": "Sledovat",
       "shareAria": "Share",
       "saveAria": "Save",
       "moreAria": "More options",
-      "previousAria": "Previous clip",
-      "nextAria": "Next clip",
-      "likeAria": "Like",
-      "unlikeAria": "Remove like",
+      "previousAria": "Předchozí klip",
+      "nextAria": "Další klip",
+      "likeAria": "Dát like",
+      "unlikeAria": "Odebrat like",
       "commentsAria": "Comments",
-      "soundOnAria": "Turn sound on",
-      "soundOffAria": "Turn sound off"
+      "soundOnAria": "Unmute",
+      "soundOffAria": "Mute"
     },
     "mobile": {
-      "loading": "Loading clips…",
-      "empty": "No clips yet.",
+      "loading": "Načítám klipy…",
+      "empty": "Zatím nejsou žádné klipy.",
       "follow": "Follow",
-      "commentsAria": "Open comments",
-      "commentsLabel": "Comments",
-      "shareAria": "Share",
-      "addAria": "Add clip"
+      "commentsAria": "Otevřít komentáře",
+      "commentsLabel": "Komenty",
+      "shareAria": "Sdílet",
+      "addAria": "Přidat klip"
     },
     "desktop": {
-      "title": "Fresh NRW reels",
-      "description": "Short community videos and highlights. Browse it like a feed you would watch between nChat messages: fast, visual, and lively.",
-      "loading": "Loading clips…",
-      "empty": "No clips yet.",
-      "commentsAria": "Open comments",
-      "shareClipAria": "Share clip",
-      "follow": "Follow",
-      "views": "{count} views"
+      "title": "Fresh Reels z NRW",
+      "description": "Krátká videa a highlighty komunity. Projeď to jako feed, co si pustíš mezi zprávami v nChat – rychlé, vizuální a živé.",
+      "loading": "Načítám klipy…",
+      "empty": "Zatím nejsou žádné klipy.",
+      "commentsAria": "Otevřít komentáře",
+      "shareClipAria": "Sdílet klip",
+      "follow": "Sledovat",
+      "views": "{count} zhlédnutí"
     },
     "sidebar": {
-      "flowTitle": "Your flow",
+      "flowTitle": "Tvoje flow",
       "flowBadge": "Mini storyboard",
       "ideaEyebrow": "Idea",
-      "ideaTitle": "What are you filming now?",
-      "ideaBody": "Drop the vibe, the music, and link it to nChat.",
-      "bridgeEyebrow": "Bridge",
-      "bridgeTitle": "Share to nChat",
-      "bridgeBody": "Every clip can be shared to nChat for quick reactions from people you follow.",
-      "soundEyebrow": "Sound of the week",
-      "play": "Play",
-      "trendingTitle": "Trending today"
+      "ideaTitle": "Co teď natáčíš?",
+      "ideaBody": "Vhoď sem vibe, hudbu a linkni nChat.",
+      "bridgeEyebrow": "Spojka",
+      "bridgeTitle": "Sdílej do nChat",
+      "bridgeBody": "Každý klip má share do nChat – rychlé reakce od lidí, co sleduješ.",
+      "soundEyebrow": "Zvuk týdne",
+      "play": "Přehrát",
+      "trendingTitle": "Trendy dnes"
     },
     "trending": {
-      "tr1": "Night ride",
+      "tr1": "Noční ride",
       "tr2": "NRW backstage",
-      "tr3": "Morning coffee",
-      "tr4": "Park meetup"
+      "tr3": "Ranní káva",
+      "tr4": "Sraz v parku"
     }
   },
   "love": {
-    "userFallback": "NRW user",
-    "loadingSetup": "Loading nLove…",
+    "userFallback": "NRW uživatel",
+    "loadingSetup": "Načítám nLove…",
     "onboardingTitle": "nLove onboarding",
-    "onboardingDescription": "Start with your profile and photos, then set preferences, and finally enable nLove.",
-    "closeStatusAria": "Close status message",
-    "closeNoticeAria": "Close notification",
-    "closeMatchesAria": "Close matches",
+    "onboardingDescription": "Nejdřív profil a fotky, pak preference, a nakonec povolit nLove.",
+    "closeStatusAria": "Zavřít stavovou zprávu",
+    "closeNoticeAria": "Zavřít oznámení",
+    "closeMatchesAria": "Zavřít matche",
     "steps": {
-      "profilePhotos": "1. Profile & photos",
-      "preferences": "2. Preferences & enablement"
+      "profilePhotos": "1. Profil & fotky",
+      "preferences": "2. Preference & zapnutí"
     },
     "form": {
-      "name": "Name",
-      "namePlaceholder": "How you want to appear",
-      "age": "Age",
-      "selectAge": "Select age",
+      "name": "Jméno",
+      "namePlaceholder": "Jak se máš zobrazovat",
+      "age": "Věk",
+      "selectAge": "Vyber věk",
       "bio": "Bio",
-      "bioPlaceholder": "Write a few lines about yourself",
-      "photoPreview": "Photo preview",
-      "photoAlt": "Photo {index}",
-      "deletePhotoAria": "Delete photo {index}",
-      "deletePhotoTitle": "Delete photo",
-      "choosePhoto": "Click to select photo {index}",
-      "saveContinue": "Save and continue",
-      "saving": "Saving",
-      "identityTitle": "Your identity",
-      "lookingForTitle": "Who are you looking for",
-      "goalTitle": "What are you looking for",
-      "ageFrom": "Age from",
-      "ageTo": "Age to",
+      "bioPlaceholder": "Napiš pár vět o sobě",
+      "photoPreview": "Náhled fotek",
+      "photoAlt": "Fotka {index}",
+      "deletePhotoAria": "Smazat fotku {index}",
+      "deletePhotoTitle": "Smazat fotku",
+      "choosePhoto": "Klikni pro výběr fotky {index}",
+      "saveContinue": "Uložit a pokračovat",
+      "saving": "Ukládám",
+      "identityTitle": "Tvoje identita",
+      "lookingForTitle": "Koho hledáš",
+      "goalTitle": "Co hledáš",
+      "ageFrom": "Věk od",
+      "ageTo": "Věk do",
       "maxKm": "Max km",
-      "enableProfile": "Enable my profile in nLove (without this I will not appear in the feed)",
-      "enableLocation": "Location sharing turns on automatically after browser permission is granted.",
-      "saveProfile": "Save profile",
-      "finishOnboarding": "Finish onboarding"
+      "enableProfile": "Povolit můj profil v nLove (bez toho nebudu ve feedu)",
+      "enableLocation": "Sdílení polohy je po povolení v prohlížeči automaticky zapnuté.",
+      "saveProfile": "Uložit profil",
+      "finishOnboarding": "Dokončit onboarding"
     },
     "gender": {
-      "woman": "Woman",
-      "man": "Man",
+      "woman": "Žena",
+      "man": "Muž",
       "nonbinary": "Non-binary"
     },
     "lookingFor": {
-      "any": "Anyone",
-      "women": "Women",
-      "men": "Men",
+      "any": "Kdokoliv",
+      "women": "Ženy",
+      "men": "Muže",
       "nonbinary": "Non-binary"
     },
     "goals": {
-      "longTerm": "Long-term relationship",
-      "longTermOpen": "Long-term, openly",
-      "shortTerm": "Short-term",
-      "newFriends": "New friends",
-      "stillFiguringOut": "Still figuring it out"
+      "longTerm": "Vážný vztah",
+      "longTermOpen": "Dlouhodobě, otevřeně",
+      "shortTerm": "Krátkodobě",
+      "newFriends": "Nové přátele",
+      "stillFiguringOut": "Ještě nevím"
     },
-    "headerDescription": "Working swipe feed, live matches, and a handoff into nChat.",
-    "editProfile": "Edit nLove profile",
-    "openMatchesAria": "Open matches",
-    "liveMatchPrefix": "New live match with",
-    "liveMatchFallback": "this user",
-    "liveMatchPrompt": "Open the chat and start the conversation right away.",
-    "openChat": "Open chat",
+    "headerDescription": "Funkční swipe feed, live matche a přechod do nChatu.",
+    "editProfile": "Upravit nLove profil",
+    "openMatchesAria": "Otevřít matche",
+    "liveMatchPrefix": "Nový live match s",
+    "liveMatchFallback": "uživatelem",
+    "liveMatchPrompt": "Otevři chat a navazuj konverzaci hned teď.",
+    "openChat": "Otevřít chat",
     "widgets": {
-      "matches": "Your matches",
-      "feedStatus": "Feed status",
-      "safeSwipe": "Safe swipe"
+      "matches": "Tvoje matche",
+      "feedStatus": "Stav feedu",
+      "safeSwipe": "Bezpečný swipe"
     },
-    "loadingFeed": "Loading nLove feed…",
-    "emptyFeed": "The feed is empty. Try again later or wait for new profiles.",
-    "profileAria": "{name} profile",
+    "loadingFeed": "Načítám nLove feed…",
+    "emptyFeed": "Feed je prázdný. Zkus to později, nebo počkej na nové profily.",
+    "profileAria": "{name} profil",
     "verifiedBadge": "Verified",
     "defaultBadge": "nLove",
-    "priorityBadge": "Super Like priority",
-    "noBio": "No bio added yet.",
-    "possibleMatchNearby": "Possible nearby match",
-    "dislikeAria": "Pass",
-    "superlikeAria": "Super like",
-    "likeAria": "Like",
-    "noMatch": "No matches yet.",
-    "noUsername": "No username",
-    "loadingAction": "Loading",
-    "write": "Write",
-    "loadingFeedStatus": "Loading feed status…",
-    "queueCards": "Cards in queue",
+    "priorityBadge": "Super Like priorita",
+    "noBio": "Žádné bio zatím nepřidal(a).",
+    "possibleMatchNearby": "Možný match v okolí",
+    "dislikeAria": "Nezajímá",
+    "superlikeAria": "Superlike",
+    "likeAria": "Líbí se",
+    "noMatch": "Zatím žádný match.",
+    "noUsername": "Bez username",
+    "loadingAction": "Načítám",
+    "write": "Napsat",
+    "loadingFeedStatus": "Načítám stav feedu…",
+    "queueCards": "Karty ve frontě",
     "safety": {
-      "tip1": "Chat in nChat for a bit before you meet.",
-      "tip2": "Plan your first meeting in a public place.",
-      "tip3": "If something feels off, cancel the match and report the profile."
+      "tip1": "Než se uvidíte, chvíli si pište v nChatu.",
+      "tip2": "První setkání domluv na veřejném místě.",
+      "tip3": "Když něco nesedí, match zruš a nahlas profil."
     },
     "errors": {
-      "signInRequired": "You need to sign in to use nLove.",
-      "locationRequired": "nLove requires location permission.",
-      "feedLoad": "The nLove feed could not be loaded.",
-      "matchesLoad": "The match list could not be loaded.",
-      "settingsLoad": "The nLove settings could not be loaded.",
-      "browserLocation": "nLove needs active browser location access.",
-      "locationTimeout": "Current location could not be loaded in time. Try refreshing it again.",
-      "locationRetry": "Current location could not be obtained right now. Try refreshing it again.",
-      "onboardingAuth": "Sign in to continue nLove onboarding.",
-      "photoUpload": "One of the photos could not be uploaded.",
-      "saveAuth": "Sign in to save nLove settings.",
-      "saveFailed": "Saving nLove settings failed.",
-      "swipeAuth": "Sign in before swiping in nLove.",
-      "actionAuth": "This action requires sign-in.",
-      "swipeLocation": "Active location is required for swiping.",
-      "superlikeCredit": "You need to top up credits for Super Like.",
-      "openChatAuth": "Sign in to open the chat.",
-      "openChatFailed": "The chat could not be opened."
+      "signInRequired": "Pro nLove se musíš přihlásit.",
+      "locationRequired": "Pro nLove je potřeba povolit polohu.",
+      "feedLoad": "nLove feed nejde načíst.",
+      "matchesLoad": "Match list nejde načíst.",
+      "settingsLoad": "Nastavení nLove nejde načíst.",
+      "browserLocation": "nLove potřebuje aktivní polohu z prohlížeče.",
+      "locationTimeout": "Aktuální polohu se nepodařilo načíst včas. Zkus ji obnovit znovu.",
+      "locationRetry": "Aktuální polohu se teď nepodařilo získat. Zkus ji obnovit znovu.",
+      "onboardingAuth": "Pro nLove onboarding se přihlas.",
+      "photoUpload": "Nepodařilo se nahrát jednu z fotek.",
+      "saveAuth": "Pro uložení nLove nastavení se přihlas.",
+      "saveFailed": "Uložení nLove nastavení selhalo.",
+      "swipeAuth": "Pro swipe v nLove se nejdřív přihlas.",
+      "actionAuth": "Tahle akce potřebuje přihlášení.",
+      "swipeLocation": "Pro swipe je potřeba aktivní poloha.",
+      "superlikeCredit": "Pro Super Like je potřeba dobít kredit.",
+      "openChatAuth": "Pro otevření chatu se přihlas.",
+      "openChatFailed": "Nepodařilo se otevřít chat."
     },
     "status": {
-      "profileSaved": "Profile and photos saved. Now set your preferences.",
-      "active": "nLove is active. You can start swiping.",
-      "onboardingSaved": "Onboarding saved. Turn on nLove to start swiping.",
-      "match": "It's a match with {name}."
+      "profileSaved": "Profil a fotky uložené. Nastav preference.",
+      "active": "nLove je aktivní. Můžeš swipeovat.",
+      "onboardingSaved": "Onboarding uložený. Pro swipe zapni nLove.",
+      "match": "Je to match s {name}."
     }
   },
   "nexa": {
-    "defaultLabel": "NEXA AI: quick help",
-    "defaultPrompt": "Ask anything about NRW.",
-    "closeAria": "Close NEXA AI",
-    "you": "You",
-    "ready": "OK, let's do it.",
-    "placeholder": "Write a message to NEXA AI…",
-    "send": "Send",
+    "defaultLabel": "NEXA AI: rychlá nápověda",
+    "defaultPrompt": "Zeptej se na cokoliv z NRW.",
+    "closeAria": "Zavřít NEXA AI",
+    "you": "Ty",
+    "ready": "OK, pojď na to.",
+    "placeholder": "Napiš zprávu NEXA AI…",
+    "send": "Poslat",
     "contexts": {
       "real": {
-        "message": "NEXA: trend scout for nReal",
-        "prompt": "Recap the top 3 nReal moments."
+        "message": "NEXA: trend scout pro nReal",
+        "prompt": "Zrekapituluj top 3 nReal momenty."
       },
       "news": {
-        "message": "NEXA: summarizes today's nNews",
-        "prompt": "Summarize today's NRW News in 2 sentences."
+        "message": "NEXA: shrne dnešní nNews",
+        "prompt": "Shrň dnešní NRW News do 2 vět."
       },
       "love": {
-        "message": "NEXA: helps with superlike copy",
-        "prompt": "Suggest a superlike message."
+        "message": "NEXA: pomůže se superlike copy",
+        "prompt": "Navrhni superlike message."
       },
       "clips": {
-        "message": "NEXA: suggests music for nClips",
-        "prompt": "Come up with music and a caption for a clip."
+        "message": "NEXA: tipne hudbu k nClips",
+        "prompt": "Vymysli hudbu a popisek pro klip."
       },
       "chat": {
-        "message": "NEXA: suggests a chat reply",
-        "prompt": "What should I reply to Natka about the meetup?"
+        "message": "NEXA: navrhne odpověď v chatu",
+        "prompt": "Co odpovědět Natce na meetup?"
       },
       "id": {
-        "message": "NEXA: polishes your nID bio",
-        "prompt": "Improve the bio for nrw.id."
+        "message": "NEXA: doladí bio na nID",
+        "prompt": "Vylepši bio pro nrw.id."
       }
     }
   },
   "profileBadge": {
-    "userFallback": "User",
-    "buttonAria": "Your profile",
-    "avatarAlt": "Profile photo",
-    "openProfile": "Open profile"
+    "userFallback": "Uživatel",
+    "buttonAria": "Tvůj profil",
+    "avatarAlt": "Profilová fotka",
+    "openProfile": "Zobrazit profil"
   },
   "announcements": {
     "labels": {
-      "info": "Info",
-      "warn": "Warning",
-      "urgent": "Urgent"
+      "info": "Informace",
+      "warn": "Upozornění",
+      "urgent": "Urgentní"
     },
-    "eyebrow": "Announcement",
-    "titleFallback": "Announcement",
-    "closeAria": "Close",
-    "linkTitle": "Announcement link",
-    "openLinkFallback": "Open link"
+    "eyebrow": "Oznámení",
+    "titleFallback": "Oznámení",
+    "closeAria": "Zavřít",
+    "linkTitle": "Odkaz k oznámení",
+    "openLinkFallback": "Otevřít odkaz"
   },
   "support": {
-    "title": "Support",
-    "eyebrow": "Help center",
-    "description": "Write to us, we're happy to help.",
-    "chatDescription": "nChat-style conversation with the support team.",
-    "backAria": "Back",
+    "title": "Podpora",
+    "eyebrow": "Centrum pomoci",
+    "description": "Napište nám, rádi pomůžeme.",
+    "chatDescription": "nChat styl konverzace s týmem podpory.",
+    "backAria": "Zpět",
     "chatTitle": "Support chat",
-    "threadClosed": "Closed conversation",
-    "threadOpen": "Open thread",
-    "closeChat": "Close chat",
-    "noMessages": "No messages yet.",
-    "you": "You",
-    "supportTeam": "Support",
-    "loadingThread": "Loading support thread…",
-    "messagePlaceholder": "Write a message…",
-    "sendError": "Sending failed.",
-    "contactTitle": "Contact",
-    "contactText": "support@nrw.app or the in-app support chat. We reply as soon as we can.",
-    "openSupportChat": "Open support chat",
-    "reportIssueTitle": "Report an issue",
-    "reportIssueText": "Tell us what isn't working or what you'd like improved. It helps us fix it.",
-    "sendReport": "Send report",
+    "threadClosed": "Uzavřená konverzace",
+    "threadOpen": "Otevřené vlákno",
+    "closeChat": "Zavřít chat",
+    "noMessages": "Zatím žádné zprávy.",
+    "you": "Ty",
+    "supportTeam": "Podpora",
+    "loadingThread": "Načítám vlákno podpory…",
+    "messagePlaceholder": "Napište zprávu…",
+    "sendError": "Odeslání selhalo.",
+    "contactTitle": "Kontakt",
+    "contactText": "support@nrw.app nebo in-app chat s podporou. Reagujeme co nejdřív.",
+    "openSupportChat": "Otevřít chat s podporou",
+    "reportIssueTitle": "Nahlásit problém",
+    "reportIssueText": "Napiš, co nefunguje nebo co bys chtěl vylepšit. Pomůžeš nám to opravit.",
+    "sendReport": "Odeslat hlášení",
     "faqTitle": "FAQ"
   },
   "create": {
-    "contentTypeLabel": "Content type",
+    "contentTypeLabel": "Typ obsahu",
     "contentType": {
       "text": "Text",
-      "photo": "Photo",
+      "photo": "Foto",
       "video": "Video"
     },
-    "bodyLabel": "Content",
-    "bodyPlaceholder": "Write what you want to share...",
-    "addMore": "Add more",
-    "uploadMedia": "Upload photo/video",
-    "remove": "Remove",
-    "preview": "Preview",
-    "saveDraft": "Save draft",
-    "publishing": "Publishing…",
-    "publish": "Publish",
-    "previewAlt": "Preview {index}"
+    "bodyLabel": "Obsah",
+    "bodyPlaceholder": "Napiš, co chceš sdílet...",
+    "addMore": "Přidat další",
+    "uploadMedia": "Nahrát fotku/video",
+    "remove": "Odebrat",
+    "preview": "Náhled",
+    "saveDraft": "Uložit koncept",
+    "publishing": "Publikuji…",
+    "publish": "Publikovat",
+    "previewAlt": "Náhled {index}"
   },
   "logout": {
-    "title": "Sign out",
-    "description": "Click below to sign out of your account and return to sign in.",
-    "loading": "Signing out…"
+    "title": "Odhlášení",
+    "description": "Kliknutím se odhlásíš z účtu a vrátíš se na přihlášení.",
+    "loading": "Odhlasuji…"
   },
   "settings": {
-    "title": "Settings",
-    "editProfile": "Edit profile",
-    "description": "Switch sections on the left and update your NRW account. Profile and nLove are saved in the app, other preferences are ready and stored locally in the browser.",
-    "mobileDescription": "Switch sections and update your NRW account. Profile and nLove are saved in the app, other preferences are ready and stored locally in the browser.",
-    "support": "Support",
-    "privacy": "Privacy Policy",
-    "terms": "Terms of Service",
+    "title": "Nastavení",
+    "editProfile": "Upravit profil",
+    "description": "Přepínej sekce vlevo a uprav svůj NRW účet. Profil a nLove se ukládají do aplikace, ostatní preference jsou připravené a ukládají se lokálně v prohlížeči.",
+    "mobileDescription": "Přepínej sekce a uprav svůj NRW účet. Profil a nLove se ukládají do aplikace, ostatní preference jsou připravené a ukládají se lokálně v prohlížeči.",
+    "support": "Podpora",
+    "privacy": "Ochrana soukromí",
+    "terms": "Smluvní podmínky",
     "nav": {
-      "usage": "How you use NRW",
-      "audience": "Who sees your content",
-      "communication": "How others reach you",
-      "securitySection": "Security and account",
-      "profile": "Edit profile",
-      "love": "nLove profile",
-      "appearance": "Appearance",
-      "notifications": "Notifications",
-      "pro": "Pro account and brands",
-      "creator": "Creator tools",
-      "privacy": "Account privacy",
-      "closeFriends": "Close friends",
-      "blocked": "Blocked accounts",
-      "story": "Story and location",
-      "messages": "Messages and requests",
-      "tags": "Tags and mentions",
-      "comments": "Comments",
-      "security": "Security",
-      "verification": "Verification",
-      "subscription": "NRW+ subscription"
+      "usage": "Jak používáš NRW",
+      "audience": "Kdo vidí tvůj obsah",
+      "communication": "Jak s tebou mluví ostatní",
+      "securitySection": "Zabezpečení a účet",
+      "profile": "Upravit profil",
+      "love": "nLove profil",
+      "appearance": "Vzhled",
+      "notifications": "Upozornění",
+      "pro": "Pro účet a značky",
+      "creator": "Nástroje tvůrců",
+      "privacy": "Soukromí účtu",
+      "closeFriends": "Blízcí přátelé",
+      "blocked": "Blokovaní",
+      "story": "Příběh a lokalita",
+      "messages": "Zprávy a žádosti",
+      "tags": "Označení a zmínky",
+      "comments": "Komentáře",
+      "security": "Bezpečnost",
+      "verification": "Ověření účtu",
+      "subscription": "Předplatné NRW+"
     },
     "profile": {
-      "verifiedProfile": "Verified profile",
-      "unverified": "Not verified",
-      "yourNameHandle": "your_name",
-      "nameFallback": "Name",
-      "usernameLabel": "Username",
-      "nameLabel": "Name",
-      "namePlaceholder": "Your full name",
-      "webLabel": "Website",
-      "webDescription": "This link is only stored in this browser until we add backend support for it.",
-      "bioLabel": "Bio",
-      "bioDescription": "Short profile description. The preview is used in NRW and nID.",
-      "bioPlaceholder": "Tell people who you are…",
-      "suggestionsToggle": "Show account suggestions on profiles",
-      "avatarLoadError": "Failed to load image",
-      "saveError": "Save failed.",
-      "saved": "Profile saved."
+      "verifiedProfile": "Ověřený profil",
+      "unverified": "Neověřeno",
+      "yourNameHandle": "tvoje_jmeno",
+      "nameFallback": "Jméno",
+      "usernameLabel": "Uživatelské jméno",
+      "nameLabel": "Jméno",
+      "namePlaceholder": "Tvoje celé jméno",
+      "webLabel": "Web",
+      "webDescription": "Odkaz se ukládá jen v tomto prohlížeči, dokud pro něj nedoplníme backend.",
+      "bioLabel": "Životopis",
+      "bioDescription": "Krátký popis profilu. Náhled se propíše do NRW a nID.",
+      "bioPlaceholder": "Řekni, kdo jsi…",
+      "suggestionsToggle": "Zobrazovat návrhy účtů na profilech",
+      "avatarLoadError": "Nepodařilo se načíst fotku",
+      "saveError": "Uložení se nepovedlo.",
+      "saved": "Profil uložen."
     },
     "appearance": {
-      "title": "App appearance",
-      "description": "Choose whether NRW should look light or dark.",
-      "languageTitle": "App language",
-      "languageDescription": "Switch the full interface between Czech and English.",
-      "system": "Match device",
-      "systemDescription": "Uses your system preference.",
-      "light": "Light mode",
-      "lightDescription": "Always use the light theme.",
-      "dark": "Dark mode",
-      "darkDescription": "Always use the dark theme."
+      "title": "Vzhled aplikace",
+      "description": "Vyber, jestli má být NRW světlé nebo tmavé.",
+      "languageTitle": "Jazyk aplikace",
+      "languageDescription": "Přepni celý interface do češtiny nebo angličtiny.",
+      "system": "Podle zařízení",
+      "systemDescription": "Respektuje systémové nastavení.",
+      "light": "Světlý režim",
+      "lightDescription": "Vždy světlý vzhled.",
+      "dark": "Tmavý režim",
+      "darkDescription": "Vždy tmavý vzhled."
     }
   },
   "chat": {
     "title": "nChat",
-    "description": "Quick messages, rooms, and reactions.",
-    "today": "today",
-    "yesterday": "yesterday",
-    "authRequired": "Sign in to use nChat.",
+    "description": "Rychlé zprávy, rooms i reakce.",
+    "today": "dnes",
+    "yesterday": "včera",
+    "authRequired": "Přihlaste se pro nChat.",
     "profileFallback": "nChat",
     "directChat": "Direct chat",
     "sidebar": {
-      "eyebrow": "Chats",
-      "inbox": "Your main inbox",
-      "searchPlaceholder": "Search people or threads",
-      "newChatAria": "New chat"
+      "eyebrow": "Chaty",
+      "inbox": "Tvůj hlavní inbox",
+      "searchPlaceholder": "Hledej lidi nebo vlákna",
+      "newChatAria": "Nový chat"
     },
     "emptyState": {
-      "title": "Your messages",
-      "description": "Send private photos and messages to a friend or a group.",
-      "cta": "Send message"
+      "title": "Vaše zprávy",
+      "description": "Pošlete příteli nebo skupině soukromé fotky a zprávy.",
+      "cta": "Odeslat zprávu"
     },
     "threadList": {
-      "startNew": "Start a new chat."
+      "startNew": "Začni nový chat."
     },
     "header": {
       "online": "Online",
-      "backAria": "Back to chats",
-      "infoAria": "Chat info"
+      "backAria": "Zpět na chaty",
+      "infoAria": "Info o chatu"
     },
     "info": {
-      "title": "Chat info",
-      "sharedMedia": "Shared media",
-      "noPhotos": "No photos yet.",
-      "actions": "Actions",
-      "blockSoon": "Block account (coming soon)",
-      "reportSoon": "Report account (coming soon)"
+      "title": "Info o chatu",
+      "sharedMedia": "Sdílená média",
+      "noPhotos": "Zatím žádné fotky.",
+      "actions": "Akce",
+      "blockSoon": "Zablokovat účet (připravujeme)",
+      "reportSoon": "Nahlásit účet (připravujeme)"
     },
     "new": {
-      "title": "New chat",
-      "searchPlaceholder": "Search users",
-      "searching": "Searching…",
-      "enterQuery": "Enter a name or username.",
-      "noResults": "No results.",
-      "opening": "Opening…"
+      "title": "Nový chat",
+      "searchPlaceholder": "Vyhledat uživatele",
+      "searching": "Hledám…",
+      "enterQuery": "Zadej jméno nebo username.",
+      "noResults": "Žádné výsledky.",
+      "opening": "Otevírám…"
     },
     "thread": {
-      "unknownTime": "unknown time",
-      "justNow": "just now",
-      "minutesAgo": "{count} min ago",
-      "hoursAgo": "{count} h ago",
-      "todayLabel": "Today",
-      "yesterdayLabel": "Yesterday",
-      "userFallback": "User",
-      "you": "You",
-      "signInFirst": "Sign in first.",
-      "alreadyReported": "You have already reported this message.",
-      "reportSuccess": "The message was reported. Thank you.",
-      "reportError": "Reporting failed. Please try again.",
-      "empty": "No messages yet.",
-      "readAt": "Read {time}",
-      "read": "Read",
-      "menuAria": "Message menu",
-      "reportMessage": "Report message",
-      "messagePlaceholder": "Write a message…",
-      "reportTitle": "Report message",
-      "reasonLabel": "Reason",
-      "detailsLabel": "Details (optional)",
-      "detailsPlaceholder": "Add more details…",
-      "submitReport": "Send report",
+      "unknownTime": "neznámý čas",
+      "justNow": "před chvílí",
+      "minutesAgo": "před {count} min",
+      "hoursAgo": "před {count} h",
+      "todayLabel": "Dnes",
+      "yesterdayLabel": "Včera",
+      "userFallback": "Uživatel",
+      "you": "Ty",
+      "signInFirst": "Nejprve se přihlaste.",
+      "alreadyReported": "Tuto zprávu už máte nahlášenou.",
+      "reportSuccess": "Zpráva byla nahlášena. Děkujeme.",
+      "reportError": "Nahlášení se nepovedlo. Zkuste to prosím znovu.",
+      "empty": "Zatím žádné zprávy.",
+      "readAt": "Přečteno {time}",
+      "read": "Přečteno",
+      "menuAria": "Menu zprávy",
+      "reportMessage": "Nahlásit zprávu",
+      "messagePlaceholder": "Napište zprávu…",
+      "reportTitle": "Nahlásit zprávu",
+      "reasonLabel": "Důvod",
+      "detailsLabel": "Popis (volitelné)",
+      "detailsPlaceholder": "Doplňte podrobnosti…",
+      "submitReport": "Odeslat hlášení",
       "reasons": {
-        "harassment": "Harassment",
+        "harassment": "Obtěžování / harassment",
         "spam": "Spam",
-        "sexual": "Sexual content",
-        "violence": "Violence",
-        "other": "Other"
+        "sexual": "Sexuální obsah",
+        "violence": "Násilí",
+        "other": "Jiné"
       }
     }
   },
   "idProfile": {
-    "userFallback": "User",
-    "bioEmpty": "You haven't set a bio yet.",
-    "loadingProfile": "Loading profile…",
-    "verifiedProfile": "Verified profile",
-    "unverifiedProfile": "Unverified profile",
-    "unverifiedShort": "Not verified",
-    "postsLoadError": "Failed to load posts.",
-    "uploadPhotoError": "Failed to upload photo.",
-    "bioBlocked": "Bio contains blocked text.",
-    "saveError": "Failed to save profile.",
-    "saved": "Profile saved.",
-    "changePhoto": "Change",
-    "verificationInfoTitle": "Verified profile",
-    "verificationInfoBody": "Identity confirmed in nID. You get priority protection and a trusted badge on your content.",
-    "followers": "{count} followers",
-    "following": "{count} following",
-    "posts": "{count} posts",
-    "editProfile": "Edit profile",
-    "shareProfile": "Share profile",
+    "userFallback": "Uživatel",
+    "bioEmpty": "Ještě sis nenastavil bio.",
+    "loadingProfile": "Načítám profil…",
+    "verifiedProfile": "Ověřený profil",
+    "unverifiedProfile": "Neověřený profil",
+    "unverifiedShort": "Neověřeno",
+    "postsLoadError": "Nepodařilo se načíst příspěvky.",
+    "uploadPhotoError": "Nepodařilo se nahrát fotku.",
+    "bioBlocked": "Životopis obsahuje nevhodný text.",
+    "saveError": "Profil se nepodařilo uložit.",
+    "saved": "Profil uložen.",
+    "changePhoto": "Změnit",
+    "verificationInfoTitle": "Ověřený profil",
+    "verificationInfoBody": "Identita potvrzená v nID. Dostáváš prioritní ochranu a důvěryhodný štítek u obsahu.",
+    "followers": "{count} sledujících",
+    "following": "{count} sleduje",
+    "posts": "{count} postů",
+    "editProfile": "Upravit profil",
+    "shareProfile": "Sdílet profil",
     "editCard": {
-      "title": "Edit profile",
-      "description": "Bio and profile photo",
+      "title": "Upravit profil",
+      "description": "Bio a fotka profilu",
       "bioLabel": "Bio",
-      "bioPlaceholder": "Write something about yourself...",
-      "photoLabel": "Profile photo",
-      "photoHint": "Click the avatar above to change it",
-      "close": "Close",
-      "save": "Save profile"
+      "bioPlaceholder": "Napiš něco o sobě...",
+      "photoLabel": "Fotka profilu",
+      "photoHint": "Klikni na avatar nahoře pro změnu",
+      "close": "Zavřít",
+      "save": "Uložit profil"
     },
     "cropper": {
-      "title": "Edit photo",
-      "description": "Zoom, move, and save the crop.",
+      "title": "Upravit fotku",
+      "description": "Přibliž, posuň, ulož ořez.",
       "previewAlt": "Crop preview",
       "zoom": "Zoom",
-      "dragHint": "You can drag the photo with your mouse or finger.",
+      "dragHint": "Fotku můžeš chytit a posunout myší/prstem.",
       "reset": "Reset",
-      "saveCrop": "Save crop"
+      "saveCrop": "Uložit ořez"
     },
     "sections": {
-      "shortPosts": "Short posts",
-      "hide": "Hide",
-      "showAll": "Show all",
-      "postsLoadErrorPrefix": "Failed to load posts:",
-      "loadingPosts": "Loading posts…",
-      "noPosts": "No posts yet.",
-      "reelsSoon": "Clips will appear soon.",
-      "tagsSoon": "Tagged posts will appear soon.",
-      "threadsSoon": "Threads will appear soon."
+      "shortPosts": "Krátké posty",
+      "hide": "Skrýt",
+      "showAll": "Zobrazit všechno",
+      "postsLoadErrorPrefix": "Nepodařilo se načíst příspěvky:",
+      "loadingPosts": "Načítám příspěvky…",
+      "noPosts": "Zatím žádné příspěvky.",
+      "reelsSoon": "Klipy se zobrazí brzy.",
+      "tagsSoon": "Označené příspěvky se zobrazí brzy.",
+      "threadsSoon": "Vlákna se zobrazí brzy."
     },
     "widgets": {
       "highlights": "Highlights",
-      "trendingTopics": "Trending topics",
-      "sharedInterests": "Shared interests",
-      "links": "Links",
+      "trendingTopics": "Trending témata",
+      "sharedInterests": "Společné zájmy",
+      "links": "Linky",
       "highlightAdd": "+ Highlight",
-      "photoGrid": "Photo grid",
-      "archive": "Archive",
-      "play": "Play",
-      "follow": "Follow",
-      "open": "Open"
+      "photoGrid": "Foto grid",
+      "archive": "Archiv",
+      "play": "Přehrát",
+      "follow": "Sledovat",
+      "open": "Otevřít"
     },
     "tabs": {
-      "posts": "Posts",
-      "reels": "Clips",
-      "tags": "Tagged",
-      "threads": "Threads"
+      "posts": "Příspěvky",
+      "reels": "Klipy",
+      "tags": "Označení",
+      "threads": "Vlákna"
     },
     "highlightsData": {
-      "letnaMeta": "12k views",
-      "meetupMeta": "9.2k views",
-      "studioMeta": "7.4k views"
+      "letnaMeta": "12k zhlédnutí",
+      "meetupMeta": "9.2k zhlédnutí",
+      "studioMeta": "7.4k zhlédnutí"
     },
     "topicsData": {
-      "real": "1.2k tweets",
-      "rooms": "620 tweets"
+      "real": "1.2k tweetů",
+      "rooms": "620 tweetů"
     },
     "public": {
-      "followSuccess": "You are now following this user.",
-      "unfollowSuccess": "You unfollowed this user.",
-      "actionError": "Action failed. Please try again.",
-      "notFound": "Profile not found.",
-      "profileUnavailableTitle": "This account has been deleted or deactivated",
-      "profileUnavailableShort": "This profile is not publicly available.",
-      "profileUnavailableBody": "This account has been deleted or deactivated. Profile content is unavailable.",
-      "message": "Message",
-      "openChatError": "Failed to open chat.",
-      "following": "Following",
-      "follow": "Follow",
-      "signIn": "Sign in"
+      "followSuccess": "Sleduješ uživatele.",
+      "unfollowSuccess": "Přestal(a) jsi sledovat.",
+      "actionError": "Akce se nepovedla. Zkus to prosím znovu.",
+      "notFound": "Profil nenalezen.",
+      "profileUnavailableTitle": "Tento účet byl smazán nebo deaktivován",
+      "profileUnavailableShort": "Profil není veřejně dostupný.",
+      "profileUnavailableBody": "Tento účet byl smazán nebo deaktivován. Obsah profilu není dostupný.",
+      "message": "Napsat zprávu",
+      "openChatError": "Nepodařilo se otevřít chat.",
+      "following": "Sleduji",
+      "follow": "Sledovat",
+      "signIn": "Přihlásit se"
     }
   },
   "notFound": {
-    "title": "Page not found",
-    "description": "Try going back home. This page is probably no longer here.",
-    "backHome": "Back to Home"
+    "title": "Stránka nenalezena",
+    "description": "Zkus se vrátit zpět na Home. Tahle stránka už tady nejspíš není.",
+    "backHome": "Zpět na Home"
   }
 }
