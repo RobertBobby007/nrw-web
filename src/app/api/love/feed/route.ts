@@ -147,7 +147,7 @@ export async function GET() {
     .map((candidate) => {
       const profile = profilesById.get(candidate.user_id);
       const location = locationsById.get(candidate.user_id);
-      if (!profile || !location || !isLocationFresh(location)) return null;
+      if (!profile || !location) return null;
 
       const viewerToCandidate = preferenceAllows(viewerSettings?.looking_for ?? [], candidate.gender_identity);
       const candidateToViewer = preferenceAllows(candidate.looking_for ?? [], viewerSettings?.gender_identity ?? null);

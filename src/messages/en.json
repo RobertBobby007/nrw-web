@@ -699,6 +699,11 @@
       "active": "nLove je aktivní. Můžeš swipeovat.",
       "onboardingSaved": "Onboarding uložený. Pro swipe zapni nLove.",
       "match": "Je to match s {name}."
+    },
+    "actions": {
+      "pass": "Pass",
+      "superlike": "Super Like",
+      "like": "Like"
     }
   },
   "nexa": {

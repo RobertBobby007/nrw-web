@@ -125,8 +125,8 @@ export async function GET() {
       if (!profile) return null;
       const photos = photosById.get(otherUserId) ?? [];
       const otherLocation = locationsById.get(otherUserId);
-      const hasFreshBoth = Boolean(viewerLocation && otherLocation && isLocationFresh(viewerLocation) && isLocationFresh(otherLocation));
-      const distanceKm = hasFreshBoth
+      const hasViewerLocation = Boolean(viewerLocation && isLocationFresh(viewerLocation));
+      const distanceKm = hasViewerLocation && otherLocation
         ? Math.round(computeDistanceKm(viewerLocation!, otherLocation!) * 10) / 10
         : null;
 
