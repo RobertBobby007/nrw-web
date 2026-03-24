@@ -1393,8 +1393,8 @@ export default function LovePage() {
   }
 
   return (
-    <main className="h-[calc(100dvh-80px)] min-h-[calc(100svh-80px)] overflow-hidden overscroll-none bg-gradient-to-b from-rose-50 via-white to-amber-50 lg:h-screen">
-      <section className="mx-auto flex h-full max-w-6xl min-h-0 flex-col px-4 py-6 lg:py-14 lg:px-8 xl:px-10">
+    <main className="h-[calc(100dvh-80px)] min-h-[calc(100svh-80px)] overflow-y-auto overscroll-none bg-gradient-to-b from-rose-50 via-white to-amber-50 pb-[calc(env(safe-area-inset-bottom)+170px)] lg:h-screen lg:overflow-hidden lg:pb-0">
+      <section className="mx-auto flex h-full max-w-6xl min-h-0 flex-col px-4 py-6 lg:px-8 lg:py-14 xl:px-10">
         <header className="flex flex-col gap-2">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -1408,7 +1408,7 @@ export default function LovePage() {
                   setEditorOpen(true);
                   setSettingsStep(1);
                 }}
-                className="rounded-full border border-neutral-200 bg-white px-4 py-2 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50"
+                className="max-w-[9.5rem] rounded-full border border-neutral-200 bg-white px-3 py-2 text-[11px] font-semibold leading-tight text-neutral-700 transition hover:bg-neutral-50 sm:max-w-none sm:px-4 sm:text-xs"
               >
                 {t("love.editProfile")}
               </button>
@@ -1430,7 +1430,7 @@ export default function LovePage() {
         </header>
 
         <div className="mt-6 grid flex-1 min-h-0 gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-4 min-h-0 overflow-hidden lg:overflow-y-auto lg:pr-2">
+          <div className="space-y-4 min-h-0 overflow-visible lg:overflow-y-auto lg:pr-2">
             {error ? (
               <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                 {error}
@@ -1647,31 +1647,34 @@ function SwipeControls({
 }) {
   const t = useTranslations();
   return (
-    <div className="rounded-2xl border border-neutral-200 bg-white/90 px-4 py-3 shadow-sm backdrop-blur">
-      <div className="flex items-center justify-center gap-4">
+    <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+84px)] z-40 mx-auto w-[calc(100vw-2rem)] max-w-[430px] rounded-[28px] border border-neutral-200 bg-white/92 px-4 py-3 shadow-[0_20px_45px_-28px_rgba(0,0,0,0.45)] backdrop-blur lg:static lg:bottom-auto lg:mx-0 lg:w-auto lg:max-w-none lg:rounded-2xl lg:shadow-sm">
+      <div className="grid grid-cols-3 gap-3">
         <button
           onClick={() => onAction("pass")}
           disabled={disabled}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-rose-500 ring-1 ring-rose-100 transition hover:-translate-y-[2px] hover:bg-rose-50 hover:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-2xl bg-white text-rose-500 ring-1 ring-rose-100 transition hover:-translate-y-[2px] hover:bg-rose-50 hover:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-40"
           aria-label={t("love.dislikeAria")}
         >
           <X className="h-6 w-6" />
+          <span className="text-[11px] font-semibold">{t("love.actions.pass")}</span>
         </button>
         <button
           onClick={() => onAction("superlike")}
           disabled={disabled}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-sky-500 ring-1 ring-sky-100 transition hover:-translate-y-[2px] hover:bg-sky-50 hover:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-2xl bg-white text-sky-500 ring-1 ring-sky-100 transition hover:-translate-y-[2px] hover:bg-sky-50 hover:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-40"
           aria-label={t("love.superlikeAria")}
         >
           <Star className="h-6 w-6" />
+          <span className="text-[11px] font-semibold">{t("love.actions.superlike")}</span>
         </button>
         <button
           onClick={() => onAction("like")}
           disabled={disabled}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-emerald-500 ring-1 ring-emerald-100 transition hover:-translate-y-[2px] hover:bg-emerald-50 hover:ring-emerald-200 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex min-h-[72px] flex-col items-center justify-center gap-1.5 rounded-2xl bg-white text-emerald-500 ring-1 ring-emerald-100 transition hover:-translate-y-[2px] hover:bg-emerald-50 hover:ring-emerald-200 disabled:cursor-not-allowed disabled:opacity-40"
           aria-label={t("love.likeAria")}
         >
           <Heart className="h-6 w-6" />
+          <span className="text-[11px] font-semibold">{t("love.actions.like")}</span>
         </button>
       </div>
     </div>

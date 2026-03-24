@@ -6,5 +6,12 @@
       "en": "Angličtina",
       "sk": "Slovenčina"
     }
+  },
+  "love": {
+    "actions": {
+      "pass": "Pass",
+      "superlike": "Super Like",
+      "like": "Like"
+    }
   }
 }
