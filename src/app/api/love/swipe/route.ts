@@ -162,7 +162,7 @@ export async function POST(request: Request) {
   if (!isLoveEnabled(targetLoveSettings)) {
     return NextResponse.json({ error: "target_not_available" }, { status: 404 });
   }
-  if (!targetLocation || !isLocationFresh(targetLocation)) {
+  if (!targetLocation) {
     return NextResponse.json({ error: "target_not_available" }, { status: 404 });
   }
 
