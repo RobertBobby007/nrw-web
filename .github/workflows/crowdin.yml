@@ -23,6 +23,8 @@ jobs:
       - name: Synchronize with Crowdin
         uses: crowdin/github-action@v2
         with:
+          project_id: ${{ secrets.CROWDIN_PROJECT_ID }}
+          token: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
           source: src/messages/cs.json
           translation: src/messages/%two_letters_code%.json
           base_path: .
