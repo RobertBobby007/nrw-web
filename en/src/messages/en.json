@@ -1,17 +1,17 @@
 {
   "common": {
-    "language": "Jazyk",
+    "language": "Language",
     "actions": {
-      "back": "Zpět",
-      "close": "Zavřít",
-      "cancel": "Zrušit",
-      "save": "Uložit",
-      "saveChanges": "Uložit změny",
-      "saving": "Ukládám…",
-      "send": "Odeslat",
-      "open": "Otevřít",
-      "openOutside": "Otevřít venku",
-      "signIn": "Přihlásit se",
+      "back": "Back",
+      "close": "Close",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saveChanges": "Save changes",
+      "saving": "Saving…",
+      "send": "Send",
+      "open": "Open",
+      "openOutside": "Open externally",
+      "signIn": "Sign in",
       "signOut": "Odhlásit se",
       "changePhoto": "Změnit fotku",
       "saveCrop": "Uložit ořez"
